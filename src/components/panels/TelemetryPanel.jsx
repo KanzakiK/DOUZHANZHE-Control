@@ -20,7 +20,7 @@ export default function TelemetryPanel({ telemetry, setTelemetry, settings, setS
     : [];
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
+    <>
       <div className="space-y-4">
         <Card title="CPU 监控" className="!p-5">
           <div className="space-y-3">

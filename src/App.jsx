@@ -47,16 +47,12 @@ export default function App() {
         </aside>
         <main className="grid grid-rows-[1fr_auto] gap-4">
           {activeTab === "dashboard" && (
-          <section className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-start">
-            <div className="xl:col-span-2">
+          <section className="columns-1 md:columns-2 lg:columns-3 gap-4 space-y-4 [column-fill:balance]">
               <TelemetryPanel telemetry={telemetry} setTelemetry={setTelemetry} settings={settings} setSettings={setSettings}
                 uxtuPayload={uxtuPayload} fanLargeRpmTarget={fanLargeRpmTarget} fanSmallRpmTarget={fanSmallRpmTarget}
                 setFanLargeRpmTarget={setFanLargeRpmTarget} setFanSmallRpmTarget={setFanSmallRpmTarget} history={history} />
-            </div>
-            <div className="xl:col-span-1 space-y-4">
               <PerformancePanel settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} uxtuPayload={uxtuPayload} />
-              <SettingsPanel settings={settings} setSettings={setSettings} uxtuPayload={uxtuPayload} showSwitches={false} showKeyboard={false} showSummary={false} />
-            </div>
+              <SettingsPanel settings={settings} setSettings={setSettings} uxtuPayload={uxtuPayload} />
           </section>
           )}
           {activeTab === "system" && <SystemInfoPanel />}
