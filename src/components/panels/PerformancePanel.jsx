@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { applyUxtuLimits, fetchSmuInfo } from "../../services/uxtuAdapter";
 import Card from "../ui/Card";
 import SliderRow from "../ui/SliderRow";
@@ -16,6 +16,7 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
   const [applyMessage, setApplyMessage] = useState("");
   const [smuInfo, setSmuInfo] = useState(null);
   const [smuError, setSmuError] = useState(false);
+  const presetRef = useRef(true); // 首次挂载/切换模式时不触发自动切 custom
 
   useEffect(() => {
     fetchSmuInfo()
@@ -29,7 +30,20 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
       });
   }, []);
 
-  const update = (key) => (value) => setUxtuParams((p) => ({ ...p, [key]: value }));
+  // 模式切换后短暂锁定，避免覆盖用户手动调整
+  useEffect(() => {
+    presetRef.current = true;
+    const t = setTimeout(() => { presetRef.current = false; }, 200);
+    return () => clearTimeout(t);
+  }, [settings.mode]);
+
+  const update = useCallback((key) => (value) => {
+    setUxtuParams((p) => ({ ...p, [key]: value }));
+    // 用户手动改参数 → 自动切到自定义模式
+    if (!presetRef.current && settings.mode !== "custom") {
+      setSettings((prev) => ({ ...prev, mode: "custom" }));
+    }
+  }, [settings.mode, setSettings, setUxtuParams]);
 
   async function handleApply() {
     setIsApplying(true); setApplyMessage("");
@@ -46,15 +60,8 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
   }
 
   return (
-    <div className="space-y-3">
-      <Card title="CPU 调节" className="!p-3"
-        action={
-          <button onClick={handleApply} disabled={isApplying}
-            className="text-xs md:text-sm px-3 py-1.5 rounded-lg disabled:opacity-70"
-            style={{ border: "1px solid var(--border)", background: "var(--primary-2)" }}
-          >{isApplying ? "应用中..." : "应用参数"}</button>
-        }
-      >
+    <div className="space-y-3 relative">
+      <Card title="CPU 调节" className="!p-3">
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <input type="checkbox" checked={uxtuParams.cpuFreqLimitEnabled}
@@ -102,9 +109,6 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
           <SliderRow label="短时功耗" value={uxtuParams.cpuShortPptW}
             min={15} max={180} unit="W" onChange={update("cpuShortPptW")} />
         </div>
-        <p className="text-xs mt-3" style={{ color: "var(--muted)" }}>
-          {applyMessage || "修改参数后点击「应用参数」下发到硬件"}
-        </p>
       </Card>
 
       <Card title="GPU 调节" className="!p-3">
@@ -139,6 +143,24 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
           </p>
         </Card>
       ) : null}
+
+      {/* 浮动应用按钮 */}
+      <button onClick={handleApply} disabled={isApplying}
+        className="fixed bottom-6 left-6 z-40 flex items-center gap-2 px-5 py-3 rounded-full text-sm font-medium shadow-lg disabled:opacity-60 transition-all hover:scale-105 active:scale-95"
+        style={{ background: "var(--primary-2)", color: "#fff", border: "1px solid var(--border)" }}
+      >
+        {isApplying ? (
+          <>⏳ 应用中</>
+        ) : (
+          <>⚡ 应用参数</>
+        )}
+      </button>
+
+      {applyMessage && (
+        <p className="mt-3 text-xs text-center" style={{ color: "var(--muted)" }}>
+          {applyMessage}
+        </p>
+      )}
     </div>
   );
 }

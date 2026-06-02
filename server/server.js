@@ -297,14 +297,30 @@ app.get("/api/ryzenadj/info", async (_req, res) => {
 
 app.post("/api/uxtu/apply", async (req, res) => {
   try {
-    const { limits } = req.body;
-    const result = await applyRyzenAdjLimits({
-      cpuPpt: limits?.cpu?.pptLimitW,
-      cpuTemp: limits?.cpu?.tempLimitC,
-      gpuPpt: limits?.gpu?.pptLimitW,
-      gpuTemp: limits?.gpu?.tempLimitC,
-      gpuClock: limits?.gpu?.clockLimitMhz,
-    });
+    // 兼容两种格式:
+    //   前端格式: { chipset, profile, params: { cpuLongPptW, cpuShortPptW, cpuTempLimitC, ... } }
+    //   旧格式:   { limits: { cpu: { pptLimitW, tempLimitC }, gpu: { pptLimitW, tempLimitC, clockLimitMhz } } }
+    const { limits, params } = req.body;
+
+    let cpuPpt, cpuTemp, gpuPpt, gpuTemp, gpuClock;
+
+    if (limits) {
+      // 旧格式
+      cpuPpt = limits?.cpu?.pptLimitW;
+      cpuTemp = limits?.cpu?.tempLimitC;
+      gpuPpt = limits?.gpu?.pptLimitW;
+      gpuTemp = limits?.gpu?.tempLimitC;
+      gpuClock = limits?.gpu?.clockLimitMhz;
+    } else if (params) {
+      // 前端格式
+      cpuPpt = params.cpuLongPptW;
+      cpuTemp = params.cpuTempLimitC;
+      gpuPpt = params.gpuPptLimitW;
+      gpuTemp = params.gpuTempLimitC;
+      gpuClock = params.gpuFreqLimitEnabled ? params.gpuFreqLimitMhz : null;
+    }
+
+    const result = await applyRyzenAdjLimits({ cpuPpt, cpuTemp, gpuPpt, gpuTemp, gpuClock });
     res.json(result);
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
