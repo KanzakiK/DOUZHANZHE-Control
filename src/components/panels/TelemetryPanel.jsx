@@ -51,26 +51,6 @@ export default function TelemetryPanel({ telemetry, setTelemetry, settings, setS
             </div>
           </Card>
         </div>
-
-        <Card title="键盘灯亮度" className="!p-3">
-          <SliderRow
-            label={`亮度：${["关闭","低","中","高"][settings.kbBrightnessLevel]}`}
-            value={settings.kbBrightnessLevel}
-            min={0}
-            max={3}
-            step={1}
-            unit=""
-            onChange={(value) => setSettings((prev) => ({ ...prev, kbBrightnessLevel: value }))}
-          />
-        </Card>
-
-        <Card title="当前策略摘要" className="!p-3">
-          <p className="text-xs md:text-sm" style={{ color: "var(--muted)" }}>
-            模式：{uxtuPayload.profile} | CPU 长时: {uxtuPayload.params?.cpuLongPptW ?? "?"}W /{" "}
-            {uxtuPayload.params?.cpuTempLimitC ?? "?"}°C |{" "}
-            短时: {uxtuPayload.params?.cpuShortPptW ?? "?"}W
-          </p>
-        </Card>
       </div>
 
       <div className="space-y-4">
@@ -154,6 +134,6 @@ export default function TelemetryPanel({ telemetry, setTelemetry, settings, setS
           </div>
         </Card>
       </div>
-    </div>
+    </>
   );
 }

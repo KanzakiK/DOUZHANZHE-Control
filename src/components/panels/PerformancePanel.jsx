@@ -144,18 +144,6 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
         </Card>
       ) : null}
 
-      {/* 浮动应用按钮 */}
-      <button onClick={handleApply} disabled={isApplying}
-        className="fixed bottom-6 left-6 z-40 flex items-center gap-2 px-5 py-3 rounded-full text-sm font-medium shadow-lg disabled:opacity-60 transition-all hover:scale-105 active:scale-95"
-        style={{ background: "var(--primary-2)", color: "#fff", border: "1px solid var(--border)" }}
-      >
-        {isApplying ? (
-          <>⏳ 应用中</>
-        ) : (
-          <>⚡ 应用参数</>
-        )}
-      </button>
-
       {applyMessage && (
         <p className="mt-3 text-xs text-center" style={{ color: "var(--muted)" }}>
           {applyMessage}

@@ -4,9 +4,10 @@ import SettingsPanel from "./components/panels/SettingsPanel";
 import TelemetryPanel from "./components/panels/TelemetryPanel";
 import SystemInfoPanel from "./components/panels/SystemInfoPanel";
 import Card from "./components/ui/Card";
-import { ToastProvider } from "./components/ui/Toast";
+import { ToastProvider, useToast } from "./components/ui/Toast";
 import { useControlState } from "./hooks/useControlState";
-import { useState } from "react";
+import { applyUxtuLimits } from "./services/uxtuAdapter";
+import { useCallback, useState } from "react";
 
 const NAV_ITEMS = ["主页", "系统", "设置"];
 const NAV_TABS = { "主页": "dashboard", "系统": "system", "设置": "settings" };
@@ -22,12 +23,24 @@ export default function App() {
   const { theme, setTheme, telemetry, setTelemetry, uxtuParams, setUxtuParams, settings, setSettings, uxtuPayload, fanLargeRpmTarget, fanSmallRpmTarget, setFanLargeRpmTarget, setFanSmallRpmTarget, history } =
     useControlState();
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [isApplying, setIsApplying] = useState(false);
+  const toast = useToast();
+
+  const handleApply = useCallback(async () => {
+    setIsApplying(true);
+    try {
+      const result = await applyUxtuLimits(uxtuPayload);
+      toast?.(result.message || "参数已下发", "success");
+    } catch (err) {
+      toast?.(`下发失败: ${err.message}`, "error");
+    } finally { setIsApplying(false); }
+  }, [uxtuPayload, toast]);
 
   return (
     <ToastProvider>
     <div className={`${theme} min-h-screen p-3 md:p-4`}>
       <div className="max-w-[1750px] mx-auto grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4">
-        <aside className="rounded-2xl p-3 flex flex-col gap-4" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+        <aside className="rounded-2xl p-3 flex flex-col gap-4 lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-2rem)]" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
           <div className="rounded-xl p-3" style={{ background: "var(--card-2)" }}>
             <p className="text-xs uppercase tracking-widest" style={{ color: "var(--muted)" }}>DOUZHANZHE</p>
             <p className="text-sm font-semibold mt-1">联想斗战者控制台</p>
@@ -40,6 +53,10 @@ export default function App() {
               >{item}</button>
             ))}
           </nav>
+          <button onClick={handleApply} disabled={isApplying}
+            className="w-full flex items-center justify-center gap-2 text-sm rounded-lg px-3 py-2.5 transition disabled:opacity-60"
+            style={{ border: "1px solid var(--border)", background: "var(--primary-2)", color: "#fff" }}
+          >{isApplying ? "⏳ 应用参数中..." : "⚡ 应用参数"}</button>
           <div className="mt-auto">
             <p className="text-xs mb-2" style={{ color: "var(--muted)" }}>皮肤切换</p>
             <ThemeSwitcher currentTheme={theme} onThemeChange={setTheme} />
@@ -47,12 +64,12 @@ export default function App() {
         </aside>
         <main className="grid grid-rows-[1fr_auto] gap-4">
           {activeTab === "dashboard" && (
-          <section className="columns-1 md:columns-2 lg:columns-3 gap-4 space-y-4 [column-fill:balance]">
+          <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
               <TelemetryPanel telemetry={telemetry} setTelemetry={setTelemetry} settings={settings} setSettings={setSettings}
                 uxtuPayload={uxtuPayload} fanLargeRpmTarget={fanLargeRpmTarget} fanSmallRpmTarget={fanSmallRpmTarget}
                 setFanLargeRpmTarget={setFanLargeRpmTarget} setFanSmallRpmTarget={setFanSmallRpmTarget} history={history} />
               <PerformancePanel settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} uxtuPayload={uxtuPayload} />
-              <SettingsPanel settings={settings} setSettings={setSettings} uxtuPayload={uxtuPayload} />
+              <SettingsPanel settings={settings} setSettings={setSettings} uxtuPayload={uxtuPayload} showSwitches={false} showKeyboard={true} showSummary={true} />
           </section>
           )}
           {activeTab === "system" && <SystemInfoPanel />}
