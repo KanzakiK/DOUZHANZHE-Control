@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { setFanSpeed } from "../../services/uxtuAdapter";
+import { setFanFullSpeed } from "../../services/uxtuAdapter";
 import Card from "../ui/Card";
 import Gauge from "../ui/Gauge";
 import SliderRow from "../ui/SliderRow";
@@ -17,25 +17,16 @@ function makeSeries(base, count = 36, jitter = 10, min = 0, max = 100) {
 
 export default function TelemetryPanel({ telemetry, setTelemetry, settings, setSettings, uxtuPayload, fanLargeRpmTarget, fanSmallRpmTarget, setFanLargeRpmTarget, setFanSmallRpmTarget, history }) {
   const toast = useToast();
-  const fanLargeTimerRef = useRef(null);
-  const fanSmallTimerRef = useRef(null);
+  const fanBoostTimerRef = useRef(null);
 
-  // 风扇转速写入（防抖 600ms）
+  // 强冷模式开关 (Lenovo WMI: Fan_Set_FullSpeed)，防抖 400ms
   useEffect(() => {
-    clearTimeout(fanLargeTimerRef.current);
-    fanLargeTimerRef.current = setTimeout(() => {
-      setFanSpeed("large", fanLargeRpmTarget).catch(() => {}); // 静默失败，后台自动重试
-    }, 600);
-    return () => clearTimeout(fanLargeTimerRef.current);
-  }, [fanLargeRpmTarget]);
-
-  useEffect(() => {
-    clearTimeout(fanSmallTimerRef.current);
-    fanSmallTimerRef.current = setTimeout(() => {
-      setFanSpeed("small", fanSmallRpmTarget).catch(() => {});
-    }, 600);
-    return () => clearTimeout(fanSmallTimerRef.current);
-  }, [fanSmallRpmTarget]);
+    clearTimeout(fanBoostTimerRef.current);
+    fanBoostTimerRef.current = setTimeout(() => {
+      setFanFullSpeed(settings.fanBoost).catch(() => toast?.("强冷模式控制失败", "error"));
+    }, 400);
+    return () => clearTimeout(fanBoostTimerRef.current);
+  }, [settings.fanBoost]);
 
   const cpuSeries = history.cpu;
   const gpuSeries = history.gpu;

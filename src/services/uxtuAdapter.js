@@ -33,16 +33,16 @@ export async function fetchSmuInfo() {
 }
 
 export async function discoverWmi() {
-  const res = await fetch(`${BACKEND}/api/system/discover`);
+  const res = await fetch(`${BACKEND}/api/discover`);
   if (!res.ok) throw new Error(`后端返回 ${res.status}`);
   return res.json();
 }
 
-export async function setFanSpeed(fan, rpm) {
-  const res = await fetch(`${BACKEND}/api/fan/speed`, {
+export async function setFanFullSpeed(enabled) {
+  const res = await fetch(`${BACKEND}/api/fan/full-speed`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ fan, rpm }),
+    body: JSON.stringify({ enabled }),
   });
   if (!res.ok) throw new Error(`后端返回 ${res.status}`);
   return res.json();

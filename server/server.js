@@ -336,8 +336,8 @@ app.post("/api/system/settings", async (req, res) => {
         await callWmiMethod("LENOVO_OTHER_METHOD", "SetFeatureValue", { CapabilityID: 0x00120075, Value: value ? 1 : 0 });
         break;
       case "fanBoost":
-        // 强冷模式
-        await callWmiMethod("LENOVO_GAMEZONE_DATA", "SetFanBoostMode", { Mode: value ? 1 : 0 });
+        // 强冷模式 — 通过 LENOVO_FAN_METHOD (Fan_Set_FullSpeed) 实现
+        await callWmiMethod("LENOVO_FAN_METHOD", "Fan_Set_FullSpeed", { Status: value ? 1 : 0 });
         break;
       case "fnLock":
         await callWmiMethod("LENOVO_OTHER_METHOD", "SetFeatureValue", { CapabilityID: 0x000B0003, Value: value ? 1 : 0 });
@@ -359,50 +359,28 @@ app.post("/api/system/settings", async (req, res) => {
   }
 });
 
-// ---- EC 风扇写入 ----
-// 通过 ec_writer.exe 写入 EC 寄存器控制风扇转速。
-// 注意: 风扇控制寄存器因 OEM 而异，当前寄存器地址需要实测。
-//       宝龙达 N176: CPU 风扇寄存器 0xB2? GPU 风扇寄存器 0xB3? (待验证)
-app.post("/api/fan/speed", async (req, res) => {
+// ---- 风扇控制 (Lenovo WMI) ----
+// Lenovo 笔记本风扇控制通过 WMI LENOVO_FAN_METHOD 实现，而非 EC 寄存器。
+//   Fan_Set_FullSpeed(Status=1)  → 全速模式
+//   Fan_Set_FullSpeed(Status=0)  → 自动模式 (恢复固件风扇曲线)
+//   Fan_Set_Table(FanTable)      → 自定义风扇曲线 (需 64 字节数组)
+app.post("/api/fan/full-speed", async (req, res) => {
   try {
-    const { fan, rpm } = req.body; // fan: "large" | "small", rpm: number
-    const ecWriter = path.join(__dirname, "tools", "ec_writer.exe");
-    const fs = require("fs");
-    if (!fs.existsSync(ecWriter)) {
-      return res.status(500).json({ ok: false, error: "ec_writer.exe 未找到" });
+    const { enabled } = req.body; // boolean
+    const result = await callWmiMethod("LENOVO_FAN_METHOD", "Fan_Set_FullSpeed", { Status: enabled ? 1 : 0 });
+    if (result.ok) {
+      console.log(`[fan] 全速模式: ${enabled ? "开启" : "关闭"}`);
+      res.json({ ok: true, message: enabled ? "全速模式已开启" : "已恢复自动模式" });
+    } else {
+      res.status(500).json({ ok: false, error: result.message });
     }
-
-    // 风扇寄存器映射 (待硬件验证)
-    // CPU 风扇 (large): 寄存器 0xB2, 值 = Math.round(rpm / 4400 * 255)
-    // GPU 风扇 (small): 寄存器 0xB3, 值 = Math.round(rpm / 8200 * 255)
-    // 实际地址需要 EC 固件逆向确定。
-    const FAN_REGS = {
-      large: { reg: 0xB2, maxRpm: 4400 },
-      small: { reg: 0xB3, maxRpm: 8200 },
-    };
-
-    const cfg = FAN_REGS[fan];
-    if (!cfg) return res.status(400).json({ ok: false, error: "未知风扇: " + fan });
-
-    const value = Math.min(255, Math.max(0, Math.round((rpm / cfg.maxRpm) * 255)));
-
-    const cmd = `"${ecWriter}" 0x${cfg.reg.toString(16).toUpperCase()} ${value}`;
-    const { stdout, stderr } = await execAsync(cmd, { timeout: 5000, windowsHide: true });
-
-    if (stderr) {
-      console.warn(`[fan] 写入错误: ${stderr}`);
-      return res.status(500).json({ ok: false, error: stderr });
-    }
-
-    console.log(`[fan] ${fan} 风扇: ${rpm}RPM → 寄存器 0x${cfg.reg.toString(16)} = 0x${value.toString(16)}`);
-    res.json({ ok: true, message: `风扇 ${fan} 转速已设为 ${rpm} RPM`, reg: cfg.reg, value });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
   }
 });
 
-app.get("/api/system/discover", async (_req, res) => {
-  const classes = ["LENOVO_GAMEZONE_DATA", "LENOVO_OTHER_METHOD", "LENOVO_FAN_DATA", "LENOVO_LIGHTING_METHOD", "LENOVO_CPU_METHOD"];
+app.get("/api/discover", async (_req, res) => {
+  const classes = ["LENOVO_GAMEZONE_DATA", "LENOVO_OTHER_METHOD", "LENOVO_FAN_METHOD", "LENOVO_FAN_DATA", "LENOVO_LIGHTING_METHOD", "LENOVO_CPU_METHOD"];
   const results = {};
   for (const cls of classes) {
     try {
