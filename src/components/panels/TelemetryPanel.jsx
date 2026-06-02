@@ -1,10 +1,7 @@
-import { useEffect, useRef } from "react";
-import { setFanFullSpeed } from "../../services/uxtuAdapter";
 import Card from "../ui/Card";
 import Gauge from "../ui/Gauge";
 import SliderRow from "../ui/SliderRow";
 import Sparkline from "../ui/Sparkline";
-import { useToast } from "../ui/Toast";
 
 function makeSeries(base, count = 36, jitter = 10, min = 0, max = 100) {
   return Array.from({ length: count }, (_, i) => {
@@ -16,18 +13,6 @@ function makeSeries(base, count = 36, jitter = 10, min = 0, max = 100) {
 }
 
 export default function TelemetryPanel({ telemetry, setTelemetry, settings, setSettings, uxtuPayload, fanLargeRpmTarget, fanSmallRpmTarget, setFanLargeRpmTarget, setFanSmallRpmTarget, history }) {
-  const toast = useToast();
-  const fanBoostTimerRef = useRef(null);
-
-  // 强冷模式开关 (Lenovo WMI: Fan_Set_FullSpeed)，防抖 400ms
-  useEffect(() => {
-    clearTimeout(fanBoostTimerRef.current);
-    fanBoostTimerRef.current = setTimeout(() => {
-      setFanFullSpeed(settings.fanBoost).catch(() => toast?.("强冷模式控制失败", "error"));
-    }, 400);
-    return () => clearTimeout(fanBoostTimerRef.current);
-  }, [settings.fanBoost]);
-
   const cpuSeries = history.cpu;
   const gpuSeries = history.gpu;
   const fanPctSeries = telemetry.fanLargeMax > 0
