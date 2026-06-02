@@ -4,6 +4,7 @@ import SettingsPanel from "./components/panels/SettingsPanel";
 import TelemetryPanel from "./components/panels/TelemetryPanel";
 import SystemInfoPanel from "./components/panels/SystemInfoPanel";
 import Card from "./components/ui/Card";
+import { ToastProvider } from "./components/ui/Toast";
 import { useControlState } from "./hooks/useControlState";
 import { useState } from "react";
 
@@ -23,6 +24,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState("dashboard");
 
   return (
+    <ToastProvider>
     <div className={`${theme} min-h-screen p-3 md:p-4`}>
       <div className="max-w-[1750px] mx-auto grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4">
         <aside className="rounded-2xl p-3 flex flex-col gap-4" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
@@ -77,5 +79,6 @@ export default function App() {
         </main>
       </div>
     </div>
+    </ToastProvider>
   );
 }

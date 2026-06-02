@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { applyUxtuLimits, fetchSmuInfo } from "../../services/uxtuAdapter";
 import Card from "../ui/Card";
 import SliderRow from "../ui/SliderRow";
+import { useToast } from "../ui/Toast";
 
 const POWER_PLANS = [
   { id: "efficiency", label: "最高能效" },
@@ -10,6 +11,7 @@ const POWER_PLANS = [
 ];
 
 export default function PerformancePanel({ settings, setSettings, uxtuParams, setUxtuParams, uxtuPayload, onApplied }) {
+  const toast = useToast();
   const [isApplying, setIsApplying] = useState(false);
   const [applyMessage, setApplyMessage] = useState("");
   const [smuInfo, setSmuInfo] = useState(null);
@@ -21,7 +23,10 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
         if (data.ok) setSmuInfo(data.data);
         setSmuError(false);
       })
-      .catch(() => setSmuError(true));
+      .catch(() => {
+        setSmuError(true);
+        toast?.("SMU 参数读取失败，请确认后端已运行", "error");
+      });
   }, []);
 
   const update = (key) => (value) => setUxtuParams((p) => ({ ...p, [key]: value }));
@@ -30,10 +35,13 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
     setIsApplying(true); setApplyMessage("");
     try {
       const result = await applyUxtuLimits(uxtuPayload);
-      setApplyMessage(result.message);
+      setApplyMessage(result.message || "参数已下发");
+      toast?.(result.message || "参数已下发", "success");
       onApplied?.(uxtuPayload);
     } catch (error) {
-      setApplyMessage(`下发失败: ${error.message}`);
+      const msg = `下发失败: ${error.message}`;
+      setApplyMessage(msg);
+      toast?.(msg, "error");
     } finally { setIsApplying(false); }
   }
 

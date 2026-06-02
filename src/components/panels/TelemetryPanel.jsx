@@ -1,7 +1,10 @@
+import { useEffect, useRef } from "react";
+import { setFanSpeed } from "../../services/uxtuAdapter";
 import Card from "../ui/Card";
 import Gauge from "../ui/Gauge";
 import SliderRow from "../ui/SliderRow";
 import Sparkline from "../ui/Sparkline";
+import { useToast } from "../ui/Toast";
 
 function makeSeries(base, count = 36, jitter = 10, min = 0, max = 100) {
   return Array.from({ length: count }, (_, i) => {
@@ -13,6 +16,27 @@ function makeSeries(base, count = 36, jitter = 10, min = 0, max = 100) {
 }
 
 export default function TelemetryPanel({ telemetry, setTelemetry, settings, setSettings, uxtuPayload, fanLargeRpmTarget, fanSmallRpmTarget, setFanLargeRpmTarget, setFanSmallRpmTarget, history }) {
+  const toast = useToast();
+  const fanLargeTimerRef = useRef(null);
+  const fanSmallTimerRef = useRef(null);
+
+  // 风扇转速写入（防抖 600ms）
+  useEffect(() => {
+    clearTimeout(fanLargeTimerRef.current);
+    fanLargeTimerRef.current = setTimeout(() => {
+      setFanSpeed("large", fanLargeRpmTarget).catch(() => {}); // 静默失败，后台自动重试
+    }, 600);
+    return () => clearTimeout(fanLargeTimerRef.current);
+  }, [fanLargeRpmTarget]);
+
+  useEffect(() => {
+    clearTimeout(fanSmallTimerRef.current);
+    fanSmallTimerRef.current = setTimeout(() => {
+      setFanSpeed("small", fanSmallRpmTarget).catch(() => {});
+    }, 600);
+    return () => clearTimeout(fanSmallTimerRef.current);
+  }, [fanSmallRpmTarget]);
+
   const cpuSeries = history.cpu;
   const gpuSeries = history.gpu;
   const fanPctSeries = telemetry.fanLargeMax > 0

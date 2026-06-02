@@ -38,6 +38,16 @@ export async function discoverWmi() {
   return res.json();
 }
 
+export async function setFanSpeed(fan, rpm) {
+  const res = await fetch(`${BACKEND}/api/fan/speed`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fan, rpm }),
+  });
+  if (!res.ok) throw new Error(`后端返回 ${res.status}`);
+  return res.json();
+}
+
 export function createTelemetrySocket(onData, onError) {
   const ws = new WebSocket(`ws://localhost:3099`);
   ws.onmessage = (e) => {

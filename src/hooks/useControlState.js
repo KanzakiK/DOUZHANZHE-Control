@@ -2,6 +2,24 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { mockTelemetry } from "../data/mockTelemetry";
 import { createTelemetrySocket } from "../services/uxtuAdapter";
 
+const LS_THEME = "douzhanzhe_theme";
+const LS_SETTINGS = "douzhanzhe_settings";
+
+function loadFromLS(key, defaultValue) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : defaultValue;
+  } catch {
+    return defaultValue;
+  }
+}
+
+function saveToLS(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch { /* quota exceeded etc */ }
+}
+
 // 性能模式预设值映射
 const MODE_PRESETS = {
   silent: {
@@ -42,7 +60,7 @@ const MODE_PRESETS = {
 };
 
 export function useControlState() {
-  const [theme, setTheme] = useState("theme-mech-violet");
+  const [theme, setTheme] = useState(() => loadFromLS(LS_THEME, "theme-mech-violet"));
   const [telemetry, setTelemetry] = useState(mockTelemetry);
   const lastTickRef = useRef(null);
 
@@ -95,7 +113,7 @@ export function useControlState() {
   const [fanLargeRpmTarget, setFanLargeRpmTarget] = useState(2200);
   const [fanSmallRpmTarget, setFanSmallRpmTarget] = useState(4100);
 
-  const [settings, setSettings] = useState({
+  const [settings, setSettings] = useState(() => loadFromLS(LS_SETTINGS, {
     mode: "office",
     dGpuDirect: true,
     fanBoost: false,
@@ -105,7 +123,11 @@ export function useControlState() {
     touchpadLock: false,
     osdDisabled: false,
     kbBrightnessLevel: 0,
-  });
+  }));
+
+  // 持久化 theme 和 settings 到 localStorage
+  useEffect(() => { saveToLS(LS_THEME, theme); }, [theme]);
+  useEffect(() => { saveToLS(LS_SETTINGS, settings); }, [settings]);
 
   const uxtuPayload = useMemo(
     () => ({

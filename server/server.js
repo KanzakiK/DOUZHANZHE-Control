@@ -359,6 +359,48 @@ app.post("/api/system/settings", async (req, res) => {
   }
 });
 
+// ---- EC 风扇写入 ----
+// 通过 ec_writer.exe 写入 EC 寄存器控制风扇转速。
+// 注意: 风扇控制寄存器因 OEM 而异，当前寄存器地址需要实测。
+//       宝龙达 N176: CPU 风扇寄存器 0xB2? GPU 风扇寄存器 0xB3? (待验证)
+app.post("/api/fan/speed", async (req, res) => {
+  try {
+    const { fan, rpm } = req.body; // fan: "large" | "small", rpm: number
+    const ecWriter = path.join(__dirname, "tools", "ec_writer.exe");
+    const fs = require("fs");
+    if (!fs.existsSync(ecWriter)) {
+      return res.status(500).json({ ok: false, error: "ec_writer.exe 未找到" });
+    }
+
+    // 风扇寄存器映射 (待硬件验证)
+    // CPU 风扇 (large): 寄存器 0xB2, 值 = Math.round(rpm / 4400 * 255)
+    // GPU 风扇 (small): 寄存器 0xB3, 值 = Math.round(rpm / 8200 * 255)
+    // 实际地址需要 EC 固件逆向确定。
+    const FAN_REGS = {
+      large: { reg: 0xB2, maxRpm: 4400 },
+      small: { reg: 0xB3, maxRpm: 8200 },
+    };
+
+    const cfg = FAN_REGS[fan];
+    if (!cfg) return res.status(400).json({ ok: false, error: "未知风扇: " + fan });
+
+    const value = Math.min(255, Math.max(0, Math.round((rpm / cfg.maxRpm) * 255)));
+
+    const cmd = `"${ecWriter}" 0x${cfg.reg.toString(16).toUpperCase()} ${value}`;
+    const { stdout, stderr } = await execAsync(cmd, { timeout: 5000, windowsHide: true });
+
+    if (stderr) {
+      console.warn(`[fan] 写入错误: ${stderr}`);
+      return res.status(500).json({ ok: false, error: stderr });
+    }
+
+    console.log(`[fan] ${fan} 风扇: ${rpm}RPM → 寄存器 0x${cfg.reg.toString(16)} = 0x${value.toString(16)}`);
+    res.json({ ok: true, message: `风扇 ${fan} 转速已设为 ${rpm} RPM`, reg: cfg.reg, value });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 app.get("/api/system/discover", async (_req, res) => {
   const classes = ["LENOVO_GAMEZONE_DATA", "LENOVO_OTHER_METHOD", "LENOVO_FAN_DATA", "LENOVO_LIGHTING_METHOD", "LENOVO_CPU_METHOD"];
   const results = {};

@@ -2,11 +2,13 @@ import { applySystemSetting } from "../../services/uxtuAdapter";
 import Card from "../ui/Card";
 import SliderRow from "../ui/SliderRow";
 import SwitchRow from "../ui/SwitchRow";
+import { useToast } from "../ui/Toast";
 
 export default function SettingsPanel({ settings, setSettings, uxtuPayload, showSwitches = true, showKeyboard = true, showSummary = true }) {
+  const toast = useToast();
   const toggleSetting = (key, value) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
-    applySystemSetting(key, value).catch(() => {});
+    applySystemSetting(key, value).catch(() => toast?.("设置下发失败", "error"));
   };
 
   return (
