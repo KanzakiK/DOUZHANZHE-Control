@@ -1,0 +1,103 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 主题变量（皮肤底座） */
+:root {
+  --bg: #070b14;
+  --card: #0f172a;
+  --card-2: #111c34;
+  --text: #e2e8f0;
+  --muted: #94a3b8;
+  --primary: #22d3ee;
+  --primary-2: #3b82f6;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --border: rgba(148, 163, 184, 0.2);
+}
+
+.theme-neon {
+  --bg: #030712;
+  --card: #0b1120;
+  --card-2: #0f172a;
+  --text: #e0f2fe;
+  --muted: #7dd3fc;
+  --primary: #22d3ee;
+  --primary-2: #a78bfa;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --danger: #f43f5e;
+  --border: rgba(34, 211, 238, 0.25);
+}
+
+.theme-minimal {
+  --bg: #eef1f5;
+  --card: #fefefe;
+  --card-2: #e2e8f0;
+  --text: #1e293b;
+  --muted: #475569;
+  --primary: #2563eb;
+  --primary-2: #0ea5e9;
+  --ok: #16a34a;
+  --warn: #d97706;
+  --danger: #dc2626;
+  --border: rgba(15, 23, 42, 0.12);
+}
+
+.theme-geek {
+  --bg: #05070a;
+  --card: #0a0f14;
+  --card-2: #101923;
+  --text: #e5f3ff;
+  --muted: #7aa2c6;
+  --primary: #00e5ff;
+  --primary-2: #00ffa3;
+  --ok: #34d399;
+  --warn: #fbbf24;
+  --danger: #fb7185;
+  --border: rgba(0, 229, 255, 0.22);
+}
+
+.theme-mech-violet {
+  --bg: radial-gradient(circle at 25% 25%, #351154 0%, #11061d 42%, #070913 100%);
+  --card: rgba(12, 14, 30, 0.88);
+  --card-2: rgba(48, 24, 84, 0.42);
+  --text: #edf2ff;
+  --muted: #b59ad8;
+  --primary: #67d7ff;
+  --primary-2: #8f5bff;
+  --ok: #38d39f;
+  --warn: #ffb545;
+  --danger: #ff5b8f;
+  --border: rgba(147, 94, 255, 0.32);
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* 风扇旋转动画 */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.console-dock {
+  position: relative;
+  overflow: hidden;
+}
+
+.console-dock::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--primary-2), transparent);
+  opacity: 0.85;
+}

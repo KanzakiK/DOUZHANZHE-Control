@@ -1,0 +1,14 @@
+{
+  "name": "douzhanzhe-server",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "ws": "^8.18.0",
+    "systeminformation": "^5.25.0"
+  }
+}
