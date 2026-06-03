@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 
 const LS_KEY = "douzhanzhe_card_order";
 const LS_HIDDEN_KEY = "douzhanzhe_hidden_cards";
-const API_CONFIG = "/api/default-config";
+const API_UI_STATE = "/api/ui-state";
 
 const DEFAULT_ORDER = [
   "cpu-monitor",
@@ -40,8 +40,23 @@ function loadOrder() {
 export function useCardOrder(onSyncResult) {
   const [order, setOrder] = useState(loadOrder);
   const [hiddenCards, setHiddenCards] = useState(loadHidden);
+  const [loadedFromServer, setLoadedFromServer] = useState(false);
   const onSyncRef = useRef(onSyncResult);
   onSyncRef.current = onSyncResult;
+
+  // 启动时从服务端加载已保存的 UI 状态
+  useEffect(() => {
+    fetch(API_UI_STATE)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data && Array.isArray(data.cardOrder) && data.cardOrder.length > 0) {
+          setOrder(data.cardOrder);
+          setHiddenCards(new Set(data.hiddenCards || []));
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoadedFromServer(true));
+  }, []);
 
   // 持久化到 localStorage
   useEffect(() => {
@@ -52,10 +67,10 @@ export function useCardOrder(onSyncResult) {
     localStorage.setItem(LS_HIDDEN_KEY, JSON.stringify([...hiddenCards]));
   }, [hiddenCards]);
 
-  // 手动同步到服务端——只在外部调用时触发
+  // 同步到服务端（退出编辑时触发）
   const syncToServer = useCallback(() => {
-    const payload = { order: [...order], hidden: [...hiddenCards] };
-    fetch(API_CONFIG, {
+    const payload = { cardOrder: [...order], hiddenCards: [...hiddenCards] };
+    fetch(API_UI_STATE, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),

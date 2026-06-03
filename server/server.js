@@ -465,6 +465,31 @@ app.post("/api/custom-params", (req, res) => {
   }
 });
 
+// ---- UI 状态持久化（卡片排序 + 隐藏状态） ----
+const UI_STATE_PATH = path.join(__dirname, "config", "ui-state.json");
+
+app.get("/api/ui-state", (_req, res) => {
+  try {
+    if (!fs.existsSync(UI_STATE_PATH)) {
+      return res.json({ cardOrder: [], hiddenCards: [] });
+    }
+    const raw = fs.readFileSync(UI_STATE_PATH, "utf-8");
+    res.json(JSON.parse(raw));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/ui-state", (req, res) => {
+  try {
+    const payload = req.body;
+    fs.writeFileSync(UI_STATE_PATH, JSON.stringify(payload, null, 2), "utf-8");
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ---- HTTP server + WebSocket ----
 const server = createServer(app);
 const wss = new WebSocketServer({ server });
