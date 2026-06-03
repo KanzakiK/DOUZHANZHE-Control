@@ -1,7 +1,7 @@
 export default function Card({ title, children, action, className = "", bodyClassName = "" }) {
   return (
     <section
-      className={`rounded-2xl p-4 md:p-5 ${className}`}
+      className={`rounded-2xl p-4 md:p-5 break-inside-avoid ${className}`}
       style={{
         background: "var(--card)",
         border: "1px solid var(--border)",

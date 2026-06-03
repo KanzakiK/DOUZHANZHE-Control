@@ -21,7 +21,7 @@ export default function TelemetryPanel({ telemetry, setTelemetry, settings, setS
   return (
     <>
 
-        <Card title="CPU 监控" className="!p-5">
+<Card title="CPU 监控" className="!p-5">
           <div className="space-y-3">
             <Gauge label="占用率" value={telemetry.cpuUsage} />
             <Gauge label="温度" value={telemetry.cpuTemp} unit="°C" color="var(--warn)" />
@@ -31,7 +31,19 @@ export default function TelemetryPanel({ telemetry, setTelemetry, settings, setS
           </div>
         </Card>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+<Card title="GPU 监控" className="!p-5">
+          <div className="space-y-3">
+            <Gauge label="占用率" value={telemetry.gpuUsage} />
+            <Gauge label="温度" value={telemetry.gpuTemp} unit="°C" color="var(--warn)" />
+            <Gauge label="频率" value={telemetry.gpuFreq} unit=" GHz" color="var(--primary-2)" max={3.2} />
+            <p className="text-sm" style={{ color: "var(--muted)" }}>
+              显存: {telemetry.gpuVramUsed ?? "?"}/{telemetry.gpuVram} GB
+            </p>
+            <Sparkline data={gpuSeries} title="GPU 负载曲线" color="var(--primary-2)" />
+          </div>
+        </Card>
+
+<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Card title="内存">
             <div className="space-y-3">
               <Gauge label="占用" value={telemetry.memoryUsage} />
@@ -51,19 +63,7 @@ export default function TelemetryPanel({ telemetry, setTelemetry, settings, setS
           </Card>
         </div>
 
-        <Card title="GPU 监控" className="!p-5">
-          <div className="space-y-3">
-            <Gauge label="占用率" value={telemetry.gpuUsage} />
-            <Gauge label="温度" value={telemetry.gpuTemp} unit="°C" color="var(--warn)" />
-            <Gauge label="频率" value={telemetry.gpuFreq} unit=" GHz" color="var(--primary-2)" max={3.2} />
-            <p className="text-sm" style={{ color: "var(--muted)" }}>
-              显存: {telemetry.gpuVramUsed ?? "?"}/{telemetry.gpuVram} GB
-            </p>
-            <Sparkline data={gpuSeries} title="GPU 负载曲线" color="var(--primary-2)" />
-          </div>
-        </Card>
-
-        <Card title="风扇信息">
+<Card title="风扇信息">
           <div className="space-y-3">
             <div className="space-y-1">
               <div className="flex items-center justify-between mb-2">
@@ -130,6 +130,7 @@ export default function TelemetryPanel({ telemetry, setTelemetry, settings, setS
             <Sparkline data={fanPctSeries} title="风扇负载曲线" color="var(--ok)" />
           </div>
         </Card>
+
     </>
   );
 }

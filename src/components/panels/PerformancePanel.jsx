@@ -136,14 +136,6 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
         </div>
       </Card>
 
-      {(smuInfo && Object.keys(smuInfo).length > 0) || smuError ? (
-        <Card title="当前 SMU 参数" className="!p-3">
-          <p className="text-xs" style={{ color: "var(--muted)" }}>
-            {smuError ? "SMU 参数读取不可用" : "SMU 参数已加载"}
-          </p>
-        </Card>
-      ) : null}
-
       {applyMessage && (
         <p className="mt-3 text-xs text-center" style={{ color: "var(--muted)" }}>
           {applyMessage}
