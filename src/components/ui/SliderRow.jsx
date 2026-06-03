@@ -1,6 +1,6 @@
-export default function SliderRow({ label, value, min, max, step = 1, onChange, unit = "" }) {
+export default function SliderRow({ label, value, min, max, step = 1, onChange, unit = "", disabled = false }) {
   return (
-    <label className="block">
+    <label className="block" style={{ opacity: disabled ? 0.5 : 1, cursor: disabled ? "not-allowed" : "auto" }}>
       <div className="flex justify-between text-sm mb-1">
         <span>{label}</span>
         <span style={{ color: "var(--muted)" }}>
@@ -14,6 +14,7 @@ export default function SliderRow({ label, value, min, max, step = 1, onChange, 
         max={max}
         step={step}
         value={value}
+        disabled={disabled}
         onChange={(e) => onChange(Number(e.target.value))}
         className="w-full accent-cyan-400"
       />

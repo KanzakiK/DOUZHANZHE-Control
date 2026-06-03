@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import {
   DndContext,
   closestCenter,
@@ -20,6 +20,7 @@ import PerformancePanel from "./panels/PerformancePanel";
 import SettingsPanel from "./panels/SettingsPanel";
 import TelemetryPanel from "./panels/TelemetryPanel";
 import { useCardOrder } from "./../hooks/useCardOrder";
+import { useToast } from "./ui/Toast";
 
 const CARD_MAP = {
   "cpu-monitor": { label: "CPU 监控" },
@@ -39,12 +40,25 @@ export default function SortableDashboard({
   uxtuPayload, uxtuParams, setUxtuParams,
   fanLargeRpmTarget, fanSmallRpmTarget,
   setFanLargeRpmTarget, setFanSmallRpmTarget, history,
+  editMode, setEditMode,
 }) {
-  const { order, moveCard, resetOrder } = useCardOrder();
-  const [editMode, setEditMode] = useState(false);
+  const toast = useToast();
+  const onSyncResult = useCallback((ok) => {
+    toast?.(ok ? "排序已保存" : "排序保存失败", ok ? "success" : "error");
+  }, [toast]);
+  const { order, visibleCards, hiddenList, moveCard, resetOrder, toggleHidden, showAll, syncToServer } = useCardOrder(onSyncResult);
   const fanPctSeries = telemetry.fanLargeMax > 0
     ? history.fan.map((v) => Math.round((v / telemetry.fanLargeMax) * 100))
     : [];
+
+  // 退出编辑模式时同步到服务端
+  const prevEditRef = useRef(editMode);
+  useEffect(() => {
+    if (prevEditRef.current === true && editMode === false) {
+      syncToServer();
+    }
+    prevEditRef.current = editMode;
+  }, [editMode, syncToServer]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -142,7 +156,7 @@ export default function SortableDashboard({
       case "cpu-adjust":
         return <PerformancePanel showGpu={false} showGpu={false} showGpu={false} showGpu={false} showGpu={false} showGpu={false} showGpu={false} showGpu={false} showGpu={false} showGpu={false} showGpu={false} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} uxtuPayload={uxtuPayload} />;
       case "gpu-adjust":
-        return <PerformancePanel showCpu={false} showCpu={false} showCpu={false} showCpu={false} showCpu={false} showCpu={false} showCpu={false} showCpu={false} showCpu={false} showCpu={false} showCpu={false} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} uxtuPayload={uxtuPayload} />;
+        return <PerformancePanel showCpu={false} showCpu={false} showCpu={false} showCpu={false} showCpu={false} showCpu={false} showCpu={false} showCpu={false} showCpu={false} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} uxtuPayload={uxtuPayload} />;
       case "keyboard-light":
         return <SettingsPanel settings={settings} setSettings={setSettings} uxtuPayload={uxtuPayload} showSwitches={false} showKeyboard={true} showSummary={false} showSmu={false} showAbout={false} />;
       case "current-strategy":
@@ -158,29 +172,54 @@ export default function SortableDashboard({
 
   return (
     <div>
-      <div className="flex items-center justify-end gap-2 mb-3">
-        {editMode && (
-          <button onClick={resetOrder}
-            className="text-xs px-3 py-1.5 rounded-lg"
-            style={{ border: "1px solid var(--border)", color: "var(--muted)" }}
-          >重置排序</button>
-        )}
-        <button onClick={() => setEditMode(!editMode)}
-          className="text-xs px-3 py-1.5 rounded-lg"
-          style={{ border: "1px solid var(--border)", background: editMode ? "var(--primary-2)" : "transparent", color: editMode ? "#fff" : "var(--text)" }}
-        >{editMode ? "完成排序" : "排序"}</button>
-      </div>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={order} strategy={verticalListSortingStrategy}>
-          <section className="columns-1 md:columns-2 lg:columns-3 gap-4 space-y-4 [column-fill:balance]">
-            {order.map((id) => (
-              <SortableCard key={id} id={id} editMode={editMode}>
+          <section className="columns-1 md:columns-2 lg:columns-3 gap-3 space-y-3 [column-fill:balance]">
+            {visibleCards.map((id) => (
+              <SortableCard key={id} id={id} editMode={editMode} onHide={editMode ? () => toggleHidden(id) : undefined}>
                 {renderCard(id)}
               </SortableCard>
             ))}
           </section>
         </SortableContext>
       </DndContext>
+
+      {editMode && (
+        <div className="mt-6 p-3 rounded-2xl"
+          style={{ border: "1px dashed var(--border)", background: "var(--bg-secondary)" }}>
+          {hiddenList.length > 0 && (
+            <>
+              <p className="text-xs font-semibold mb-2" style={{ color: "var(--muted)" }}>已隐藏模块</p>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {hiddenList.map((id) => (
+                  <div key={id}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs"
+                    style={{ background: "var(--bg)", border: "1px solid var(--border)" }}
+                  >
+                    <span style={{ color: "var(--muted)" }}>{CARD_MAP[id]?.label || id}</span>
+                    <button onClick={() => toggleHidden(id)}
+                      className="font-bold hover:opacity-80"
+                      style={{ color: "var(--ok)" }}
+                    >显示</button>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+          <div className="flex flex-wrap items-center gap-2">
+            {hiddenList.length > 0 && (
+              <button onClick={showAll}
+                className="text-xs px-3 py-1.5 rounded-lg"
+                style={{ border: "1px solid var(--border)", color: "var(--muted)" }}
+              >☰ 全部显示</button>
+            )}
+            <button onClick={resetOrder}
+              className="text-xs px-3 py-1.5 rounded-lg"
+              style={{ border: "1px solid var(--border)", color: "var(--muted)" }}
+            >↺ 重置排序</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

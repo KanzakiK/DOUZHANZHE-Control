@@ -5,6 +5,7 @@ import si from "systeminformation";
 import { spawn, exec, execSync } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
+import fs from "fs";   // <-- add fs import
 import { promisify } from "util";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -406,6 +407,62 @@ app.get("/api/discover", async (_req, res) => {
     } catch { results[cls] = false; }
   }
   res.json(results);
+});
+
+// ---- 仪表盘默认配置 (服务端持久化) ----
+const CONFIG_PATH = path.join(__dirname, "config", "dashboard-default.json");
+
+app.get("/api/default-config", (_req, res) => {
+  try {
+    if (!fs.existsSync(CONFIG_PATH)) {
+      return res.json({ order: [], hidden: [] });
+    }
+    const raw = fs.readFileSync(CONFIG_PATH, "utf-8");
+    res.json(JSON.parse(raw));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/default-config", (req, res) => {
+  try {
+    const { order, hidden } = req.body;
+    if (!Array.isArray(order)) {
+      return res.status(400).json({ error: "order 必须是数组" });
+    }
+    const payload = { order, hidden: Array.isArray(hidden) ? hidden : [] };
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(payload, null, 2), "utf-8");
+    console.log("[config] 默认配置已保存");
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---- 自定义参数持久化 ----
+const CUSTOM_PARAMS_PATH = path.join(__dirname, "config", "custom-params.json");
+
+app.get("/api/custom-params", (_req, res) => {
+  try {
+    if (!fs.existsSync(CUSTOM_PARAMS_PATH)) {
+      return res.json({});
+    }
+    const raw = fs.readFileSync(CUSTOM_PARAMS_PATH, "utf-8");
+    res.json(JSON.parse(raw));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/custom-params", (req, res) => {
+  try {
+    const payload = req.body;
+    fs.writeFileSync(CUSTOM_PARAMS_PATH, JSON.stringify(payload, null, 2), "utf-8");
+    console.log("[config] 自定义参数已保存");
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ---- HTTP server + WebSocket ----

@@ -1,7 +1,7 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-export default function SortableCard({ id, children, editMode }) {
+export default function SortableCard({ id, children, editMode, onHide }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
 
   const style = {
@@ -14,15 +14,27 @@ export default function SortableCard({ id, children, editMode }) {
   return (
     <div ref={setNodeRef} style={style} className={isDragging ? "z-50" : ""}>
       {editMode && (
-        <button
-          {...attributes}
-          {...listeners}
-          className="absolute top-2 right-2 z-10 cursor-grab active:cursor-grabbing w-7 h-7 flex items-center justify-center rounded-lg text-xs font-bold"
-          style={{ background: "var(--primary-2)", color: "#fff", border: "1px solid var(--border)" }}
-          title="拖拽排序"
-        >
-          ⠿
-        </button>
+        <>
+          <button
+            {...attributes}
+            {...listeners}
+            className="absolute top-2 right-8 z-10 cursor-grab active:cursor-grabbing w-7 h-7 flex items-center justify-center rounded-lg text-xs font-bold"
+            style={{ background: "var(--primary-2)", color: "#fff", border: "1px solid var(--border)" }}
+            title="拖拽排序"
+          >
+            ⠿
+          </button>
+          {onHide && (
+            <button
+              onClick={onHide}
+              className="absolute top-2 right-1 z-10 w-7 h-7 flex items-center justify-center rounded-lg text-xs font-bold"
+              style={{ background: "var(--warn)", color: "#fff", border: "1px solid var(--border)" }}
+              title="隐藏此模块"
+            >
+              ✕
+            </button>
+          )}
+        </>
       )}
       {children}
     </div>

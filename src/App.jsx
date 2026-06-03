@@ -9,7 +9,7 @@ import SortableDashboard from "./components/SortableDashboard";
 import { ToastProvider, useToast } from "./components/ui/Toast";
 import { useControlState } from "./hooks/useControlState";
 import { applyUxtuLimits } from "./services/uxtuAdapter";
-import { useCallback, useState } from "react";
+import { useCallback, useState, useEffect, useRef } from "react";
 
 const NAV_ITEMS = ["主页", "系统", "设置"];
 const NAV_TABS = { "主页": "dashboard", "系统": "system", "设置": "settings" };
@@ -22,27 +22,48 @@ const MODE_ITEMS = [
 ];
 
 export default function App() {
-  const { theme, setTheme, telemetry, setTelemetry, uxtuParams, setUxtuParams, settings, setSettings, uxtuPayload, fanLargeRpmTarget, fanSmallRpmTarget, setFanLargeRpmTarget, setFanSmallRpmTarget, history } =
-    useControlState();
-  const [activeTab, setActiveTab] = useState("dashboard");
-  const [isApplying, setIsApplying] = useState(false);
   const toast = useToast();
+  const onCustomSaveResult = useCallback((ok) => {
+    toast?.(ok ? "自定义参数已保存" : "自定义参数保存失败", ok ? "success" : "error");
+  }, [toast]);
+  const { theme, setTheme, telemetry, setTelemetry, uxtuParams, setUxtuParams, settings, setSettings, uxtuPayload, fanLargeRpmTarget, fanSmallRpmTarget, setFanLargeRpmTarget, setFanSmallRpmTarget, history } =
+    useControlState(onCustomSaveResult);
+  const [activeTab, setActiveTab] = useState(() => {
+    try { return localStorage.getItem("douzhanzhe_active_tab") || "dashboard"; }
+    catch { return "dashboard"; }
+  });
+  const [editMode, setEditMode] = useState(false);
+  const applyTimerRef = useRef(null);
+  const isFirstMount = useRef(true);
 
-  const handleApply = useCallback(async () => {
-    setIsApplying(true);
-    try {
-      const result = await applyUxtuLimits(uxtuPayload);
-      toast?.(result.message || "参数已下发", "success");
-    } catch (err) {
-      toast?.(`下发失败: ${err.message}`, "error");
-    } finally { setIsApplying(false); }
+  // 参数变化时自动下发（去抖 500ms）
+  useEffect(() => {
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      return;
+    }
+    clearTimeout(applyTimerRef.current);
+    applyTimerRef.current = setTimeout(async () => {
+      try {
+        const result = await applyUxtuLimits(uxtuPayload);
+        toast?.(result.message || "参数已下发", "success");
+      } catch (err) {
+        toast?.(`下发失败: ${err.message}`, "error");
+      }
+    }, 500);
+    return () => clearTimeout(applyTimerRef.current);
   }, [uxtuPayload, toast]);
+
+  // 持久化当前标签页
+  useEffect(() => {
+    localStorage.setItem("douzhanzhe_active_tab", activeTab);
+  }, [activeTab]);
 
   return (
     <ToastProvider>
     <div className={`${theme} min-h-screen p-3 md:p-4`}>
-      <div className="max-w-[1750px] mx-auto grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4">
-        <aside className="rounded-2xl p-3 flex flex-col gap-4 lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-2rem)]" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+      <div className="max-w-[1750px] mx-auto grid grid-cols-1 md:grid-cols-[220px_1fr] gap-4">
+        <aside className="rounded-2xl p-3 flex flex-col gap-4 md:sticky md:top-4 md:self-start md:max-h-[calc(100vh-2rem)]" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
           <div className="rounded-xl p-3" style={{ background: "var(--card-2)" }}>
             <p className="text-xs uppercase tracking-widest" style={{ color: "var(--muted)" }}>DOUZHANZHE</p>
             <p className="text-sm font-semibold mt-1">联想斗战者控制台</p>
@@ -55,10 +76,12 @@ export default function App() {
               >{item}</button>
             ))}
           </nav>
-          <button onClick={handleApply} disabled={isApplying}
-            className="w-full flex items-center justify-center gap-2 text-sm rounded-lg px-3 py-2.5 transition disabled:opacity-60"
-            style={{ border: "1px solid var(--border)", background: "var(--primary-2)", color: "#fff" }}
-          >{isApplying ? "⏳ 应用参数中..." : "⚡ 应用参数"}</button>
+          {activeTab === "dashboard" && (
+            <button onClick={() => { setEditMode(!editMode); }}
+              className="w-full flex items-center justify-center gap-2 text-sm rounded-lg px-3 py-2.5 transition"
+              style={{ border: "1px solid var(--border)", background: editMode ? "var(--primary-2)" : "transparent", color: editMode ? "#fff" : "var(--text)" }}
+            >{editMode ? "✓ 完成排序" : "⇅ 排序"}</button>
+          )}
           <div className="mt-auto">
             <p className="text-xs mb-2" style={{ color: "var(--muted)" }}>皮肤切换</p>
             <ThemeSwitcher currentTheme={theme} onThemeChange={setTheme} />
@@ -73,12 +96,13 @@ export default function App() {
             uxtuParams={uxtuParams} setUxtuParams={setUxtuParams}
             fanLargeRpmTarget={fanLargeRpmTarget} fanSmallRpmTarget={fanSmallRpmTarget}
             setFanLargeRpmTarget={setFanLargeRpmTarget} setFanSmallRpmTarget={setFanSmallRpmTarget}
-            history={history} />
+            history={history}
+            editMode={editMode} setEditMode={setEditMode} />
           )}
           {activeTab === "system" && <SystemInfoPanel />}
           {activeTab === "settings" && (
             <SettingsPanel settings={settings} setSettings={setSettings} uxtuPayload={uxtuPayload}
-              showSwitches={true} showKeyboard={true} showSummary={true} />
+              showSwitches={true} showKeyboard={true} showSummary={true} showCredits={true} />
           )}
           {activeTab === "dashboard" && (
           <Card title="模式选择" className="console-dock !p-3">
