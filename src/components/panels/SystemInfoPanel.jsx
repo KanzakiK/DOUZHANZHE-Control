@@ -27,7 +27,7 @@ export default function SystemInfoPanel() {
         </Section>
         <Section title="散热">
           <Row label="风扇" value="3风扇散热系统" />
-          <Row label="控制" value="WinRing0 EC 寄存器直读" />
+          <Row label="控制" value="inpoutx64 EC 寄存器直读" />
         </Section>
         <Section title="软件">
           <Row label="控制台版本" value="斗战者控制台 v1.0.0" />

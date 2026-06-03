@@ -18,14 +18,26 @@ dist-ssr
 .idea
 .DS_Store
 *.suo
+
+# VS Code workspace file (user-specific)
+*.code-workspace
+
+# Runtime user data (not shipped)
+server/config/ui-state.json
+server/config/custom-params.json
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
 
-# Embedded reference repos
+# Embedded reference repos (local reference only)
 llt-reference/
 uxtu-reference/
 
 # Compiled backups
 server/tools/*.bak
+
+# Deleted/replaced experiment tools (no longer in dist)
+server/tools/WinRing0x64.dll
+server/tools/WinRing0x64.sys
+server/tools/ec_writer.exe

@@ -362,10 +362,21 @@ app.post("/api/system/settings", async (req, res) => {
       case "touchpadLock":
         await callWmiMethod("LENOVO_OTHER_METHOD", "SetFeatureValue", { CapabilityID: 0x000B0004, Value: value ? 1 : 0 });
         break;
-      case "kbBrightnessLevel":
-        // 键盘背光亮度 0-3
-        await callWmiMethod("LENOVO_LIGHTING_METHOD", "SetKeyboardBacklight", { Level: value });
+      case "kbBrightnessLevel": {
+        // 键盘背光亮度 0-3 — 物理内存地址 0xFE80049A (inpoutx64 MapPhysToLin)
+        const kbTool = path.join(__dirname, "tools", "ec_kb_map.exe");
+        const v = Math.max(0, Math.min(3, Math.round(value)));
+        const { stdout: kbOut, stderr: kbErr } = await execAsync(
+          `"${kbTool}" --write ${v}`,
+          { timeout: 8000, windowsHide: true }
+        );
+        const success = kbOut?.includes("set to") || (!kbErr && kbOut?.trim());
+        console.log(`[kb] 键盘灯 -> ${v} ${success ? "OK" : "失败: " + (kbErr || kbOut)}`);
+        if (!success) {
+          return res.status(500).json({ ok: false, error: kbErr || kbOut || "未知错误" });
+        }
         break;
+      }
       default:
         console.log(`[system] ${key}=${value} — 未绑定 WMI 操作`);
     }
