@@ -140,9 +140,9 @@ export default function SortableDashboard({
           </Card>
         );
       case "cpu-adjust":
-        return <PerformancePanel settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} uxtuPayload={uxtuPayload} />;
+        return <PerformancePanel showGpu={false} showGpu={false} showGpu={false} showGpu={false} showGpu={false} showGpu={false} showGpu={false} showGpu={false} showGpu={false} showGpu={false} showGpu={false} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} uxtuPayload={uxtuPayload} />;
       case "gpu-adjust":
-        return <PerformancePanel settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} uxtuPayload={uxtuPayload} />;
+        return <PerformancePanel showCpu={false} showCpu={false} showCpu={false} showCpu={false} showCpu={false} showCpu={false} showCpu={false} showCpu={false} showCpu={false} showCpu={false} showCpu={false} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} uxtuPayload={uxtuPayload} />;
       case "keyboard-light":
         return <SettingsPanel settings={settings} setSettings={setSettings} uxtuPayload={uxtuPayload} showSwitches={false} showKeyboard={true} showSummary={false} showSmu={false} showAbout={false} />;
       case "current-strategy":

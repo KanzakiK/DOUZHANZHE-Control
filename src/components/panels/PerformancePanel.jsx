@@ -10,7 +10,7 @@ const POWER_PLANS = [
   { id: "performance", label: "最佳性能" },
 ];
 
-export default function PerformancePanel({ settings, setSettings, uxtuParams, setUxtuParams, uxtuPayload, onApplied }) {
+export default function PerformancePanel({ settings, setSettings, uxtuParams, setUxtuParams, uxtuPayload, onApplied, showCpu = true, showGpu = true }) {
   const toast = useToast();
   const [isApplying, setIsApplying] = useState(false);
   const [applyMessage, setApplyMessage] = useState("");
@@ -61,7 +61,7 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
 
   return (
     <>
-      <Card title="CPU 调节" className="!p-3">
+      {showCpu && <Card title="CPU 调节" className="!p-3">
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <input type="checkbox" checked={uxtuParams.cpuFreqLimitEnabled}
@@ -111,7 +111,9 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
         </div>
       </Card>
 
-      <Card title="GPU 调节" className="!p-3">
+      }
+
+{showGpu && <Card title="GPU 调节" className="!p-3">
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <input type="checkbox" checked={uxtuParams.gpuFreqLimitEnabled}
@@ -134,13 +136,6 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
             <span className="text-xs">锁定频率</span>
           </div>
         </div>
-      </Card>
-
-      {applyMessage && (
-        <p className="mt-3 text-xs text-center" style={{ color: "var(--muted)" }}>
-          {applyMessage}
-        </p>
-      )}
-    </>
+      </Card>}</>
   );
 }

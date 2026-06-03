@@ -6,7 +6,6 @@ import SystemInfoPanel from "./components/panels/SystemInfoPanel";
 import Card from "./components/ui/Card";
 import Gauge from "./components/ui/Gauge";
 import SortableDashboard from "./components/SortableDashboard";
-import SortableDashboard from "./components/SortableDashboard";
 import { ToastProvider, useToast } from "./components/ui/Toast";
 import { useControlState } from "./hooks/useControlState";
 import { applyUxtuLimits } from "./services/uxtuAdapter";
