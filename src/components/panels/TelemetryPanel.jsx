@@ -43,25 +43,7 @@ export default function TelemetryPanel({ telemetry, setTelemetry, settings, setS
           </div>
         </Card>
 
-<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Card title="内存">
-            <div className="space-y-3">
-              <Gauge label="占用" value={telemetry.memoryUsage} />
-              <p className="text-sm" style={{ color: "var(--muted)" }}>
-                总容量: {telemetry.memoryTotalGB} GB | 频率: {telemetry.memoryFreq} MT/s
-              </p>
-            </div>
-          </Card>
 
-          <Card title="硬盘">
-            <div className="space-y-3">
-              <Gauge label="占用" value={telemetry.diskUsage} />
-              <p className="text-sm" style={{ color: "var(--muted)" }}>
-                总容量: {telemetry.diskTotalGB} GB | 可用: {telemetry.diskFreeGB} GB
-              </p>
-            </div>
-          </Card>
-        </div>
 
 <Card title="风扇信息">
           <div className="space-y-3">

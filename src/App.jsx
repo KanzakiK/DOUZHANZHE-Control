@@ -4,6 +4,9 @@ import SettingsPanel from "./components/panels/SettingsPanel";
 import TelemetryPanel from "./components/panels/TelemetryPanel";
 import SystemInfoPanel from "./components/panels/SystemInfoPanel";
 import Card from "./components/ui/Card";
+import Gauge from "./components/ui/Gauge";
+import SortableDashboard from "./components/SortableDashboard";
+import SortableDashboard from "./components/SortableDashboard";
 import { ToastProvider, useToast } from "./components/ui/Toast";
 import { useControlState } from "./hooks/useControlState";
 import { applyUxtuLimits } from "./services/uxtuAdapter";
@@ -64,13 +67,14 @@ export default function App() {
         </aside>
         <main className="grid grid-rows-[1fr_auto] gap-4">
           {activeTab === "dashboard" && (
-          <section className="columns-1 md:columns-2 lg:columns-3 gap-4 space-y-4 [column-fill:balance]">
-              <TelemetryPanel telemetry={telemetry} setTelemetry={setTelemetry} settings={settings} setSettings={setSettings}
-                uxtuPayload={uxtuPayload} fanLargeRpmTarget={fanLargeRpmTarget} fanSmallRpmTarget={fanSmallRpmTarget}
-                setFanLargeRpmTarget={setFanLargeRpmTarget} setFanSmallRpmTarget={setFanSmallRpmTarget} history={history} />
-              <PerformancePanel settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} uxtuPayload={uxtuPayload} />
-              <SettingsPanel settings={settings} setSettings={setSettings} uxtuPayload={uxtuPayload} showSwitches={false} showKeyboard={true} showSummary={true} showSmu={false} />
-          </section>
+          <SortableDashboard
+            telemetry={telemetry} setTelemetry={setTelemetry}
+            settings={settings} setSettings={setSettings}
+            uxtuPayload={uxtuPayload}
+            uxtuParams={uxtuParams} setUxtuParams={setUxtuParams}
+            fanLargeRpmTarget={fanLargeRpmTarget} fanSmallRpmTarget={fanSmallRpmTarget}
+            setFanLargeRpmTarget={setFanLargeRpmTarget} setFanSmallRpmTarget={setFanSmallRpmTarget}
+            history={history} />
           )}
           {activeTab === "system" && <SystemInfoPanel />}
           {activeTab === "settings" && (
