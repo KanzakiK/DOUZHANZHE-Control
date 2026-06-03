@@ -64,7 +64,7 @@ export default function App() {
         </aside>
         <main className="grid grid-rows-[1fr_auto] gap-4">
           {activeTab === "dashboard" && (
-          <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
+          <section className="columns-1 md:columns-2 lg:columns-3 gap-4 space-y-4 [column-fill:balance]">
               <TelemetryPanel telemetry={telemetry} setTelemetry={setTelemetry} settings={settings} setSettings={setSettings}
                 uxtuPayload={uxtuPayload} fanLargeRpmTarget={fanLargeRpmTarget} fanSmallRpmTarget={fanSmallRpmTarget}
                 setFanLargeRpmTarget={setFanLargeRpmTarget} setFanSmallRpmTarget={setFanSmallRpmTarget} history={history} />

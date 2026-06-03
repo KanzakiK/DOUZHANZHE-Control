@@ -12,7 +12,7 @@ export default function SettingsPanel({ settings, setSettings, uxtuPayload, show
   };
 
   return (
-    <div className={showSwitches ? "space-y-3" : "space-y-3"}>
+    <>
       {showSwitches && (
         <Card title="系统开关" className="!p-3">
           <div className="space-y-1">
@@ -50,6 +50,6 @@ export default function SettingsPanel({ settings, setSettings, uxtuPayload, show
           <p>硬件访问: WinRing0 (EC 寄存器) + nvidia-smi</p>
         </div>
       </Card>
-    </div>
+    </>
   );
 }

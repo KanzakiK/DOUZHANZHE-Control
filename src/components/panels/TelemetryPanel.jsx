@@ -2,7 +2,6 @@ import Card from "../ui/Card";
 import Gauge from "../ui/Gauge";
 import SliderRow from "../ui/SliderRow";
 import Sparkline from "../ui/Sparkline";
-
 function makeSeries(base, count = 36, jitter = 10, min = 0, max = 100) {
   return Array.from({ length: count }, (_, i) => {
     const wave = Math.sin(i / 4) * (jitter * 0.6);
@@ -21,7 +20,7 @@ export default function TelemetryPanel({ telemetry, setTelemetry, settings, setS
 
   return (
     <>
-      <div className="space-y-4">
+
         <Card title="CPU 监控" className="!p-5">
           <div className="space-y-3">
             <Gauge label="占用率" value={telemetry.cpuUsage} />
@@ -51,9 +50,7 @@ export default function TelemetryPanel({ telemetry, setTelemetry, settings, setS
             </div>
           </Card>
         </div>
-      </div>
 
-      <div className="space-y-4">
         <Card title="GPU 监控" className="!p-5">
           <div className="space-y-3">
             <Gauge label="占用率" value={telemetry.gpuUsage} />
@@ -133,7 +130,6 @@ export default function TelemetryPanel({ telemetry, setTelemetry, settings, setS
             <Sparkline data={fanPctSeries} title="风扇负载曲线" color="var(--ok)" />
           </div>
         </Card>
-      </div>
     </>
   );
 }

@@ -60,7 +60,7 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
   }
 
   return (
-    <div className="space-y-3 relative">
+    <>
       <Card title="CPU 调节" className="!p-3">
         <div className="space-y-3">
           <div className="flex items-center gap-2">
@@ -149,6 +149,6 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
           {applyMessage}
         </p>
       )}
-    </div>
+    </>
   );
 }
