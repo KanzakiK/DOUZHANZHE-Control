@@ -2,10 +2,10 @@ const BACKEND = "";
 
 // C# HAL thermal_mode value mapping
 export const thermalModeMap = {
-  silent: 0,
-  office: 1,
-  gaming: 2,
-  beast: 3,
+  silent: 2,
+  office: 0,
+  gaming: 3,
+  beast: 1,
   custom: null,
 };
 
