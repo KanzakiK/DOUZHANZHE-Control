@@ -1,11 +1,13 @@
 function buildPoints(values, width, height, padding) {
-  if (!values.length) return "";
-  const min = Math.min(...values);
-  const max = Math.max(...values);
+  if (!values || !values.length) return "";
+  const cleaned = values.filter(v => typeof v === "number" && !Number.isNaN(v));
+  if (!cleaned.length) return "";
+  const min = Math.min(...cleaned);
+  const max = Math.max(...cleaned);
   const range = Math.max(1, max - min);
-  const stepX = (width - padding * 2) / Math.max(1, values.length - 1);
+  const stepX = (width - padding * 2) / Math.max(1, cleaned.length - 1);
 
-  return values
+  return cleaned
     .map((value, index) => {
       const x = padding + index * stepX;
       const normalized = (value - min) / range;

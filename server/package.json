@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "express": "^5.1.0",
-    "ws": "^8.18.0",
-    "systeminformation": "^5.25.0"
+    "systeminformation": "^5.25.0",
+    "ws": "^8.18.0"
   }
 }

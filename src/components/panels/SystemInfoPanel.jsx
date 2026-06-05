@@ -30,7 +30,7 @@ export default function SystemInfoPanel() {
           <Row label="控制" value="inpoutx64 EC 寄存器直读" />
         </Section>
         <Section title="软件">
-          <Row label="控制台版本" value="斗战者控制台 v1.0.0" />
+          <Row label="控制台版本" value="Douzhanzhe Console v1.0.0" />
           <Row label="后端" value="Node.js + Express + WebSocket" />
           <Row label="前端" value="React 19 + Vite + Tailwind CSS" />
         </Section>

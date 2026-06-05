@@ -80,11 +80,11 @@ export default function SortableDashboard({
         return (
           <Card title="CPU 监控" className="!p-5">
             <div className="space-y-3">
-              <Gauge label="占用率" value={telemetry.cpuUsage} />
-              <Gauge label="温度" value={telemetry.cpuTemp} unit="°C" color="var(--warn)" />
-              <Gauge label="频率" value={telemetry.cpuFreq} unit=" GHz" color="var(--ok)" max={5.2} />
+              <Gauge label="占用率" value={telemetry.cpuUsage}/>
+              <Gauge label="温度" value={telemetry.cpuTemp} unit="°C" color="var(--warn)"/>
+              <Gauge label="频率" value={telemetry.cpuFreq} unit=" GHz" color="var(--ok)" max={5.2}/>
               <p className="text-sm" style={{ color: "var(--muted)" }}>核心: {telemetry.cpuCores}</p>
-              <Sparkline data={history.cpu} title="CPU 负载曲线" />
+              <Sparkline data={history.cpu} title="CPU 负载曲线"/>
             </div>
           </Card>
         );
@@ -92,11 +92,11 @@ export default function SortableDashboard({
         return (
           <Card title="GPU 监控" className="!p-5">
             <div className="space-y-3">
-              <Gauge label="占用率" value={telemetry.gpuUsage} />
-              <Gauge label="温度" value={telemetry.gpuTemp} unit="°C" color="var(--warn)" />
-              <Gauge label="频率" value={telemetry.gpuFreq} unit=" GHz" color="var(--primary-2)" max={3.2} />
-              <p className="text-sm" style={{ color: "var(--muted)" }}>显存: {telemetry.gpuVramUsed ?? "?"}/{telemetry.gpuVram} GB</p>
-              <Sparkline data={history.gpu} title="GPU 负载曲线" color="var(--primary-2)" />
+              <Gauge label="占用率" value={telemetry.gpuUsage}/>
+              <Gauge label="温度" value={telemetry.gpuTemp} unit="°C" color="var(--warn)"/>
+              <Gauge label="频率" value={telemetry.gpuFreq} unit=" GHz" color="var(--primary-2)" max={3.2}/>
+              <p className="text-sm" style={{ color: "var(--muted)" }}>显存: {typeof telemetry.gpuVramUsed === "number" ? telemetry.gpuVramUsed.toFixed(1) : "?"}/{telemetry.gpuVram} GB</p>
+              <Sparkline data={history.gpu} title="GPU 负载曲线" color="var(--primary-2)"/>
             </div>
           </Card>
         );
@@ -105,13 +105,13 @@ export default function SortableDashboard({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Card title="内存">
               <div className="space-y-3">
-                <Gauge label="占用" value={telemetry.memoryUsage} />
+                <Gauge label="占用" value={telemetry.memoryUsage}/>
                 <p className="text-sm" style={{ color: "var(--muted)" }}>总容量: {telemetry.memoryTotalGB} GB | 频率: {telemetry.memoryFreq} MT/s</p>
               </div>
             </Card>
             <Card title="硬盘">
               <div className="space-y-3">
-                <Gauge label="占用" value={telemetry.diskUsage} />
+                <Gauge label="占用" value={telemetry.diskUsage}/>
                 <p className="text-sm" style={{ color: "var(--muted)" }}>总容量: {telemetry.diskTotalGB} GB | 可用: {telemetry.diskFreeGB} GB</p>
               </div>
             </Card>
@@ -132,8 +132,8 @@ export default function SortableDashboard({
                 </div>
                 <SliderRow label="大风扇目标转速" value={fanLargeRpmTarget}
                   min={0} max={telemetry.fanLargeMax} step={100} unit="RPM"
-                  onChange={(v) => setFanLargeRpmTarget(v)} />
-                <Gauge label="大风扇负载" value={Math.round((telemetry.fanLargeRpm / Math.max(1, telemetry.fanLargeMax)) * 100)} />
+                  onChange={(v) => setFanLargeRpmTarget(v)}/>
+                <Gauge label="大风扇负载" value={Math.round((telemetry.fanLargeRpm / Math.max(1, telemetry.fanLargeMax)) * 100)}/>
               </div>
               <div className="space-y-1">
                 <div className="flex items-center justify-between mb-2">
@@ -146,25 +146,25 @@ export default function SortableDashboard({
                 </div>
                 <SliderRow label="小风扇目标转速" value={fanSmallRpmTarget}
                   min={0} max={telemetry.fanSmallMax} step={100} unit="RPM"
-                  onChange={(v) => setFanSmallRpmTarget(v)} />
-                <Gauge label="小风扇负载" value={Math.round((telemetry.fanSmallRpm / Math.max(1, telemetry.fanSmallMax)) * 100)} />
+                  onChange={(v) => setFanSmallRpmTarget(v)}/>
+                <Gauge label="小风扇负载" value={Math.round((telemetry.fanSmallRpm / Math.max(1, telemetry.fanSmallMax)) * 100)}/>
               </div>
-              <Sparkline data={fanPctSeries} title="风扇负载曲线" color="var(--ok)" />
+              <Sparkline data={fanPctSeries} title="风扇负载曲线" color="var(--ok)"/>
             </div>
           </Card>
         );
       case "cpu-adjust":
-        return <PerformancePanel showGpu={false} showGpu={false} showGpu={false} showGpu={false} showGpu={false} showGpu={false} showGpu={false} showGpu={false} showGpu={false} showGpu={false} showGpu={false} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} uxtuPayload={uxtuPayload} />;
+        return <PerformancePanel showGpu={false} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} uxtuPayload={uxtuPayload}/>;
       case "gpu-adjust":
-        return <PerformancePanel showCpu={false} showCpu={false} showCpu={false} showCpu={false} showCpu={false} showCpu={false} showCpu={false} showCpu={false} showCpu={false} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} uxtuPayload={uxtuPayload} />;
+        return <PerformancePanel showCpu={false} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} uxtuPayload={uxtuPayload}/>;
       case "keyboard-light":
-        return <SettingsPanel settings={settings} setSettings={setSettings} uxtuPayload={uxtuPayload} showSwitches={false} showKeyboard={true} showSummary={false} showSmu={false} showAbout={false} />;
+        return <SettingsPanel settings={settings} setSettings={setSettings} uxtuPayload={uxtuPayload} showSwitches={false} showKeyboard={true} showSummary={false} showSmu={false} showAbout={false}/>;
       case "current-strategy":
-        return <SettingsPanel settings={settings} setSettings={setSettings} uxtuPayload={uxtuPayload} showSwitches={false} showKeyboard={false} showSummary={true} showSmu={false} showAbout={false} />;
+        return <SettingsPanel settings={settings} setSettings={setSettings} uxtuPayload={uxtuPayload} showSwitches={false} showKeyboard={false} showSummary={true} showSmu={false} showAbout={false}/>;
       case "system-switches":
-        return <SettingsPanel settings={settings} setSettings={setSettings} uxtuPayload={uxtuPayload} showSwitches={true} showKeyboard={false} showSummary={false} showSmu={false} showAbout={false} />;
+        return <SettingsPanel settings={settings} setSettings={setSettings} uxtuPayload={uxtuPayload} showSwitches={true} showKeyboard={false} showSummary={false} showSmu={false} showAbout={false}/>;
       case "about":
-        return <SettingsPanel settings={settings} setSettings={setSettings} uxtuPayload={uxtuPayload} showSwitches={false} showKeyboard={false} showSummary={false} showSmu={false} showAbout={true} />;
+        return <SettingsPanel settings={settings} setSettings={setSettings} uxtuPayload={uxtuPayload} showSwitches={false} showKeyboard={false} showSummary={false} showSmu={false} showAbout={true}/>;
       default:
         return null;
     }

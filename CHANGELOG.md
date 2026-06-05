@@ -5,9 +5,49 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
+## [1.1.0] — 2026-06-05
+
+### 新增
+
+- **C# HAL 后端** (`server/api/`, `server/hal/`): .NET 8 Minimal API 替代 AppBridge
+  - WmiInterface: WMI MiInterface 直通 (GPUMode/FnLock/TPLock/温度/风扇)
+  - DriverBridge: inpoutx64 P/Invoke 单例 (Inp32/Out32/ReadPhys32/WritePhys32)
+  - HardwareAbstractionLayer: EC 寄存器语义化映射 (ThermalMode/FanControl/KbLight)
+  - SmuController: RyzenAdj 子进程封装 (Probe/SetPowerLimit/SetTempLimit)
+  - TelemetryBackgroundService: WebSocket 28 字段全量遥测推送
+  - Debug 页面: `/debug` 内联 HTML + CSS (GitHub Dark 风格)，含 EC/WMI/SMU/Fan 全功能测试按钮
+- **GPU 模式控制**: WMI MiInterface 方法 9 (混合/集显/独显) ✅
+- **GPU 锁频**: nvidia-smi `--lock-gpu-clocks` 频率锁定 (1000MHz 验证) ✅
+- **FnLock 控制**: WMI MiInterface 方法 11 + 物理内存 WriteBit 双路径 ✅
+- **CpuFanControl**: EC 寄存器 `0x5F` WriteEc 直接生效 (RPM/100) ✅
+- **GpuFanControl**: EC 寄存器 `0x5B` WriteEc 直接生效 (RPM/100) ✅
+- **SMU 集成**: RyzenAdj 子进程 — Probe/SetPowerLimit/SetTempLimit，含 0xC0000005 优雅退出码适配
+- **文档系统**: 完整 10 份开发文档 (架构/后端/前端/EC 寄存器图/API 定义/任务看板/发布计划/会话归档/参考/看板约定)
+- **Git 规范化**: `.gitignore` 黑名单补全 (`**/bin/` `**/obj/` `**/wwwroot/`) + `.gitattributes` 行尾规范/语义 diff
+
+### 变更
+
+- AppBridge 退役: `AppLib.cs` + `AppBridge/` 子项目完全删除，全功能由 WmiInterface 替代
+- SMU 控制重构: 从 Node.js child_process 迁移至 C# SmuController.Popen() 统一管理
+- C# HAL API 从 `server/api/Program.cs` 自包含发布，`run.ps1` 自动化 build+copy+launch
+- Debug 页面 GitHub Dark 横向布局重构
+- Vite 代理配置支持双后端分流 (:3100 C# HAL / :3099 Node.js)
+- 已验证 EC 寄存器:
+  - 散热模式 `ITSM` (WritePhys 0xFE8004E4) ✅
+  - 键盘背光 `kb_light` (SetPhysLong 0xFE80049A) ✅
+  - CPU 温度 (EC IO 0x1C) / GPU 温度 (nvidia-smi) ✅
+  - CPU 风扇 (EC IO 0x9D/0x9E) / GPU 风扇 (EC IO 0x96/0x97) ✅
+  - 弃用 `0xB2/0xB3` 风扇路径，更正为 `0x5F`(大扇)/`0x5B`(小扇)
+
+### 移除
+
+- `server/tools/`: 删除 WinRing0x64.dll/sys、ec_writer.exe、RyzenAdj Service 脚本等 8 个冗余文件
+- AppBridge 依赖: 斗战者官方控制台 BLD.WMIOperation 不再需要
+
 ## [1.0.0] — 2026-06-03
 
 ### 新增
+
 - 实时遥测监控面板 (CPU/GPU/内存/硬盘/风扇)
 - CPU 调节：功耗墙、温度墙、核心数限制、睿频、电源计划
 - GPU 调节：功耗墙、温度墙、核心/显存超频偏移、频率锁定
@@ -22,13 +62,8 @@
 - 当前策略摘要卡片
 - 关于/技术信息（GPL v3 许可证、开发信息）
 
-### 技术堆栈
-- 前端：React 19 + Vite 8 + Tailwind CSS 3 + dnd-kit
-- 后端：Node.js + Express 5 + WebSocket (ws)
-- SMU 控制：RyzenAdj (LGPL-3.0)
-- EC/硬件访问：inpoutx64 (MIT)
-
 ### 变更
+
 - 替换 WinRing0x64 (OpenLibSys, All Rights Reserved) 为 inpoutx64 (MIT 开源)
 - 移除"应用参数"按钮，改为参数变化自动应用（500ms 去抖）
 - 移除不必要的实验工具文件（ec_writer, ec_phys, ec_kb_ctrl, ec_scan_v2 等）

@@ -1,4 +1,4 @@
-import { applySystemSetting } from "../../services/uxtuAdapter";
+import { applySystemSetting, applyHardwareControl } from "../../services/uxtuAdapter";
 import Card from "../ui/Card";
 import SliderRow from "../ui/SliderRow";
 import SwitchRow from "../ui/SwitchRow";
@@ -8,7 +8,28 @@ export default function SettingsPanel({ settings, setSettings, uxtuPayload, show
   const toast = useToast();
   const toggleSetting = (key, value) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
-    applySystemSetting(key, value).catch(() => toast?.("设置下发失败", "error"));
+    // C# HAL 支持的硬件控制走 /api/control
+    const halMap = {
+      fnLock: "fn_lock",
+      numLock: "num_lock",
+      capsLock: "caps_lock",
+      kbBrightnessLevel: "kb_light",
+      gpuOnly: "igpu_only",
+      touchpadLock: "touchpad_lock",
+      dGpuDirect: "gpu_mode",
+    };
+    if (key === "osdDisabled") {
+      toast?.("关闭 OSD 显示暂不支持", "info");
+      return;
+    }
+    if (key in halMap) {
+      const mappedValue = key === "dGpuDirect" ? (value ? 2 : 0) : (value ? 1 : 0);
+      applyHardwareControl(halMap[key], value ? (key === "dGpuDirect" ? 2 : 1) : 0)
+        .catch(() => toast?.("设置下发失败", "error"));
+    } else {
+      applySystemSetting(key, value)
+        .catch(() => toast?.("设置下发失败", "error"));
+    }
   };
 
   return (
@@ -42,7 +63,7 @@ export default function SettingsPanel({ settings, setSettings, uxtuPayload, show
       )}
       {showAbout && (<Card title="关于" className="!p-3">
         <div className="text-xs space-y-1" style={{ color: "var(--muted)" }}>
-          <p>斗战者控制台 v1.0.0</p>
+          <p>Douzhanzhe Console v1.0.0</p>
           <p>适用于联想 Legion N176 2025 (宝龙达 OEM)</p>
         </div>
       </Card>)}

@@ -1,17 +1,7 @@
 {
   "order": [
-    "cpu-monitor",
-    "gpu-monitor",
-    "cpu-adjust",
-    "gpu-adjust",
-    "mem-disk",
-    "fan-info",
-    "current-strategy",
-    "keyboard-light",
-    "about",
-    "system-switches"
+    "cpu",
+    "gpu"
   ],
-  "hidden": [
-    "system-switches"
-  ]
+  "hidden": []
 }

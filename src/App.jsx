@@ -8,17 +8,17 @@ import Gauge from "./components/ui/Gauge";
 import SortableDashboard from "./components/SortableDashboard";
 import { ToastProvider, useToast } from "./components/ui/Toast";
 import { useControlState } from "./hooks/useControlState";
-import { applyUxtuLimits } from "./services/uxtuAdapter";
+import { applyUxtuLimits, applyHardwareControl } from "./services/uxtuAdapter";
 import { useCallback, useState, useEffect, useRef } from "react";
 
 const NAV_ITEMS = ["主页", "系统", "设置"];
 const NAV_TABS = { "主页": "dashboard", "系统": "system", "设置": "settings" };
 const MODE_ITEMS = [
-  { id: "silent", label: "安静模式" },
-  { id: "office", label: "均衡模式" },
-  { id: "gaming", label: "游戏模式" },
-  { id: "beast", label: "狂暴模式" },
-  { id: "custom", label: "自定义模式" },
+  { id: "silent", label: "安静模式", thermal: 0 },
+  { id: "office", label: "均衡模式", thermal: 1 },
+  { id: "gaming", label: "游戏模式", thermal: 2 },
+  { id: "beast", label: "狂暴模式", thermal: 3 },
+  { id: "custom", label: "自定义模式", thermal: null },
 ];
 
 export default function App() {
@@ -66,7 +66,7 @@ export default function App() {
         <aside className="rounded-2xl p-3 flex flex-col gap-4 md:sticky md:top-4 md:self-start md:max-h-[calc(100vh-2rem)]" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
           <div className="rounded-xl p-3" style={{ background: "var(--card-2)" }}>
             <p className="text-xs uppercase tracking-widest" style={{ color: "var(--muted)" }}>DOUZHANZHE</p>
-            <p className="text-sm font-semibold mt-1">联想斗战者控制台</p>
+            <p className="text-sm font-semibold mt-1">Douzhanzhe Console</p>
           </div>
           <nav className="space-y-2">
             {NAV_ITEMS.map((item) => (
@@ -108,7 +108,10 @@ export default function App() {
           <Card title="模式选择" className="console-dock !p-3">
             <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
               {MODE_ITEMS.map((mode) => (
-                <button key={mode.id} onClick={() => setSettings((prev) => ({ ...prev, mode: mode.id }))}
+                <button key={mode.id} onClick={() => {
+                setSettings((prev) => ({ ...prev, mode: mode.id }));
+                if (mode.thermal !== null) applyHardwareControl("thermal_mode", mode.thermal).catch(() => {});
+              }}
                   className="text-xs md:text-sm rounded-lg px-2 py-3 transition-all"
                   style={{ border: "1px solid var(--border)", background: settings.mode === mode.id ? "var(--primary-2)" : "var(--card-2)", color: settings.mode === mode.id ? "#ffffff" : "var(--text)", boxShadow: settings.mode === mode.id ? "0 0 24px rgba(167, 139, 250, 0.35)" : "none" }}
                 >{mode.label}</button>

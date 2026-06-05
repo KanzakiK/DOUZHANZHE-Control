@@ -164,6 +164,20 @@ export function useControlState(onSaveResult) {
   const [fanLargeRpmTarget, setFanLargeRpmTarget] = useState(2200);
   const [fanSmallRpmTarget, setFanSmallRpmTarget] = useState(4100);
 
+  // 风扇目标转速变化时调用 C# API（去抖 600ms）
+  const fanTimerRef = useRef(null);
+  useEffect(() => {
+    clearTimeout(fanTimerRef.current);
+    fanTimerRef.current = setTimeout(() => {
+      fetch("/api/fan/set-target", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ largeRpm: fanLargeRpmTarget, smallRpm: fanSmallRpmTarget }),
+      }).catch(() => {});
+    }, 600);
+    return () => clearTimeout(fanTimerRef.current);
+  }, [fanLargeRpmTarget, fanSmallRpmTarget]);
+
   const [settings, setSettings] = useState(() => loadFromLS(LS_SETTINGS, {
     mode: "office",
     dGpuDirect: true,
@@ -267,7 +281,10 @@ export function useControlState(onSaveResult) {
     const ws = createTelemetrySocket(
       (data) => {
         setBackendOnline(true);
-        setTelemetry(data);
+        setTelemetry((prev) => ({
+          ...prev,           // 保留 cpuUsage, memoryUsage 等完整字段
+          ...data,           // WebSocket 新数据覆盖温度/风扇等实时字段
+        }));
       },
       () => setBackendOnline(false)
     );

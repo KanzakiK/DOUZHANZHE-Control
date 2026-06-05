@@ -1,0 +1,45 @@
+# Auto-detect text files and normalize line endings
+* text=auto
+
+# C# source files
+*.cs text diff=csharp
+
+# JavaScript/JSX/TS
+*.js text
+*.jsx text
+*.ts text
+
+# Web
+*.html text
+*.css text
+*.svg text
+
+# Markdown docs
+*.md text diff=markdown
+
+# JSON/YAML config
+*.json text
+*.yml text
+*.yaml text
+
+# Scripts
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.sh text eol=lf
+
+# Python
+*.py text diff=python
+
+# Binary files (undiffable)
+*.dll binary
+*.exe binary
+*.sys binary
+*.png binary
+*.ico binary
+
+# Mark auto-generated C# files as generated
+*.g.cs linguist-generated=true
+*.g.i.cs linguist-generated=true
+*.cache linguist-generated=true
+*.Designer.cs linguist-generated=true
+*.generated.cs linguist-generated=true

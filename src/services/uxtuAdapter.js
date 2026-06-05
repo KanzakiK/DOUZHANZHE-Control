@@ -1,4 +1,4 @@
-const BACKEND = "http://localhost:3099";
+const BACKEND = "";
 
 export async function applyUxtuLimits(payload) {
   const res = await fetch(`${BACKEND}/api/uxtu/apply`, {
@@ -16,6 +16,18 @@ export async function fetchTelemetry() {
   return res.json();
 }
 
+// C# HAL 硬件控制 (kb_light, fn_lock, num_lock, caps_lock, thermal_mode)
+export async function applyHardwareControl(target, value) {
+  const res = await fetch(`/api/control`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ target, value }),
+  });
+  if (!res.ok) throw new Error(`HAL 返回 ${res.status}`);
+  return res.json();
+}
+
+// 遗留系统开关 (通过 Node.js WMI)
 export async function applySystemSetting(key, value) {
   const res = await fetch(`${BACKEND}/api/system/settings`, {
     method: "POST",
@@ -49,7 +61,8 @@ export async function setFanFullSpeed(enabled) {
 }
 
 export function createTelemetrySocket(onData, onError) {
-  const ws = new WebSocket(`ws://localhost:3099`);
+  // 绕过 Vite 代理直连 C# HAL WebSocket
+  const ws = new WebSocket(`ws://127.0.0.1:3100/ws`);
   ws.onmessage = (e) => {
     try {
       onData(JSON.parse(e.data));
@@ -57,7 +70,6 @@ export function createTelemetrySocket(onData, onError) {
   };
   ws.onerror = () => onError?.();
   ws.onclose = () => {
-    // 断线 3 秒后自动重连
     setTimeout(() => createTelemetrySocket(onData, onError), 3000);
   };
   return ws;

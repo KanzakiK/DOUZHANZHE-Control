@@ -7,10 +7,18 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies
 node_modules
+
+# Build outputs
 dist
 dist-ssr
 *.local
+
+# C# build artifacts (all projects)
+**/bin/
+**/obj/
+**/wwwroot/
 
 # Editor directories and files
 .vscode/*
@@ -41,3 +49,26 @@ server/tools/*.bak
 server/tools/WinRing0x64.dll
 server/tools/WinRing0x64.sys
 server/tools/ec_writer.exe
+
+# Root temporary files (_*.py, _*.txt, _*.html, _*.ps1, etc.)
+_*.py
+_*.txt
+_*.html
+_*.ps1
+_*.zip
+_*.aml
+_*.cs
+
+# Backup mirror directory
+server/_bak/
+
+# Stale build output
+server/api/bin_temp/
+
+# Machine-specific launch settings
+**/Properties/launchSettings.json
+
+# Runtime generated data
+server/config/wmi-scan-result.json
+body_clean.json
+*.nodebak

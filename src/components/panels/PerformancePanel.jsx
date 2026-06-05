@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { applyUxtuLimits, fetchSmuInfo } from "../../services/uxtuAdapter";
+import { applyUxtuLimits, fetchSmuInfo, applyHardwareControl } from "../../services/uxtuAdapter";
 import Card from "../ui/Card";
 import SliderRow from "../ui/SliderRow";
 import { useToast } from "../ui/Toast";
 
 const POWER_PLANS = [
-  { id: "efficiency", label: "最高能效" },
-  { id: "balance", label: "平衡" },
-  { id: "performance", label: "最佳性能" },
+  { id: "efficiency", label: "最高能效", halValue: 2 },
+  { id: "balance", label: "平衡", halValue: 0 },
+  { id: "performance", label: "最佳性能", halValue: 1 },
 ];
 
 export default function PerformancePanel({ settings, setSettings, uxtuParams, setUxtuParams, uxtuPayload, onApplied, showCpu = true, showGpu = true }) {
@@ -99,7 +99,10 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
             <p className="text-xs mb-1" style={{ color: "var(--muted)" }}>电源管理</p>
             <div className="flex gap-1">
               {POWER_PLANS.map((plan) => (
-                <button key={plan.id} onClick={() => update("cpuPowerPlan")(plan.id)}
+                <button key={plan.id} onClick={() => {
+                  update("cpuPowerPlan")(plan.id);
+                  if (plan.halValue !== undefined) applyHardwareControl("power_plan", plan.halValue).catch(() => {});
+                }}
                   disabled={paramsLocked}
                   className="text-xs px-2 py-1 rounded-lg"
                   style={{ border: "1px solid var(--border)", background: uxtuParams.cpuPowerPlan === plan.id ? "var(--primary)" : "var(--card-2)", color: uxtuParams.cpuPowerPlan === plan.id ? "#fff" : "var(--text)" }}
