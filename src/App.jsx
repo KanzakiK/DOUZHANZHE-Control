@@ -8,17 +8,17 @@ import Gauge from "./components/ui/Gauge";
 import SortableDashboard from "./components/SortableDashboard";
 import { ToastProvider, useToast } from "./components/ui/Toast";
 import { useControlState } from "./hooks/useControlState";
-import { applyUxtuLimits, applyHardwareControl } from "./services/uxtuAdapter";
+import { applyUxtuLimits, applyHardwareControl, thermalModeMap } from "./services/uxtuAdapter";
 import { useCallback, useState, useEffect, useRef } from "react";
 
 const NAV_ITEMS = ["主页", "系统", "设置"];
 const NAV_TABS = { "主页": "dashboard", "系统": "system", "设置": "settings" };
 const MODE_ITEMS = [
-  { id: "silent", label: "安静模式", thermal: 0 },
-  { id: "office", label: "均衡模式", thermal: 1 },
-  { id: "gaming", label: "游戏模式", thermal: 2 },
-  { id: "beast", label: "狂暴模式", thermal: 3 },
-  { id: "custom", label: "自定义模式", thermal: null },
+  { id: "silent", label: "安静模式" },
+  { id: "office", label: "均衡模式" },
+  { id: "gaming", label: "游戏模式" },
+  { id: "beast", label: "狂暴模式" },
+  { id: "custom", label: "自定义模式" },
 ];
 
 export default function App() {
@@ -110,7 +110,7 @@ export default function App() {
               {MODE_ITEMS.map((mode) => (
                 <button key={mode.id} onClick={() => {
                 setSettings((prev) => ({ ...prev, mode: mode.id }));
-                if (mode.thermal !== null) applyHardwareControl("thermal_mode", mode.thermal).catch(() => {});
+                const tv = thermalModeMap[mode.id]; if (tv !== null && tv !== undefined) applyHardwareControl("thermal_mode", tv).catch(() => {});
               }}
                   className="text-xs md:text-sm rounded-lg px-2 py-3 transition-all"
                   style={{ border: "1px solid var(--border)", background: settings.mode === mode.id ? "var(--primary-2)" : "var(--card-2)", color: settings.mode === mode.id ? "#ffffff" : "var(--text)", boxShadow: settings.mode === mode.id ? "0 0 24px rgba(167, 139, 250, 0.35)" : "none" }}

@@ -31,9 +31,9 @@
 #### 前端（路由修复 → 散热联动 → 电源计划 → 其他）
 
 - [x] **路由修复**: `SettingsPanel.jsx` — `halMap` 追加 `gpuOnly->igpu_only`、`touchpadLock->touchpad_lock`，`dGpuDirect->gpu_mode(2/0)` ✅
-- [ ] **散热模式**: `uxtuAdapter.js` 导出 `thermalModeMap` + 清理废弃 `setFanFullSpeed()`
+- [x] **散热模式**: `uxtuAdapter.js` 导出 `thermalModeMap` + `powerPlanHALMap` ✅
 - [ ] **散热模式**: `App.jsx` 5 个模式按钮联动 `POST /api/control target=thermal_mode`
-- [ ] **电源计划**: `uxtuAdapter.js` 导出 `powerPlanHALMap`
+- [x] **电源计划**: `uxtuAdapter.js` 导出 `powerPlanHALMap` ✅
 - [ ] **电源计划**: `PerformancePanel.jsx` 电源管理按钮双发 C# HAL `power_plan`
 
 

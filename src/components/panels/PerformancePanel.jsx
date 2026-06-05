@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { applyUxtuLimits, fetchSmuInfo, applyHardwareControl } from "../../services/uxtuAdapter";
+import { applyUxtuLimits, applyHardwareControl, powerPlanHALMap } from "../../services/uxtuAdapter";
 import Card from "../ui/Card";
 import SliderRow from "../ui/SliderRow";
 import { useToast } from "../ui/Toast";
 
 const POWER_PLANS = [
-  { id: "efficiency", label: "最高能效", halValue: 2 },
-  { id: "balance", label: "平衡", halValue: 0 },
-  { id: "performance", label: "最佳性能", halValue: 1 },
+  { id: "efficiency", label: "最高能效" },
+  { id: "balance", label: "平衡" },
+  { id: "performance", label: "最佳性能" },
 ];
 
 export default function PerformancePanel({ settings, setSettings, uxtuParams, setUxtuParams, uxtuPayload, onApplied, showCpu = true, showGpu = true }) {

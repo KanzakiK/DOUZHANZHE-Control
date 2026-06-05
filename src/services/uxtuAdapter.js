@@ -1,5 +1,21 @@
 const BACKEND = "";
 
+// C# HAL thermal_mode value mapping
+export const thermalModeMap = {
+  silent: 0,
+  office: 1,
+  gaming: 2,
+  beast: 3,
+  custom: null,
+};
+
+// C# HAL power_plan value mapping
+export const powerPlanHALMap = {
+  efficiency: 2,
+  balance: 0,
+  performance: 1,
+};
+
 export async function applyUxtuLimits(payload) {
   const res = await fetch(`${BACKEND}/api/uxtu/apply`, {
     method: "POST",
@@ -24,6 +40,12 @@ export async function applyHardwareControl(target, value) {
     body: JSON.stringify({ target, value }),
   });
   if (!res.ok) throw new Error(`HAL 返回 ${res.status}`);
+  return res.json();
+}
+
+export async function fetchSmuInfo() {
+  const res = await fetch(`/api/ryzenadj/info`);
+  if (!res.ok) throw new Error(`后端返回 ${res.status}`);
   return res.json();
 }
 
