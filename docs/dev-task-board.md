@@ -43,8 +43,6 @@
 - [ ] **Node.js JSON 持久化迁移**: C# 新增 `GET/POST /api/custom-params`、`GET/POST /api/ui-state` 文件持久化
 - [ ] **Node.js 遥测迁移**: C# 补齐 `systeminformation` 类数据（CPU/内存/硬盘全量）
 - [ ] **废弃 Node.js 后端**: 砍掉 server/server.js + package.json + utils/ + libryzenadj.js + tools/（端点迁移已完成 ✅）
-- [ ] **安静性能模式**: `POST /api/uxtu/apply` 扩展支持 `fanLargeRpmTarget`/`fanSmallRpmTarget`
-- [ ] **模式预设**: 新增"安静性能"模式（GPU满血 + 风扇低速）
 
 #### 前端（路由修复 → 散热联动 → 电源计划 → 其他）
 
@@ -69,8 +67,8 @@
 
 #### 其他（文档 → 清理）
 
-- [ ] `dev-api.md`: 文档与实际端点完整同步
-- [ ] `tools/`: 清理 WinRing0x64 残留引用（4文件）
+- [ ] `dev-api.md`: Vite 代理表 custom-params/ui-state/default-config 目标端口误标为 :3099，应为 :3100
+- [ ] ~~`tools/`: 清理 WinRing0x64 残留~~ ❌ WinRing0x64.dll/sys 为 SmuController 运行时依赖，非冗余文件
 
 #### 已知 Bug（Release 1 内修复）
 
@@ -101,6 +99,9 @@
 - [ ] **SMU 监视器**: 值被覆盖时自动重发（替代 `readjustService.ps1`）
 - [ ] **跨平台/非管理员降级模式**（无 inpoutx64 时以 WMI/软件方式运行）
 - [ ] **Node.js 全部端点迁移到 C#**，砍掉 Node.js 后端
+- [ ] **安静性能模式**: `POST /api/uxtu/apply` 扩展支持 `fanLargeRpmTarget`/`fanSmallRpmTarget`
+- [ ] **模式预设**: 新增"安静性能"模式（GPU满血 + 风扇低速）
+
 
 ### 前端
 
@@ -227,5 +228,5 @@
 
 #### SMU (2026-06-05)
 - [x] **SMU 写入验证**：Dragon Range 地址确认 + ryzenadj 子进程写入 25W 功率墙成功 ✅
-- [ ] **C# 后端集成**：子进程 0xC0000005 崩溃待修复
-- [ ] **Debug 页按钮**：SMU 功率/温度设置按钮待整合
+- [x] **C# 后端集成**: 子进程 0xC0000005 已解决（接受为成功退出码） ✅
+- [x] **Debug 页按钮**: SMU 功率/温度设置按钮已整合 ✅

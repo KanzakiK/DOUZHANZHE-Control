@@ -384,3 +384,12 @@
 - **New .gitattributes**: line ending normalization, semantic diff for C#/MD, binary markers
 - **New ignore rules**: `**/Properties/launchSettings.json` `*.nodebak` `wmi-scan-result.json` `body_clean.json`
 - **Result**: untracked files dropped from 173 to ~20 source files; `git status` now reviewable
+
+
+## 2026-06-05 (Documentation audit + SMU dep chain fix)
+
+- **文档 Node.js 定位修正**: README/dev-index/dev-backend/dev-architecture Node.js 从双后端降级为可选配置服务
+- **SMU 依赖链文档统一**: 5 处文档将错误的 inpourx64 修正为 SmuController -> ryzenadj.exe -> WinRing0
+- **Git 规范化**: .gitignore 黑名单补全 + .gitattributes 新建
+- **GitHub 同步**: v1.1.0 commit (C# HAL/WMI/SMU/文档) + 4 个 docs fix commits
+- **主记忆更新**: 已验证硬件表 + 运行时依赖表 SMU/WinRing0 澄清

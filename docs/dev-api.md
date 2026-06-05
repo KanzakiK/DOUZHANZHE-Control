@@ -182,13 +182,13 @@ SMU 参数下发（转发到 SmuController）。兼容两种格式：
 | `/api/health` | :3100 | C# HAL 健康检查 |
 | `/api/discover` | :3100 | C# HAL 硬件探测 |
 | `/ws` | ws://:3100 | C# HAL WebSocket（WS直连绕过代理） |
-| `/api/uxtu` | :3099 | Node.js SMU 参数 |
-| `/api/system` | :3099 | Node.js 系统设置 |
-| `/api/ryzenadj` | :3099 | Node.js RyzenAdj |
-| `/api/fan` | :3099 | Node.js 风扇 |
-| `/api/custom-params` | :3099 | Node.js 配置持久化 |
-| `/api/ui-state` | :3099 | Node.js UI 状态 |
-| `/api/default-config` | :3099 | Node.js 默认配置 |
+| `/api/uxtu` | :3100 | 已迁移 C# HAL |
+| `/api/system` | :3100 | 已迁移 C# HAL |
+| `/api/ryzenadj` | :3100 | 已迁移 C# HAL |
+| `/api/fan` | :3100 | 已迁移 C# HAL |
+| `/api/custom-params` | :3100 | 已迁移 C# HAL |
+| `/api/ui-state` | :3100 | 已迁移 C# HAL |
+| `/api/default-config` | :3100 | 已迁移 C# HAL |
 
 ---
 > 项目主记忆：[douzhanzhe-progress.md](.github/copilot-instructions.md) | 操作守则：[.github/copilot-instructions.md](.github/copilot-instructions.md)
