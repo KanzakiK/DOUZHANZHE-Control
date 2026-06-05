@@ -2,12 +2,12 @@
 
 [TOC]
 
-## 双后端部署
+## 服务部署
 
 | 服务 | 端口 | 技术 | 职责 |
 |------|------|------|------|
-| C# HAL API | :3100 | .NET 8 Minimal API | 遥测、硬件控制、WebSocket |
-| Node.js | :3099 | Express 5 + ws | UI 持久化、SMU (RyzenAdj)、WMI 系统开关 |
+| C# HAL API | :3100 | .NET 8 Minimal API | 遥测、硬件控制、WebSocket、SMU、Debug |
+| Node.js | :3099 | Express 5 | (可选) UI 配置 JSON 持久化 |
 
 ### Vite 代理分流
 
@@ -118,7 +118,7 @@ EC 寄存器地址映射为语义化 C# 属性。
 
 ---
 
-## Node.js 后端 (server/server.js)
+## Node.js 辅助服务 (server/server.js) — 仅配置持久化
 
 ### 技术栈
 - Express 5 + `ws` WebSocket 库
@@ -150,14 +150,20 @@ gatherTelemetry() — Promise.all 并行:
 
 ### SMU 控制
 
-#### C# SmuController (inpoutx64 物理地址直写 — 当前方案)
+由 C# `SmuController` 通过 RyzenAdj 子进程完成。见 `server/hal/SmuController.cs`。
+
+> 历史：Node.js 版 (`child_process`) 已废弃，全功能迁移至 C# HAL（路径修复 + Redirect 移除 + 0xC0000005 退出码适配）。
+
 > **主线方案**：`POST /api/smu/set` → `SmuController` → ryzenadj.exe 子进程 + WinRing0 驱动。Dragon Range SMU 地址 MSG=0x03B10530, REP=0x03B1057C, ARG_BASE=0x03B109C4（参考 RyzenAdj nb_smu_ops.c）。已验证 25W 功率墙写入将 CPU 频率从 3.6GHz 降至 0.5GHz。C# 子进程方案已修复（路径调整 + 移除输出重定向；ryzenadj v0.19.0 已知 exit 时无害崩溃 0xC0000005，不影响实际写入）。
 
 通过 RyzenAdj (`server/tools/ryzenadj.exe`) 下发 AMD SMU 参数。
 
-### WMI 系统开关 (废弃)
+### WMI 系统开关 (已迁移至 C# WmiInterface)
 
-> **废弃原因**：以下端点基于 [LenovoLegionToolkit](https://github.com/BartoszCichecki/LenovoLegionToolkit) (LLT) 项目提供的 WMI 方案。
+> 以下 Lenovo Legion 专用 WMI 类在本机（宝龙达模具）上全部不可用。
+> 替代方案：C# HAL `WmiInterface` (MiInterface 通道) + `DriverBridge` (EC 物理内存直写)。
+> **AppBridge (斗战者控制台.dll) 已退役**，全功能由 WmiInterface 替代。
+(https://github.com/BartoszCichecki/LenovoLegionToolkit) (LLT) 项目提供的 WMI 方案。
 > LLT 针对正版 Lenovo Legion 模具设计，本机为**宝龙达 OEM** 模具（联想 Legion N176 2025），
 > `LENOVO_*` WMI 类全部不存在。**LLT 项目对本机型无参考价值。**
 >

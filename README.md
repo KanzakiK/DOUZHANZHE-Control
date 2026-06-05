@@ -17,7 +17,7 @@
 | GPU 模式 | 混合/集显/独显 — WMI MiInterface 切换 | ✅ |
 | GPU 锁频 | nvidia-smi `--lock-gpu-clocks` 核心频率锁定 | ✅ |
 | GPU 遥测 | 温度、功率、频率 (nvidia-smi) | ✅ |
-| SMU 调优 | 功耗墙 (PPT)、温度墙 (TDC/EDC) — RyzenAdj 集成 | ✅ |
+| SMU 调优 | 功耗墙 (PPT)、温度墙 (TDC/EDC) — SmuController + RyzenAdj | ✅ |
 | SMU 探测 | SMU 固件握手 PROBE_OK 验证 | ✅ |
 | 键盘背光 | 0-3 级亮度 — 物理内存 `0xFE80049A` 直写 | ✅ |
 | FnLock | 功能键锁定切换 — WMI MiInterface 方法 11 | ✅ |
@@ -33,18 +33,23 @@
 ## 架构
 
 ```
-                       浏览器 (:5173 / Vite Dev)
-                        /               \
-                       /                 \
-              C# HAL API (:3100)    Node.js Express (:3099)
-              ├─ Minimal API         ├─ SMU 调优 (RyzenAdj)
-              ├─ WebSocket 遥测      ├─ 配置持久化 (JSON)
-              ├─ WMI 直通            └─ 遗留端点
-              ├─ EC 寄存器访问
-              └─ inpoutx64 硬件层
+                       浏览器 (React SPA)
+                        :5173 Vite Dev / :3100 生产
+                           |
+                    C# HAL API (:3100)
+       ┌──────────────────────────────────┐
+       │  WmiInterface  (WMI MiInterface) │
+       │  DriverBridge  (inpoutx64 EC 直写)│
+       │  SmuController (RyzenAdj 子进程) │
+       │  WebSocket     (500ms 遥测推送)  │
+       │  Debug 页面    (内联 HTML 测试)  │
+       └──────────────────────────────────┘
+            |                |
+      Windows 内核       Node.js (:3099)
+      / 硬件             (可选：JSON 持久化)
 ```
 
-**三层 C# HAL 架构**：
+**C# HAL 三层架构**：
 
 | 层 | 文件 | 职责 |
 |:---|:-----|:-----|
@@ -53,7 +58,7 @@
 | **SMU** | `server/hal/SmuController.cs` | RyzenAdj 子进程封装 (Probe/SetPowerLimit/SetTempLimit) |
 | **API** | `server/api/Program.cs` | Minimal API 端点 + WebSocket 遥测推送 + Debug 页面 |
 
-**Node.js 后端** (`server/server.js`): UI 配置持久化、参数管理、SMU 任务调度。
+> Node.js (`server/server.js`) 仅为可选辅助服务，提供 UI 配置 JSON 持久化。SMU、遥测、硬件控制全部在 C# HAL 完成。
 
 ---
 
@@ -63,25 +68,25 @@
 
 | 工具 | 版本 | 验证 |
 |:-----|:-----|:-----|
-| Node.js | >= 18 | `node --version` |
 | .NET SDK | 8.0 (net8.0-windows) | `dotnet --list-sdks` |
+| Node.js | >= 18 | `node --version` |
+| npm | >= 9 | `npm --version` |
 | OS | Windows 10/11 x64 | — |
 | 权限 | **管理员身份** | C# HAL + inpoutx64 需要 |
 
 ### 启动
 
 ```powershell
-# 终端 1 — C# HAL API (必须管理员)
+# 终端 1 — C# HAL API (唯一必需，必须管理员)
 cd server/api
 dotnet run --urls http://0.0.0.0:3100
 # Debug 面板: http://127.0.0.1:3100/debug
 
-# 终端 2 — Node.js 后端
-cd server
-node server.js
-
-# 终端 3 — Vite 前端
+# 终端 2 — Vite 前端
 npx vite --host 0.0.0.0 --port 5173
+
+# 终端 3 — Node.js 配置持久化 (可选)
+cd server && node server.js
 ```
 
 ### 调试入口
@@ -89,9 +94,9 @@ npx vite --host 0.0.0.0 --port 5173
 | 地址 | 用途 |
 |:-----|:------|
 | `http://127.0.0.1:3100/debug` | C# HAL — 所有硬件控制按钮/滑块 (EC/WMI/SMU/Fan) |
-| `http://127.0.0.1:3099/debug` | Node.js — SMU 信息、参数管理、风扇控制 |
+| `http://127.0.0.1:3100/api/health` | C# HAL 健康检查 |
 | `http://localhost:5173` | 前端 Vite 开发服务器 |
-| `http://localhost:3100/api/health` | C# HAL 健康检查 |
+| `http://127.0.0.1:3099` | Node.js 配置持久化服务 (不启动不影响核心功能) |
 
 ---
 
@@ -101,11 +106,11 @@ npx vite --host 0.0.0.0 --port 5173
 |:-----|:-----|:-------|
 | 前端 | React 19 + Vite 8 + Tailwind CSS 3 + @dnd-kit | MIT |
 | C# HAL | .NET 8 + Minimal API + WMI + inpoutx64 | MIT |
-| Node.js | Express 5 + WebSocket (ws) | MIT |
-| SMU | RyzenAdj 子进程调用 | LGPL-3.0 |
+| SMU | RyzenAdj (SmuController 子进程调用) | LGPL-3.0 |
 | 硬件直连 | inpoutx64 (ReadPhys32 / WritePhys32) | MIT |
 | EC 寄存器 | DSDT 反编译 + EC IO 端口 `0x62`/`0x66` | — |
 | GPU 控制 | nvidia-smi 锁频 + WMI GPUMode | Proprietary |
+| 配置持久化 | Node.js Express 5 (可选辅助服务) | MIT |
 
 ---
 
@@ -113,8 +118,8 @@ npx vite --host 0.0.0.0 --port 5173
 
 | 文档 | 说明 |
 |:-----|:------|
-| [整体架构](docs/dev-architecture.md) | 系统分层、双后端、Vite 代理、数据流 |
-| [后端架构](docs/dev-backend.md) | C# HAL 三层 + Node.js |
+| [整体架构](docs/dev-architecture.md) | 系统分层、Vite 代理、数据流 |
+| [后端架构](docs/dev-backend.md) | C# HAL 三层 + Node.js 辅助服务 |
 | [前端架构](docs/dev-frontend.md) | 组件树、状态管理、布局 |
 | [EC 寄存器地图](docs/dev-ec-map.md) | DSDT 反编译确认的完整 EC 寄存器表 (150+ 寄存器) |
 | [API 定义](docs/dev-api.md) | C# HAL + Node.js 所有端点 |
@@ -126,7 +131,7 @@ npx vite --host 0.0.0.0 --port 5173
 
 ## 参考项目
 
-- [Lenovo Legion Toolkit](https://github.com/BartoszCichecki/LenovoLegionToolkit) — 官方 LLT 开源实现
+- [Lenovo Legion Toolkit](https://github.com/BartoszCichecki/LenovoLegionToolkit) — 官方 LLT 开源实现 (本机宝龙达 OEM 模具不兼容)
 - [Universal x86 Tuning Utility](https://github.com/JamesCJ60/Universal-x86-Tuning-Utility) — UXTU 通用调优工具
 - [RyzenAdj](https://github.com/FlyGoat/RyzenAdj) — AMD SMU 控制接口
 - [inpoutx64](https://www.highrez.co.uk/downloads/inpout32/) — 用户态物理内存/IO 访问

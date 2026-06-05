@@ -76,17 +76,17 @@ WebSocket 双通道：
 
 ### 控制
 ```
-[前端滑块/开关] -> 500ms debounce -> POST /api/control (C# HAL EC 直写 + WmiInterface)
+[前端滑块/开关] -> 500ms debounce -> POST /api/control (C# HAL)
                               +-> POST /api/fan/set-target (C# HAL EC 0x5F/0x5B)
-                              +-> POST /api/fan/restore (WmiInterface MaxFanSwitch=0)
+                              +-> POST /api/fan/restore (C# HAL WmiInterface)
                               +-> POST /api/smu/set (C# SmuController)
-                              +-> POST /api/uxtu/apply (Node.js -> 遗留 ryzenadj, 回退通道)
 
-C# HAL EC 直写(WmiInterface)：GPUMode(9)/FnLock(11)/TPLock(12)/Power_Plan/恢复固件
-C# HAL EC 直写(DriverBridge)：风扇0x5F/0x5B/键盘背光0x9A/Fn锁0x20/散热0xE4/集显0xFED81E56
-C# SmuController：SetPowerLimit(mW) / SetTempLimit(°C) / Probe
-Node.js 适用：JSON 持久化 (custom-params/ui-state/default-config)
-~~AppBridge(斗战者.dll)~~ ❌ 已废弃，全部由 WmiInterface 替代
+全部硬件控制由 C# HAL 完成：
+  • WmiInterface: GPUMode/FnLock/TPLock/PowerPlan
+  • DriverBridge: 风扇0x5F/0x5B/背光0x9A/Fn锁/散热0xE4
+  • SmuController: SetPowerLimit/SetTempLimit/Probe
+  • Node.js (可选): JSON 持久化 (custom-params/ui-state)
+```
 ```
 
 ### 持久化
@@ -96,14 +96,12 @@ localStorage (即时) <-> [前端状态]
 服务端 JSON (Node.js: config/*.json) <- POST /api/* (退出编辑/1s去抖)
 ```
 
-## 双后端部署
+## 服务部署
 
 | 服务 | 端口 | 技术 | 职责 |
 |------|------|------|------|
-| C# HAL API | :3100 | .NET 8 | 遥测、EC 直写、WebSocket、SmuController SMU、AppBridge 代理 |
-| Node.js | :3099 | Express 5 | UI 持久化 JSON、遥测补充、SMU (遗留 ryzenadj) |
-| AppBridge | 子进程 | net8.0-windows | 反射调用官方斗战者.dll（GPU Mode 主要） |
-| SmuController | 内联 | inpoutx64 | SMU 物理地址直写，零外部依赖 |
+| C# HAL API | :3100 | .NET 8 Minimal API | 遥测、EC 直写、WebSocket、SmuController SMU、Debug 页面 |
+| Node.js | :3099 | Express 5 | (可选) UI 配置 JSON 持久化 |
 | Vite | :5173 | React 19 | 前端开发服务器 |
 
 ## Vite 代理规则
@@ -121,7 +119,6 @@ localStorage (即时) <-> [前端状态]
   - EC 寄存器直写 (EC IO 协议 0x62/0x66)
   - SMU 物理地址直写 (SetPhysLong/GetPhysLong)
   - 32/8-bit IO 端口读写
-- **斗战者控制台.dll** — 部署时自动复制，仅 GPU Mode 切换必需
 - 必须以管理员权限运行 C# API
 - 驱动首次加载自动触发
 
