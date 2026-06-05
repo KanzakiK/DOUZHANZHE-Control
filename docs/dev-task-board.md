@@ -40,8 +40,6 @@
 - [x] **恢复固件控制**: `POST /api/fan/restore` — Debug 页按钮; 调 fan/set-target largeRpm=0,smallRpm=0 ✅
 - [x] **Debug 页**: 添加"恢复固件控制"按钮 ✅
 - [x] **废弃 AppBridge**: 砍掉 AppLib.cs + AppBridge 子项目 + 斗战者控制台.dll 依赖 ✅
-- [x] **Node.js JSON 持久化迁移**: C# 新增 `GET/POST /api/custom-params`、`GET/POST /api/ui-state` 文件持久化 ✅
-- [x] **Node.js 遥测迁移**: C# 补齐 `systeminformation` 类数据（CPU/内存/硬盘全量） ✅
 - [ ] **废弃 Node.js 后端**: 砍掉 server/server.js + package.json + utils/ + libryzenadj.js + tools/ │ 端点已迁移 ✅ + C# 反向代理已实现 ✅，但反向代理依赖 Node.js 运行，暂不能砍
 
 #### 前端（路由修复 → 散热联动 → 电源计划 → 其他）
@@ -67,7 +65,6 @@
 
 #### 其他（文档 → 清理）
 
-- [x] `dev-api.md`: Vite 代理表 custom-params/ui-state/default-config 目标端口误标为 :3099，应为 :3100 ✅
 - [ ] ~~`tools/`: 清理 WinRing0x64 残留~~ ❌ WinRing0x64.dll/sys 为 SmuController 运行时依赖，非冗余文件
 
 #### 已知 Bug（Release 1 内修复）
@@ -145,6 +142,9 @@
 - [x] `GET /debug` 内嵌 Debug 面板
 - [x] 跑通全链路: GET /api/health -> POST /api/control -> 物理 EC 写入生效
 
+- [x] **Node.js JSON 持久化迁移**: C# 新增 `GET/POST /api/custom-params`、`GET/POST /api/ui-state` 文件持久化 ✅
+- [x] **Node.js 遥测迁移**: C# 补齐 `systeminformation` 类数据（CPU/内存/硬盘全量） ✅
+
 ### 后端 — 风扇控制发现
 
 - [x] EC 寄存器发现 (0xB2/0xB3) + 公式 `val=round(rpm/maxRpm*255)` 经 ec_writer.cs 验证
@@ -194,6 +194,8 @@
 - [x] dev-frontend.md — 组件树/状态管理
 - [x] dev-release-plan.md — Release 1 对比表
 - [x] douzhanzhe-progress.md — 项目进度快照
+
+- [x] `dev-api.md`: Vite 代理表 custom-params/ui-state/default-config 目标端口误标为 :3099，应为 :3100 ✅
 
 ### 已修复 Bug
 
