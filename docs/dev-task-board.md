@@ -20,13 +20,13 @@
 
 #### 其他
 
-- [ ] `npm start` 一键启动脚本（vite build + dotnet run + node server）
+
 
 ### P1 — 核心功能
 
 #### 后端（开发 → 清理顺序）
 
-- [ ] **废弃 Node.js 后端**: 砍掉 server/server.js + package.json + utils/ + libryzenadj.js + tools/ │ 端点已迁移 ✅ + C# 反向代理已实现 ✅，但反向代理依赖 Node.js 运行，暂不能砍
+- [x] **废弃 Node.js 后端**: 砍掉 server/server.js + tools/Node.js仅用文件 + server.js 依赖 ✅
 
 #### 前端（路由修复 → 散热联动 → 电源计划 → 其他）
 

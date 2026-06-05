@@ -90,56 +90,7 @@ touchpadLock, igpuOnly, timestamp
 
 ---
 
-## ~~Node.js API (:3099)~~ **已废弃 — 端点已全部迁移至 C#**
 
-### ~~GET /api/telemetry~~ **已废弃** — C# HAL 已覆盖全部遥测字段
-
-### GET /api/ryzenadj/info
-SMU 状态读取（通过 libryzenadj.js 封装，子进程 ryzenadj -i）。Return: `{ ok, source: "ryzenadj", data: { [field]: { value, unit } } }`
-
-### GET /api/smu/api-type
-返回当前 SMU 访问通道。Return: `"subprocess"`
-
-### POST /api/uxtu/apply
-SMU 参数下发。Body 兼容两种格式：
-
-```json
-// 前端格式
-{ "profile": "custom", "params": { "cpuLongPptW": 65, "cpuTempLimitC": 90, ... } }
-// 旧格式
-{ "limits": { "cpu": { "pptLimitW": 65 }, "gpu": { "pptLimitW": 115 } } }
-```
-
-### POST /api/system/settings
-> **废弃**：此功能基于 Lenovo Legion LLT 项目的 WMI 方案。本机为宝龙达 OEM 模具，Legion 专用的 `LENOVO_*` WMI 类全部不存在。
-> **替代方案**：C# HAL `POST /api/control`（EC 直写）+ AppBridge（官方 DLL 反射调用）。
-Body: `{ key: string, value: any }`
-
-### POST /api/fan/full-speed
-> **废弃**：同样基于 LLT/WMI，此硬件不支持。
-> **替代方案**：风扇转速控制走 EC IO 寄存器 0xB2(大扇)/0xB3(小扇)，`val = round(rpm / maxRpm × 255)`。待实现 `POST /api/fan/set-target`。
-
-### GET /api/fan/set-target
-*待实现* — 安静性能模式。Body: `{ fan: "large"|"small", rpm: number }`
-写入 EC 寄存器 0xB2(大扇)/0xB3(小扇)，公式 `val = round(rpm / maxRpm * 255)`
-
-### GET|POST /api/custom-params
-自定义参数持久化。JSON: `{ cpuLongPptW, gpuPptLimitW, fanLargeRpmTarget, fanSmallRpmTarget }`
-
-### GET|POST /api/ui-state
-仪表盘状态持久化。JSON: `{ cardOrder: string[], hiddenCards: string[] }`
-
-### GET|POST /api/default-config
-默认配置读写。
-
-### GET /api/discover
-> **废弃**：WMI 类探测（仅用于调试，此硬件基本不可用）。
-> **替代方案**：C# HAL `GET /api/discover` 返回驱动状态。
-
-### GET /debug
-内嵌 HTML Debug 面板（SMU 信息、风扇控制、参数管理）。
-
----
 
 ## C# HAL API — 新增迁移端点
 
@@ -169,26 +120,6 @@ SMU 参数下发（转发到 SmuController）。兼容两种格式：
 **废弃 stub** — 返回 "此端点已废弃，请使用 /api/fan/set-target 手动控制风扇"
 
 ---
-
-## Vite Proxy
-
-
-> **权威来源**：`vite.config.js`。架构总览见 [dev-architecture.md](dev-architecture.md#Vite-代理规则)。
-
-| 前端路径 | 目标 | 说明 |
-|----------|------|------|
-| `/api/telemetry` | :3100 | C# HAL 遥测 |
-| `/api/control` | :3100 | C# HAL 硬件控制 |
-| `/api/health` | :3100 | C# HAL 健康检查 |
-| `/api/discover` | :3100 | C# HAL 硬件探测 |
-| `/ws` | ws://:3100 | C# HAL WebSocket（WS直连绕过代理） |
-| `/api/uxtu` | :3100 | 已迁移 C# HAL |
-| `/api/system` | :3100 | 已迁移 C# HAL |
-| `/api/ryzenadj` | :3100 | 已迁移 C# HAL |
-| `/api/fan` | :3100 | 已迁移 C# HAL |
-| `/api/custom-params` | :3100 | 已迁移 C# HAL |
-| `/api/ui-state` | :3100 | 已迁移 C# HAL |
-| `/api/default-config` | :3100 | 已迁移 C# HAL |
 
 ---
 > 项目主记忆：[douzhanzhe-progress.md](.github/copilot-instructions.md) | 操作守则：[.github/copilot-instructions.md](.github/copilot-instructions.md)

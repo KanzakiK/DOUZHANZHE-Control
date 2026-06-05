@@ -6,8 +6,7 @@
 
 | 服务 | 端口 | 技术 | 职责 |
 |------|------|------|------|
-| C# HAL API | :3100 | .NET 8 Minimal API | 遥测、硬件控制、WebSocket、SMU、Debug |
-| Node.js | :3099 | Express 5 | (可选) UI 配置 JSON 持久化 |
+| C# HAL API | :3100 | .NET 8 Minimal API | 遥测、硬件控制、WebSocket、SMU、Debug、配置持久化 |
 
 ### Vite 代理分流
 
