@@ -28,4 +28,9 @@
     <PackageReference Include="System.Management" Version="8.0.0" />
   </ItemGroup>
 
+
+  <Target Name="AutoCommitAfterBuild" AfterTargets="Build">
+    <Exec Command="git add -A" WorkingDirectory="$(ProjectDir)..\.." />
+    <Exec Command="git commit -m &quot;auto: build success&quot; --allow-empty" WorkingDirectory="$(ProjectDir)..\.." ContinueOnError="WarnAndContinue" />
+  </Target>
 </Project>
