@@ -17,7 +17,7 @@
 
 - [x] C# 静态文件服务: `wwwroot/` + `UseStaticFiles()` + `MapFallbackToFile("index.html")` ✅
 - [ ] C# 反向代理 Node.js 遗留端点
-- [ ] 开机自启动（双后端注册服务）
+- [ ] 开机自启动（后端注册服务）
 - [ ] 安装程序 / 打包（Inno Setup 或 NSIS）
 
 #### 其他

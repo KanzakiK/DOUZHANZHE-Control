@@ -393,3 +393,10 @@
 - **Git 规范化**: .gitignore 黑名单补全 + .gitattributes 新建
 - **GitHub 同步**: v1.1.0 commit (C# HAL/WMI/SMU/文档) + 4 个 docs fix commits
 - **主记忆更新**: 已验证硬件表 + 运行时依赖表 SMU/WinRing0 澄清
+
+
+## 2026-06-05 (dev-api.md Vite proxy table fix)
+
+- dev-api.md Vite 代理表 7 行目标端口从 :3099 改为 :3100（custom-params/ui-state/default-config/fan/ryzenadj/uxtu/system）
+- 与 vite.config.js 实际配置完全同步
+- 任务看板对应条目可打勾✔（文档同步）
