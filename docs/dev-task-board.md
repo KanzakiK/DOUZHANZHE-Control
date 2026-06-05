@@ -30,7 +30,7 @@
 
 #### 前端（路由修复 → 散热联动 → 电源计划 → 其他）
 
-- [ ] **路由修复**: `SettingsPanel.jsx` — `halMap` 追加 `gpuOnly->igpu_only`、`touchpadLock->touchpad_lock`，`dGpuDirect->gpu_mode(2/0)`
+- [x] **路由修复**: `SettingsPanel.jsx` — `halMap` 追加 `gpuOnly->igpu_only`、`touchpadLock->touchpad_lock`，`dGpuDirect->gpu_mode(2/0)` ✅
 - [ ] **散热模式**: `uxtuAdapter.js` 导出 `thermalModeMap` + 清理废弃 `setFanFullSpeed()`
 - [ ] **散热模式**: `App.jsx` 5 个模式按钮联动 `POST /api/control target=thermal_mode`
 - [ ] **电源计划**: `uxtuAdapter.js` 导出 `powerPlanHALMap`
@@ -54,7 +54,6 @@
 #
 ### 已知 Bug（Release 1 内修复）
 
-- [ ] SettingsPanel: `dGpuDirect` -> Node.js 废弃端点报错（见上方「路由修复」任务）
 - [ ] 前端模式按钮高亮加载时序（数据就绪前短暂错位）
 - [x] SortableDashboard.jsx 重复属性 `showGpu={false}` ✅ (仅一处，非重复)
 - [x] 历史曲线图 Sparkline 组件渲染排查 ✅ NaN 兜底修复

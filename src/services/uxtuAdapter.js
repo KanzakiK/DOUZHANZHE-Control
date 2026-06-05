@@ -27,35 +27,8 @@ export async function applyHardwareControl(target, value) {
   return res.json();
 }
 
-// 遗留系统开关 (通过 Node.js WMI)
-export async function applySystemSetting(key, value) {
-  const res = await fetch(`${BACKEND}/api/system/settings`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ key, value }),
-  });
-  if (!res.ok) throw new Error(`后端返回 ${res.status}`);
-  return res.json();
-}
-
-export async function fetchSmuInfo() {
-  const res = await fetch(`${BACKEND}/api/ryzenadj/info`);
-  if (!res.ok) throw new Error(`后端返回 ${res.status}`);
-  return res.json();
-}
-
 export async function discoverWmi() {
   const res = await fetch(`${BACKEND}/api/discover`);
-  if (!res.ok) throw new Error(`后端返回 ${res.status}`);
-  return res.json();
-}
-
-export async function setFanFullSpeed(enabled) {
-  const res = await fetch(`${BACKEND}/api/fan/full-speed`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ enabled }),
-  });
   if (!res.ok) throw new Error(`后端返回 ${res.status}`);
   return res.json();
 }
