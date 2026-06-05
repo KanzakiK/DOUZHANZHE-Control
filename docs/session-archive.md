@@ -407,3 +407,42 @@
 - C# Program.cs: 新增 app.Use() 中间件，C# 未匹配的 /api/* 自动转发到 Node.js :3099（Node.js 不可用时返回 502）
 - 新增 GET /api/smu/api-type 端点（返回“subprocess”）
 - 编译 0 错误，已推送 GitHub
+
+
+## 2026-06-05 (Ship 2: thermal mode + routing + Node.js retirement)
+
+- 提取 thermalModeMap + powerPlanHALMap 到 uxtuAdapter.js
+- 剠除 Node.js 后端（server.js/utils/libryzenadj）+移除反向代理
+- 路由修复 SettingsPanel halMap 已正确
+- 任务看板全面审计：打勾完成、合并重复、移除已完成项
+- 文档同步：Node.js 参考移除、Vite 代理表简化
+
+
+## 2026-06-06 (风扇控制突破·WMI Bellator 协议修复)
+
+### 诊断结论
+- **应用崩溃修复**: SettingsPanel.jsx 移除不存在的 applySystemSetting 导入 → React 应用恢复渲染
+- **风扇控制修复**: EC 0x5F/0x5B WriteEc ❌ 改为 **WMI MiInterface MaxFanSpeed(21) 协议** ✅
+  - BellatorFanControl 协议：data[4]=FanType(0大扇/1小扇), data[5]=RPM/100
+  - MaxFanSwitch(20): 启用手动/恢复固件控制
+- **WinRing0 驱动从工具链中清理**
+
+### 代码变更
+| 文件 | 变更 |
+|------|------|
+| server/api/WmiInterface.cs | 新增 SetFanManual(bool) + SetFanSpeed(byte,byte) 方法 |
+| server/api/Program.cs | fan/set-target 从 hal.CpuFanControl 改为 wmi.SetFanManual+SetFanSpeed |
+| src/components/panels/SettingsPanel.jsx | 移除不存在的 applySystemSetting 导入 |
+| src/hooks/useControlState.js | 注入调试日志（已保留供后续排查） |
+
+### 真机验证
+- 写入 2800 → 8秒后 2782 ✅
+- 写入 3300 → 8秒后 3286 ✅
+- 写入 2500（低于均衡下限）→ 2878（EC 截断）⚠️
+
+### 文档同步
+- dev-api.md: POST /api/fan/set-target 控制路径更新为 WMI
+- dev-ec-map.md: 0x5F/0x5B 标记为只读状态寄存器，新增 WMI 控制说明
+- dev-task-board.md: 标记完成
+- dev-release-plan.md: 对比表更新
+- dev-backend.md: CpuFanControl/GpuFanControl 路径更新

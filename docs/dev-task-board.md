@@ -39,8 +39,8 @@
 
 #### 前端（新增任务 — 2026-06-05 第二轮）
 
-- [ ] **风扇目标转速不生效**: 排查 POST /api/fan/set-target 调用链，useControlState 600ms 去抖是否触发，C# 端点是否生效
-- [ ] **模式前后台命名映射错乱**: 修复自定义模式切换回官方预设时的 thermal_mode 值错位 + uxtu/apply 参数匹配
+- [x] **风扇目标转速不生效**: ✅ WMI Bellator 协议修复（MaxFanSwitch+MaxFanSpeed, data[4]=FanType）
+- [x] ~~模式前后台命名映射错乱~~ ❌ 自定义模式将被砍掉，此 bug 自然消失，不再修复
 - [ ] **GPU 模式独立卡片**: 三个按钮（混合模式/集显模式/独显直连），替代 SettingPanel 中的 dGpuDirect/gpuOnly 开关
 
 #### 前端（模式重构 — 大任务）

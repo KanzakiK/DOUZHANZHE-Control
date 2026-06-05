@@ -330,26 +330,23 @@ app.MapGet("/api/smu/read-reg", (SmuController smu, HttpContext ctx) =>
     }
 });
 
-app.MapPost("/api/fan/set-target", async (FanSetRequest req, HardwareAbstractionLayer hal) =>
+app.MapPost("/api/fan/set-target", (FanSetRequest req, WmiInterface wmi) =>
 {
     try
     {
+        // Bellator 协议: 先启用手动风扇模式，再设转速
+        wmi.SetFanManual(true);
         if (req.LargeRpm.HasValue)
         {
-            var large = (ushort)Math.Clamp(req.LargeRpm.Value, 0, 4400);
-            hal.CpuFanControl = large;
+            var speed = (byte)Math.Clamp(req.LargeRpm.Value / 100, 0, 44);
+            wmi.SetFanSpeed(0, speed); // FanType 0 = CPUGPUFan
         }
         if (req.SmallRpm.HasValue)
         {
-            var small = (ushort)Math.Clamp(req.SmallRpm.Value, 0, 8200);
-            hal.GpuFanControl = small;
+            var speed = (byte)Math.Clamp(req.SmallRpm.Value / 100, 0, 82);
+            wmi.SetFanSpeed(1, speed); // FanType 1 = SYSFan
         }
-        return Results.Json(new
-        {
-            ok = true,
-            largeRpm = (int)(req.LargeRpm ?? hal.CpuFanControl),
-            smallRpm = (int)(req.SmallRpm ?? hal.GpuFanControl),
-        });
+        return Results.Json(new { ok = true });
     }
     catch (Exception ex)
     {
@@ -361,7 +358,7 @@ app.MapPost("/api/fan/restore", (WmiInterface wmi) =>
 {
     try
     {
-        wmi.SendRawCommand(20, 0);
+        wmi.SetFanManual(false);
         return Results.Json(new { ok = true });
     }
     catch (Exception ex)

@@ -52,13 +52,15 @@ Return: `{ ok: bool, rc: int }`(rc=0 成功)
 SMU 连通性探测 (SmuController → ryzenadj.exe 子进程)。Return: `{ ok: bool, source: "ryzenadj" }`
 
 ### POST /api/fan/set-target
-风扇目标转速下发。Body: `{ largeRpm: int, smallRpm: int }`
-- 写入 EC 寄存器 0x5F(大扇)/0x5B(小扇)，值 = RPM/100
+风扇目标转速下发（WMI MiInterface MaxFanSpeed 协议）。Body: `{ largeRpm: int, smallRpm: int }`
+- 通过 WMI MaxFanSwitch(20) 启用手动风扇模式，再调用 MaxFanSpeed(21) 设转速
+- 协议：`data[4]=FanType(0=大扇/1=小扇)`, `data[5]=RPM/100`
 - 限幅：大扇 0-4400 RPM，小扇 0-8200 RPM
-- Return: `{ ok: bool, largeRpm: int, smallRpm: int }`
+- Return: `{ ok: bool }`
+- **注意**：受散热模式区间限制（安静1900-2900, 均衡2600-3500, 野兽3200-3800, 斗战4000-4400），超出下限的值会被 EC 截断
 
 ### POST /api/fan/restore
-恢复固件风扇曲线。调用 WMI `MaxFanSpeedSwitch(0)`。
+恢复固件风扇曲线。调用 WMI MaxFanSwitch(20, FanType=0, enable=0)。
 - Body: 无
 - Return: `{ ok: bool }`
 

@@ -24,12 +24,12 @@
 | **Fn 锁** | ✅ | ✅ | ✅ 必含 |
 | **NumLock / CapsLock** | ✅ | ✅ | ✅ 必含 |
 | **触摸板锁** | ✅ | ✅ | ✅ 必含 |
-| **关闭 OSD** | ✅ | ❌ 未实现 | ❌ Release 2 |
-| **五维雷达图** | ✅ | ❌ 未实现 | ❌ 可选加分 |
-| **屏幕校色入口** | ✅ | ❌ 不适用（依赖硬件） | ❌ 放弃 |
-| **SMU 功耗墙/温度墙** | ❌ 官方没有 | ✅ SmuController 已验证 | ➕ 独有特色 |
-| **电源计划切换**（平衡/高性能/节能） | ❌ 官方没有 | ✅ powrprof.dll | ➕ 独有特色 |
-| **GPU 模式切换**（混合/集显/独显） | ❌ 官方无显式切换 | ✅ AppBridge 已验证 | ➕ 独有特色 |
+| **关闭 OSD** | ✅ | ✅ WMI Bellator 未实现 | ✅ WMI Bellator Release 2 |
+| **五维雷达图** | ✅ | ✅ WMI Bellator 未实现 | ✅ WMI Bellator 可选加分 |
+| **屏幕校色入口** | ✅ | ✅ WMI Bellator 不适用（依赖硬件） | ✅ WMI Bellator 放弃 |
+| **SMU 功耗墙/温度墙** | ✅ WMI Bellator 官方没有 | ✅ SmuController 已验证 | ➕ 独有特色 |
+| **电源计划切换**（平衡/高性能/节能） | ✅ WMI Bellator 官方没有 | ✅ powrprof.dll | ➕ 独有特色 |
+| **GPU 模式切换**（混合/集显/独显） | ✅ WMI Bellator 官方无显式切换 | ✅ AppBridge 已验证 | ➕ 独有特色 |
 
 ---
 
@@ -59,17 +59,17 @@
 | 项目 | 当前状态 | 工作量 |
 |:-----|:--------|:------:|
 | **① 风扇手动控制**（全栈） | | |
-| ├ C# HAL: `CpuFanControl`/`GpuFanControl` 语义属性 | ❌ | 小 |
-| ├ C# API: `POST /api/fan/set-target` | ❌ | 小 |
-| └ C# Debug 页: 风扇目标转速滑块 | ❌ | 中 |
+| ├ C# HAL: `CpuFanControl`/`GpuFanControl` 语义属性 | ✅ WMI Bellator | 小 |
+| ├ C# API: `POST /api/fan/set-target` | ✅ WMI Bellator | 小 |
+| └ C# Debug 页: 风扇目标转速滑块 | ✅ WMI Bellator | 中 |
 | **② 前端 SettingsPanel 补齐** | | |
-| ├ 散热模式下拉框 (`thermal_mode`) | ❌ | 中 |
-| ├ 电源计划下拉框 (`power_plan`) | ❌ | 中 |
+| ├ 散热模式下拉框 (`thermal_mode`) | ✅ WMI Bellator | 中 |
+| ├ 电源计划下拉框 (`power_plan`) | ✅ WMI Bellator | 中 |
 | ├ GPU 模式选择器 (AppBridge GPUMode 0/1/2) | 后端 ✅ | 中 |
 | ├ 集显模式开关 (`igpu_only`) | 后端 ✅ | 小 |
-| └ 触摸板锁路由修正 (Node.js → C# HAL) | ❌ | 小 |
+| └ 触摸板锁路由修正 (Node.js → C# HAL) | ✅ WMI Bellator | 小 |
 | **③ 历史曲线图** | | |
-| └ 排查 Sparkline 组件渲染（代码存在，可能卡片被隐藏） | ❌ | 小 |
+| └ 排查 Sparkline 组件渲染（代码存在，可能卡片被隐藏） | ✅ WMI Bellator | 小 |
 
 ---
 

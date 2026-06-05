@@ -134,6 +134,40 @@ public sealed class WmiInterface
         catch { return false; }
     }
 
+    // ---- Fan control (Bellator protocol: data[4]=FanType, data[5]=value) ----
+    // FanType: 0=CPUGPUFan(大扇), 1=SYSFan(小扇)
+    public bool SetFanManual(bool enable)
+    {
+        try
+        {
+            // MaxFanSwitch(20): data[4]=FanType(0), data[5]=enable
+            var input = new byte[32];
+            input[1] = 251;
+            input[3] = 20;
+            input[4] = 0;   // CPUGPUFan (大扇)
+            input[5] = enable ? (byte)1 : (byte)0;
+            CallMethod(input);
+            return true;
+        }
+        catch { return false; }
+    }
+
+    public bool SetFanSpeed(byte fanType, byte speed)
+    {
+        try
+        {
+            // MaxFanSpeed(21): data[4]=FanType, data[5]=RPM/100
+            var input = new byte[32];
+            input[1] = 251;
+            input[3] = 21;
+            input[4] = fanType;
+            input[5] = speed;
+            CallMethod(input);
+            return true;
+        }
+        catch { return false; }
+    }
+
     // ---- Generic raw command (method number + optional value) ----
     public byte[] SendRawCommand(byte method, byte? value = null)
     {

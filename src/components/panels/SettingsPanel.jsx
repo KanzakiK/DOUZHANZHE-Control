@@ -1,4 +1,4 @@
-import { applySystemSetting, applyHardwareControl } from "../../services/uxtuAdapter";
+import { applyHardwareControl } from "../../services/uxtuAdapter";
 import Card from "../ui/Card";
 import SliderRow from "../ui/SliderRow";
 import SwitchRow from "../ui/SwitchRow";
@@ -27,8 +27,7 @@ export default function SettingsPanel({ settings, setSettings, uxtuPayload, show
       applyHardwareControl(halMap[key], value ? (key === "dGpuDirect" ? 2 : 1) : 0)
         .catch(() => toast?.("设置下发失败", "error"));
     } else {
-      applySystemSetting(key, value)
-        .catch(() => toast?.("设置下发失败", "error"));
+      console.warn("[SettingsPanel] unknown key:", key, value);
     }
   };
 
