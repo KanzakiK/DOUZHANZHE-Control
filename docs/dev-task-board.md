@@ -122,7 +122,7 @@
 - [x] WebConsoleAPI（Minimal API + WebSocket + TelemetryBackgroundService）
 - [x] DSDT ACPI 反编译 + EC 寄存器全表导出
 - [x] 替换 WinRing0 -> inpoutx64 (MIT 自管)
-- [x] SmuController inpoutx64 物理地址直写 SMU（根除 WinRing0 依赖）
+- [x] SmuController 子进程调用 ryzenadj.exe（程序集零外部依赖，运行时依赖 WinRing0 驱动）
 - [x] **SMU 子进程集成修复**: SmuController.cs 路径候选修复 + run.ps1 自动复制 WinRing0/ryzenadj + 移除 Redirect 导致 0xC0000005 + 接受无害崩溃退出码 ✅
 - [x] DriverBridge 32-bit IO: Inp32/Out32 + ReadPhys32/WritePhys32
 
@@ -150,7 +150,7 @@
 ### 后端 — SMU 调优全链路
 
 - [x] Step 1~D: libryzenadj 封装 -> server.js 重构 -> SmuController 物理地址直写
-- [x] Step G: 移除 WinRing0x64.dll + 废弃 ryzenadj.exe（已全面替代）
+- [x] Step G: WinRing0x64.dll 仍x依赖于 SmuController（通过 ryzenadj.exe），DriverBridge 已全面移除对 WinRing0 的直接依赖
 
 ### 前端 — 遥测监控
 
@@ -210,8 +210,8 @@
 | `ec_writer.cs/.exe` | EC IO 写风扇 0xB2/0xB3 | `HardwareAbstractionLayer` 已实现 (寄存器写入✅, 物理响应❌) | ✅ 🚧 |
 | `demo.bat` | ryzenadj SMU 参数下发 | C# `POST /api/smu/set` | ✅ |
 | `WinRing0x64` | 内核驱动 (GPL) | inpoutx64 (MIT) | ✅ |
-| `ryzenadj.exe` | SMU CLI | SmuController (inpoutx64 直写) | ✅ |
-| `libryzenadj.dll` | SMU C API | SmuController (inpoutx64 直写) | ✅ |
+| `ryzenadj.exe` | SMU CLI | SmuController → ryzenadj.exe → WinRing0 | ✅ |
+| `libryzenadj.dll` | SMU C API | ❌ 已从跟踪中删除，由 ryzenadj.exe 替代 | ✅ |
 | `readjustService.ps1` | SMU 后台监视器 | ❌ 未迁移 | 🚧 |
 
 ### 历史记录

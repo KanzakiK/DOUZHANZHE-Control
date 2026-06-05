@@ -12,7 +12,7 @@
 
 - DriverBridge 32-bit IO: Inp32/Out32 + ReadPhys32/WritePhys32
 
-- SmuController inpoutx64 物理地址直写 SMU（根除 WinRing0）
+- SmuController 子进程调用 ryzenadj.exe（底层仍依赖 WinRing0 驱动）
 
 - Debug 页 SMU 控制区 5 按钮
 
