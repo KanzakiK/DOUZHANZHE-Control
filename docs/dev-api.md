@@ -40,7 +40,7 @@ EC 寄存器批量扫描。Query: `offset, length`
 Return: `{ offset, length, hex }`
 
 ### POST /api/smu/set
-SMU 参数下发 (ryzenadj.exe 子进程 + WinRing0)。Body: `{ parameter: string, valueM: int }`
+SMU 参数下发 (SmuController → ryzenadj.exe 子进程 + inpoutx64)。Body: `{ parameter: string, valueM: int }`
 
 | parameter | valueM | 功能 |
 |-----------|--------|------|
@@ -49,7 +49,7 @@ SMU 参数下发 (ryzenadj.exe 子进程 + WinRing0)。Body: `{ parameter: strin
 Return: `{ ok: bool, rc: int }`(rc=0 成功)
 
 ### GET /api/smu/probe
-SMU 连通性探测 (ryzenadj.exe 子进程)。Return: `{ ok: bool, source: "ryzenadj" }`
+SMU 连通性探测 (SmuController → inpoutx64 物理地址直写)。Return: `{ ok: bool, source: "inpoutx64" }`
 
 ### POST /api/fan/set-target
 风扇目标转速下发。Body: `{ largeRpm: int, smallRpm: int }`

@@ -235,7 +235,7 @@ server/
 ├── tools/                        # 硬件访问工具
 │   ├── inpoutx64.dll             # MIT 开源驱动
 │   ├── ryzenadj.exe              # AMD SMU 控制
-│   ├── libryzenadj.dll           # SMU 库 (参考留存，当前使用 SmuController 直写)
+│   ├── libryzenadj.dll           # ~~SMU 库~~ ❌ 已从跟踪中删除，由 SmuController 替代
 │   ├── ec_reader.cs / .exe       # EC 寄存器读取
 │   └── ec_kb_map.exe             # 键盘背光控制
 ├── package.json
