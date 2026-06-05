@@ -15,8 +15,6 @@
 
 #### 后端（开发 → 打包顺序）
 
-- [x] C# 静态文件服务: `wwwroot/` + `UseStaticFiles()` + `MapFallbackToFile("index.html")` ✅
-- [x] C# 反向代理 Node.js 遗留端点 ✅
 - [ ] 开机自启动（后端注册服务）
 - [ ] 安装程序 / 打包（Inno Setup 或 NSIS）
 
@@ -28,29 +26,15 @@
 
 #### 后端（开发 → 清理顺序）
 
-- [x] ~~`CpuFanControl`/`GpuFanControl`~~ ❌ LLT 路径(0xB2/0xB3)无效 → **0x5F 大扇控制 ✅**（GpuFanControl 小扇待发现）
-- [x] **C# API**: `POST /api/fan/set-target` 端点 ✅ **0x5F 控制已验证**
-- [x] **C# Debug 页**: 风扇目标转速滑块 ✅ **0x5F 控制已验证**
-- [x] **风扇物理控制探索**: ~~0xB2/0xB3 直写~~ ❌ → **0x5F(大扇)/0x5B(小扇) ✅** WriteEc 直接生效，值=RPM/100，受散热区间限制
-- [x] **小风扇控制寄存器 0x5B**: ✅ EC 直写 `WriteEc(0x5B, RPM/100)` 已验证
-- [x] **WmiInterface.cs** ✅ 已实现（`root\WMI`，32 字节协议，零依赖）
-- [x] **GPUMode (WMI)** ✅ `POST /api/control` gpu_mode 已迁移到 WmiInterface
-- [x] **WMI 迁移 — `POST /api/control` FnLock(11)**: 从 AppBridge 迁移到 WmiInterface ✅
-- [x] **WMI 迁移 — `POST /api/control` TPLock(12)**: 从 AppBridge 迁移到 WmiInterface ✅
-- [x] **恢复固件控制**: `POST /api/fan/restore` — Debug 页按钮; 调 fan/set-target largeRpm=0,smallRpm=0 ✅
-- [x] **Debug 页**: 添加"恢复固件控制"按钮 ✅
-- [x] **废弃 AppBridge**: 砍掉 AppLib.cs + AppBridge 子项目 + 斗战者控制台.dll 依赖 ✅
 - [ ] **废弃 Node.js 后端**: 砍掉 server/server.js + package.json + utils/ + libryzenadj.js + tools/ │ 端点已迁移 ✅ + C# 反向代理已实现 ✅，但反向代理依赖 Node.js 运行，暂不能砍
 
 #### 前端（路由修复 → 散热联动 → 电源计划 → 其他）
 
 - [ ] **路由修复**: `SettingsPanel.jsx` — `halMap` 追加 `gpuOnly->igpu_only`、`touchpadLock->touchpad_lock`，`dGpuDirect->gpu_mode(2/0)`
-- [x] **路由修复**: `SettingsPanel.jsx` — `osdDisabled` Toast 提示"暂不支持" ✅
 - [ ] **散热模式**: `uxtuAdapter.js` 导出 `thermalModeMap` + 清理废弃 `setFanFullSpeed()`
 - [ ] **散热模式**: `App.jsx` 5 个模式按钮联动 `POST /api/control target=thermal_mode`
 - [ ] **电源计划**: `uxtuAdapter.js` 导出 `powerPlanHALMap`
 - [ ] **电源计划**: `PerformancePanel.jsx` 电源管理按钮双发 C# HAL `power_plan`
-- [x] **历史曲线**: 排查 Sparkline 渲染（代码存在，可能卡片被隐藏） ✅
 
 
 #### 前端（新增任务 — 2026-06-05 第二轮）
@@ -67,7 +51,8 @@
 
 - [ ] ~~`tools/`: 清理 WinRing0x64 残留~~ ❌ WinRing0x64.dll/sys 为 SmuController 运行时依赖，非冗余文件
 
-#### 已知 Bug（Release 1 内修复）
+#
+### 已知 Bug（Release 1 内修复）
 
 - [ ] SettingsPanel: `dGpuDirect` -> Node.js 废弃端点报错（见上方「路由修复」任务）
 - [ ] 前端模式按钮高亮加载时序（数据就绪前短暂错位）
@@ -202,6 +187,26 @@
 - [x] ~~mockTelemetry.js cpuCores:32~~ — 已修复
 
 ---
+
+
+### 后端 — 风扇控制 + WMI + Debug
+- [x] C# 静态文件服务: `wwwroot/` + `UseStaticFiles()` + `MapFallbackToFile("index.html")` ✅
+- [x] C# 反向代理 Node.js 遗留端点 ✅
+- [x] ~~`CpuFanControl`/`GpuFanControl`~~ ❌ LLT 路径(0xB2/0xB3)无效 → **0x5F 大扇控制 ✅**（GpuFanControl 小扇待发现）
+- [x] **C# API**: `POST /api/fan/set-target` 端点 ✅ **0x5F 控制已验证**
+- [x] **C# Debug 页**: 风扇目标转速滑块 ✅ **0x5F 控制已验证**
+- [x] **风扇物理控制探索**: ~~0xB2/0xB3 直写~~ ❌ → **0x5F(大扇)/0x5B(小扇) ✅** WriteEc 直接生效，值=RPM/100，受散热区间限制
+- [x] **小风扇控制寄存器 0x5B**: ✅ EC 直写 `WriteEc(0x5B, RPM/100)` 已验证
+- [x] **WmiInterface.cs** ✅ 已实现（`root\WMI`，32 字节协议，零依赖）
+- [x] **GPUMode (WMI)** ✅ `POST /api/control` gpu_mode 已迁移到 WmiInterface
+- [x] **WMI 迁移 — `POST /api/control` FnLock(11)**: 从 AppBridge 迁移到 WmiInterface ✅
+- [x] **WMI 迁移 — `POST /api/control` TPLock(12)**: 从 AppBridge 迁移到 WmiInterface ✅
+- [x] **恢复固件控制**: `POST /api/fan/restore` — Debug 页按钮; 调 fan/set-target largeRpm=0,smallRpm=0 ✅
+- [x] **Debug 页**: 添加"恢复固件控制"按钮 ✅
+- [x] **废弃 AppBridge**: 砍掉 AppLib.cs + AppBridge 子项目 + 斗战者控制台.dll 依赖 ✅
+- [x] **路由修复**: `SettingsPanel.jsx` — `osdDisabled` Toast 提示"暂不支持" ✅
+- [x] **历史曲线**: 排查 Sparkline 渲染（代码存在，可能卡片被隐藏） ✅
+
 
 ## 附录
 
