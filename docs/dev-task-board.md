@@ -16,7 +16,7 @@
 #### 后端（开发 → 打包顺序）
 
 - [x] C# 静态文件服务: `wwwroot/` + `UseStaticFiles()` + `MapFallbackToFile("index.html")` ✅
-- [ ] C# 反向代理 Node.js 遗留端点
+- [x] C# 反向代理 Node.js 遗留端点 ✅
 - [ ] 开机自启动（后端注册服务）
 - [ ] 安装程序 / 打包（Inno Setup 或 NSIS）
 
@@ -40,9 +40,9 @@
 - [x] **恢复固件控制**: `POST /api/fan/restore` — Debug 页按钮; 调 fan/set-target largeRpm=0,smallRpm=0 ✅
 - [x] **Debug 页**: 添加"恢复固件控制"按钮 ✅
 - [x] **废弃 AppBridge**: 砍掉 AppLib.cs + AppBridge 子项目 + 斗战者控制台.dll 依赖 ✅
-- [ ] **Node.js JSON 持久化迁移**: C# 新增 `GET/POST /api/custom-params`、`GET/POST /api/ui-state` 文件持久化
-- [ ] **Node.js 遥测迁移**: C# 补齐 `systeminformation` 类数据（CPU/内存/硬盘全量）
-- [ ] **废弃 Node.js 后端**: 砍掉 server/server.js + package.json + utils/ + libryzenadj.js + tools/（端点迁移已完成 ✅）
+- [x] **Node.js JSON 持久化迁移**: C# 新增 `GET/POST /api/custom-params`、`GET/POST /api/ui-state` 文件持久化 ✅
+- [x] **Node.js 遥测迁移**: C# 补齐 `systeminformation` 类数据（CPU/内存/硬盘全量） ✅
+- [ ] **废弃 Node.js 后端**: 砍掉 server/server.js + package.json + utils/ + libryzenadj.js + tools/ │ 端点已迁移 ✅ + C# 反向代理已实现 ✅，但反向代理依赖 Node.js 运行，暂不能砍
 
 #### 前端（路由修复 → 散热联动 → 电源计划 → 其他）
 
@@ -67,12 +67,12 @@
 
 #### 其他（文档 → 清理）
 
-- [ ] `dev-api.md`: Vite 代理表 custom-params/ui-state/default-config 目标端口误标为 :3099，应为 :3100
+- [x] `dev-api.md`: Vite 代理表 custom-params/ui-state/default-config 目标端口误标为 :3099，应为 :3100 ✅
 - [ ] ~~`tools/`: 清理 WinRing0x64 残留~~ ❌ WinRing0x64.dll/sys 为 SmuController 运行时依赖，非冗余文件
 
 #### 已知 Bug（Release 1 内修复）
 
-- [ ] SettingsPanel: `dGpuDirect` -> Node.js 废弃端点报错（路由修复中）
+- [ ] SettingsPanel: `dGpuDirect` -> Node.js 废弃端点报错（见上方「路由修复」任务）
 - [ ] 前端模式按钮高亮加载时序（数据就绪前短暂错位）
 - [x] SortableDashboard.jsx 重复属性 `showGpu={false}` ✅ (仅一处，非重复)
 - [x] 历史曲线图 Sparkline 组件渲染排查 ✅ NaN 兜底修复
@@ -91,11 +91,12 @@
 - [ ] **显存超频**: nvidia-smi `--lock-memory-clocks=min,max` (RTX5060 GDDR7 9001MHz 基线)
 - [ ] **重置显存**: nvidia-smi `--reset-memory-clocks`
 - [ ] **GPU 功耗墙**: ❌ nvidia-smi `--power-limit` 驱动限制不可用，需另寻路径
-- [ ] **遥测扩展**: GPU 功率 `power.draw` (已读 19.12W ✅) + 查询支持频率列表
+- [ ] **遥测扩展**: CPU/GPU 功率
+  - GPU `power.draw` (已读 19.12W ✅)
+  - CPU (ryzenadj `-i` 解析 SMU)
+  - CPU 功率负载估算回退
 - [ ] **Debug 页 GPU 控制区**: 频率锁/超频/重置 + 当前频率/功耗显示
 - [ ] **前端 GPU 性能面板**: 核心频率滑块 + 显存频率滑块 + 一键恢复默认
-- [ ] **遥测扩展**: CPU 功率（ryzenadj `-i` 解析 SMU 实际功率）
-- [ ] **遥测扩展**: CPU 功率负载估算回退
 - [ ] **SMU 监视器**: 值被覆盖时自动重发（替代 `readjustService.ps1`）
 - [ ] **跨平台/非管理员降级模式**（无 inpoutx64 时以 WMI/软件方式运行）
 - [ ] **Node.js 全部端点迁移到 C#**，砍掉 Node.js 后端
@@ -110,7 +111,7 @@
 
 ### 其他
 
-- [ ] `tools/`: 移除 WinRing0x64.dll + 废弃 ryzenadj.exe（SmuController 已验证全面替代）
+- [ ] ~~`tools/`: 移除 WinRing0x64.dll + 废弃 ryzenadj.exe~~ ❌ WinRing0x64.dll/sys 为 SmuController 运行时依赖，非冗余文件；暂无替代方案
 
 ---
 
@@ -151,7 +152,7 @@
 ### 后端 — SMU 调优全链路
 
 - [x] Step 1~D: libryzenadj 封装 -> server.js 重构 -> SmuController 物理地址直写
-- [x] Step G: WinRing0x64.dll 仍x依赖于 SmuController（通过 ryzenadj.exe），DriverBridge 已全面移除对 WinRing0 的直接依赖
+- [x] Step G: WinRing0x64.dll 仍依赖于 SmuController（通过 ryzenadj.exe），DriverBridge 已全面移除对 WinRing0 的直接依赖
 
 ### 前端 — 遥测监控
 

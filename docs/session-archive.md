@@ -400,3 +400,10 @@
 - dev-api.md Vite 代理表 7 行目标端口从 :3099 改为 :3100（custom-params/ui-state/default-config/fan/ryzenadj/uxtu/system）
 - 与 vite.config.js 实际配置完全同步
 - 任务看板对应条目可打勾✔（文档同步）
+
+
+## 2026-06-05 (C# reverse proxy + smu/api-type)
+
+- C# Program.cs: 新增 app.Use() 中间件，C# 未匹配的 /api/* 自动转发到 Node.js :3099（Node.js 不可用时返回 502）
+- 新增 GET /api/smu/api-type 端点（返回“subprocess”）
+- 编译 0 错误，已推送 GitHub
