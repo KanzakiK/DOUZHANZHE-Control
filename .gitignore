@@ -72,3 +72,12 @@ server/api/bin_temp/
 server/config/wmi-scan-result.json
 body_clean.json
 *.nodebak
+
+# Test artifacts
+_test_ec/
+_fix_*.py
+_edit_*.py
+_clean*.py
+_ec_test/
+*.bak
+*.disabled
