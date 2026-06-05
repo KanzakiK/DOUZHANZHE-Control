@@ -111,6 +111,7 @@ export default function App() {
                 <button key={mode.id} onClick={() => {
                 setSettings((prev) => ({ ...prev, mode: mode.id }));
                 const tv = thermalModeMap[mode.id]; if (tv !== null && tv !== undefined) applyHardwareControl("thermal_mode", tv).catch(() => {});
+                if (mode.id === 'custom') { fetch('/api/fan/set-target', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ largeRpm: fanLargeRpmTarget, smallRpm: fanSmallRpmTarget }) }).catch(() => {}); }
               }}
                   className="text-xs md:text-sm rounded-lg px-2 py-3 transition-all"
                   style={{ border: "1px solid var(--border)", background: settings.mode === mode.id ? "var(--primary-2)" : "var(--card-2)", color: settings.mode === mode.id ? "#ffffff" : "var(--text)", boxShadow: settings.mode === mode.id ? "0 0 24px rgba(167, 139, 250, 0.35)" : "none" }}

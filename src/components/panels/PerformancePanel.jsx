@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { applyUxtuLimits, applyHardwareControl, powerPlanHALMap } from "../../services/uxtuAdapter";
 import Card from "../ui/Card";
 import SliderRow from "../ui/SliderRow";
@@ -16,8 +16,7 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
   const [applyMessage, setApplyMessage] = useState("");
   const [smuInfo, setSmuInfo] = useState(null);
   const [smuError, setSmuError] = useState(false);
-  const paramsLocked = settings.mode !== "custom";
-  const presetRef = useRef(true); // 首次挂载/切换模式时不触发自动切 custom
+  const paramsLocked = false;
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -31,20 +30,10 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
     return () => clearTimeout(timer);
   }, []);
 
-  // 模式切换后短暂锁定，避免覆盖用户手动调整
-  useEffect(() => {
-    presetRef.current = true;
-    const t = setTimeout(() => { presetRef.current = false; }, 200);
-    return () => clearTimeout(t);
-  }, [settings.mode]);
 
   const update = useCallback((key) => (value) => {
     setUxtuParams((p) => ({ ...p, [key]: value }));
-    // 用户手动改参数 → 自动切到自定义模式
-    if (!presetRef.current && settings.mode !== "custom") {
-      setSettings((prev) => ({ ...prev, mode: "custom" }));
-    }
-  }, [settings.mode, setSettings, setUxtuParams]);
+  }, [setUxtuParams]);
 
   async function handleApply() {
     setIsApplying(true); setApplyMessage("");
