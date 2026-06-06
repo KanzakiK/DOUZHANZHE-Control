@@ -13,7 +13,8 @@
 
 | 日期 | 会话主题 |
 |:-----|:--------|
-| 2| 2026-06-06 | [docs 维护规则补全 — dev-ec-map.md](#docs-维护规则补全-dev-ec-mapmd) |
+| 2| 2026-06-06 | [docs 维护规则补全 — dev-frontend.md](#docs-维护规则补全-dev-frontendmd) |
+| 2026-06-06 | [docs 维护规则补全 — dev-ec-map.md](#docs-维护规则补全-dev-ec-mapmd) |
 | 2026-06-06 | [docs 维护规则补全 — dev-backend.md](#docs-维护规则补全-dev-backendmd) |
 | 2026-06-06 | [docs 维护规则补全 — dev-api.md](#docs-维护规则补全-dev-apimd) |
 | 2026-06-06 | [主记忆 §3/§4 追加近期摘要](#主记忆-34-追加近期摘要) |
@@ -27,9 +28,12 @@
 | 2026-06-06 | [Fan Curve Hidden](#Fan-Curve-Hidden) |
 | 2026-06-06 | [风扇控制突破·WMI Bellator 协议修复](#风扇控制突破-WMI-Bellator-协议修复) |
 | 2026-06-06 | [写入策略改造 — 编辑器工具 + 后验清洗](#写入策略改造-编辑器工具-后验清洗) |
-| 2026-06-06 | [`_verify_write.py --check` 模式](#_verify_write-py-check-模式) |
 | ... | [共 16 条](#完整列表) |
 
+---
+
+## 2026-06-06 (docs 维护规则补全 — dev-frontend.md)
+- **新增**：docs/dev-frontend.md 顶部 blockquote 维护规则（组件树/接口/依赖更新）
 ---
 
 ## 2026-06-06 (docs 维护规则补全 — dev-ec-map.md)
