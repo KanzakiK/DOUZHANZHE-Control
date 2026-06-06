@@ -152,7 +152,7 @@ export function useControlState(onSaveResult) {
   });
   const [paramsLoaded, setParamsLoaded] = useState(false);
 
-  // 启动时从服务端加载自定义参数（合并到默认值，确保新字段存在）
+  // 启动时从服务端加载自定义参数（仅自定义模式下应用）
   useEffect(() => {
     fetch(API_CUSTOM_PARAMS)
       .then((r) => r.json())
@@ -162,7 +162,12 @@ export function useControlState(onSaveResult) {
           if (data.gpuMemFreqMhz !== undefined && (data.gpuMemFreqMhz > 3 || data.gpuMemFreqMhz < 0)) {
             data.gpuMemFreqMhz = 1;
           }
-          setUxtuParams((prev) => ({ ...prev, ...data }));
+          // 仅在自定义模式下应用服务端保存的参数，其他模式走 MODE_PRESETS
+          setUxtuParams((prev) => {
+            const mode = loadFromLS(LS_SETTINGS, { mode: "office" }).mode;
+            if (mode === "custom") return { ...prev, ...data };
+            return prev;
+          });
         }
       })
       .catch(() => {})

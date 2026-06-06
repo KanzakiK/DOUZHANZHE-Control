@@ -2,10 +2,10 @@
   "cpuFreqLimitEnabled": false,
   "cpuFreqLimitMhz": 4500,
   "cpuTurboDisabled": false,
-  "cpuTempLimitC": 80,
+  "cpuTempLimitC": 90,
   "cpuCoreLimit": 0,
   "cpuPowerPlan": "balance",
-  "cpuVoltageOffset": 0,
+  "cpuVoltageOffset": -18,
   "cpuLongPptW": 55,
   "cpuShortPptW": 70,
   "gpuFreqLimitEnabled": false,
@@ -15,8 +15,8 @@
   "gpuFreqLocked": false,
   "gpuPptLimitW": 75,
   "gpuTempLimitC": 85,
+  "fanLargeRpmTarget": 3600,
+  "fanSmallRpmTarget": 6200,
   "gpuCoreOffsetMhz": 0,
-  "gpuMemOffsetMhz": 0,
-  "fanLargeRpmTarget": 2200,
-  "fanSmallRpmTarget": 4100
+  "gpuMemOffsetMhz": 0
 }
