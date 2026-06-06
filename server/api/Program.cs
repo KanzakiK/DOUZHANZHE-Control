@@ -409,7 +409,7 @@ app.MapPost("/api/gpu/set", (GpuController gpu, GpuSetRequest req) =>
             // 上限限制 (显式): --lock-gpu-clocks=0,max
             case "limit":
             case "limit-max":
-                gpu.SetMaxGpuClock(req.Max ?? 0);
+                gpu.SetMaxGpuClock(req.Value ?? req.Max ?? 0);
                 break;
             // 重置核心频率
             case "reset":
@@ -423,7 +423,7 @@ app.MapPost("/api/gpu/set", (GpuController gpu, GpuSetRequest req) =>
                 break;
             // 显存上限限制
             case "limit-memory":
-                gpu.SetMaxMemoryClock(req.Max ?? 0);
+                gpu.SetMaxMemoryClock(req.Value ?? req.Max ?? 0);
                 break;
             // 重置显存频率
             case "reset-memory":
