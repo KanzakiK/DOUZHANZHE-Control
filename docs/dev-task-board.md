@@ -204,8 +204,7 @@
 - [x] **`dev-architecture.md` 顶部维护规则**: 新增架构图/数据流/部署表等更新规则
 - [x] **`dev-release-plan.md` 顶部维护规则**: 新增对比表/原则同步等更新规则
 - [x] **`reference-consoles.md` 顶部维护规则**: 新增参考项目/结论表等更新规则
-- [x] **审计修复 P0 — `.ship` 同步规则补齐**: 新增"§1文档地图同步"，区分"§2近期工作"vs"§4近期摘要"
-
+- [x] **审计修复 P0 — `.ship` 同步规则补齐**: 新增"§1文档地图同步"，区分"§2近期工作"vs"§4近期摘要"- [x] **审计修复 P1/P2**: dev-release-plan 规则+标题、dev-known-issues 规则+拼写、copilot-instructions §4、"地图"→"映射"、"API Interface Defs"→"API 接口定义"
 
 ### 已修复 Bug
 - [x] ~~mockTelemetry.js cpuCores:32~~ — 已修复
