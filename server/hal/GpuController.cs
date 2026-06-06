@@ -66,7 +66,7 @@ public sealed class GpuController
 
     public void SetMaxMemoryClock(int maxMHz)
     {
-        RunNvidiaSmi("--lock-memory-clocks=" + maxMHz + "," + maxMHz);
+        RunNvidiaSmi("--lock-memory-clocks=0," + maxMHz);
     }
 
     public void ResetMemoryClocks()

@@ -143,13 +143,26 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
                 await applyGpuControl("limit-max", v);
               }
             }} />
-          <SliderRow label="显存频率" value={uxtuParams.gpuMemFreqMhz}
-            min={180} max={12001} step={50} unit="MHz"
-            onChange={async (v) => {
-              update("gpuMemFreqMhz")(v);
-              if (v === 9000) await applyGpuControl("reset-memory-clocks");
-              else await applyGpuControl("limit-memory", v);
-            }} />
+          <div>
+            <p className="text-xs mb-1" style={{ color: "var(--muted)" }}>显存频率</p>
+            <div className="flex gap-1 flex-wrap">
+              {[
+                { label: "自动", value: 0 },
+                { label: "9001", value: 9001 },
+                { label: "11001", value: 11001 },
+                { label: "12001", value: 12001 },
+              ].map((opt) => (
+                <button key={opt.value} onClick={async () => {
+                  update("gpuMemFreqMhz")(opt.value);
+                  if (opt.value === 0) await applyGpuControl("reset-memory-clocks");
+                  else await applyGpuControl("limit-memory", opt.value);
+                }}
+                  className="text-xs px-2 py-1 rounded-lg"
+                  style={{ border: "1px solid var(--border)", background: uxtuParams.gpuMemFreqMhz === opt.value ? "var(--primary)" : "var(--card-2)", color: uxtuParams.gpuMemFreqMhz === opt.value ? "#fff" : "var(--text)" }}
+                >{opt.label}</button>
+              ))}
+            </div>
+          </div>
           <div className="flex items-center gap-2">
             <input type="checkbox" checked={uxtuParams.gpuFreqLocked}
               onChange={async (e) => {
@@ -171,7 +184,7 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
               update("gpuFreqLimitEnabled")(false);
               update("gpuFreqLocked")(false);
               update("gpuCoreFreqMhz")(2700);
-              update("gpuMemFreqMhz")(9000);
+              update("gpuMemFreqMhz")(0);
             }}
               className="text-xs px-3 py-1.5 rounded-lg cursor-pointer"
               style={{ border: "1px solid var(--warn)", color: "var(--warn)", background: "transparent" }}
