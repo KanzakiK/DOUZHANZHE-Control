@@ -11,6 +11,13 @@
 - **保留**：`vite` + `@vitejs/plugin-react` + `postcss` + `tailwindcss`（构建工具链，`npm run build` 需要）
 - **文档**：dev-index.md / dev-architecture.md / dev-backend.md / dev-frontend.md 全部更新架构图与快速启动
 
+## 2026-06-06 (持久化修复 + 加载闪修复)
+
+- **问题**：风扇滑块刷新回到 2200/4100、电压偏移回到 0、CPU/GPU slider 在非自定义模式刷新闪
+- **风扇修复**：`useState(2200)` → `useState(() => loadFromLS())` + useEffect saveToLS
+- **电压修复**：localStorage 键 `douzhanzhe_voltage_offset`，初始化时恢复，变化即存
+- **slider 闪修复**：fetch 返回 `/api/custom-params` 仅在 `mode === "custom"` 时覆盖；uxtuParams 初始值改用 MODE_PRESETS 而非 defaultParams
+
 ## 2026-06-06 (电源计划按钮修复)
 
 - **问题**：`PerformancePanel.jsx` 电源计划（最高能效/平衡/最佳性能）按钮点击后从未实际调用 C# HAL
@@ -347,6 +354,13 @@
 - **保留**：`vite` + `@vitejs/plugin-react` + `postcss` + `tailwindcss`（构建工具链，`npm run build` 需要）
 - **文档**：dev-index.md / dev-architecture.md / dev-backend.md / dev-frontend.md 全部更新架构图与快速启动
 
+## 2026-06-06 (持久化修复 + 加载闪修复)
+
+- **问题**：风扇滑块刷新回到 2200/4100、电压偏移回到 0、CPU/GPU slider 在非自定义模式刷新闪
+- **风扇修复**：`useState(2200)` → `useState(() => loadFromLS())` + useEffect saveToLS
+- **电压修复**：localStorage 键 `douzhanzhe_voltage_offset`，初始化时恢复，变化即存
+- **slider 闪修复**：fetch 返回 `/api/custom-params` 仅在 `mode === "custom"` 时覆盖；uxtuParams 初始值改用 MODE_PRESETS 而非 defaultParams
+
 ## 2026-06-06 (电源计划按钮修复)
 
 - **问题**：`PerformancePanel.jsx` 电源计划（最高能效/平衡/最佳性能）按钮点击后从未实际调用 C# HAL
@@ -399,6 +413,13 @@
 - **保留**：`vite` + `@vitejs/plugin-react` + `postcss` + `tailwindcss`（构建工具链，`npm run build` 需要）
 - **文档**：dev-index.md / dev-architecture.md / dev-backend.md / dev-frontend.md 全部更新架构图与快速启动
 
+## 2026-06-06 (持久化修复 + 加载闪修复)
+
+- **问题**：风扇滑块刷新回到 2200/4100、电压偏移回到 0、CPU/GPU slider 在非自定义模式刷新闪
+- **风扇修复**：`useState(2200)` → `useState(() => loadFromLS())` + useEffect saveToLS
+- **电压修复**：localStorage 键 `douzhanzhe_voltage_offset`，初始化时恢复，变化即存
+- **slider 闪修复**：fetch 返回 `/api/custom-params` 仅在 `mode === "custom"` 时覆盖；uxtuParams 初始值改用 MODE_PRESETS 而非 defaultParams
+
 ## 2026-06-06 (电源计划按钮修复)
 
 - **问题**：`PerformancePanel.jsx` 电源计划（最高能效/平衡/最佳性能）按钮点击后从未实际调用 C# HAL
@@ -438,6 +459,13 @@
 - **清理**：`vite.config.js` 删 `server` 块，`package.json` 删 `dev`/`start`/`server`/`preview`/`backend`+`concurrently`
 - **保留**：`vite` + `@vitejs/plugin-react` + `postcss` + `tailwindcss`（构建工具链，`npm run build` 需要）
 - **文档**：dev-index.md / dev-architecture.md / dev-backend.md / dev-frontend.md 全部更新架构图与快速启动
+
+## 2026-06-06 (持久化修复 + 加载闪修复)
+
+- **问题**：风扇滑块刷新回到 2200/4100、电压偏移回到 0、CPU/GPU slider 在非自定义模式刷新闪
+- **风扇修复**：`useState(2200)` → `useState(() => loadFromLS())` + useEffect saveToLS
+- **电压修复**：localStorage 键 `douzhanzhe_voltage_offset`，初始化时恢复，变化即存
+- **slider 闪修复**：fetch 返回 `/api/custom-params` 仅在 `mode === "custom"` 时覆盖；uxtuParams 初始值改用 MODE_PRESETS 而非 defaultParams
 
 ## 2026-06-06 (电源计划按钮修复)
 

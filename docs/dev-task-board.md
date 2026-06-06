@@ -34,7 +34,7 @@
 #
 
 ### 已知 Bug（Release 1 内修复）
-- [ ] 前端模式按钮高亮加载时序（数据就绪前短暂错位）
+- [x] **前端模式按钮高亮加载时序**: 已修复 — uxtuParams 初始值改用 MODE_PRESETS 而非 defaultParams，消除 CPU 调节滑块闪跳
 
 ---
 
@@ -153,6 +153,9 @@
 - [x] 模式重构（部分）: CPU/GPU 控件在四种模式下均可调
 - [x] 电源计划: `uxtuAdapter.js` 导出 `powerPlanHALMap`
 - [x] **电源计划按钮双发修复**: PerformancePanel.jsx POWER_PLANS 添加 halValue，按钮点击实际下发 C# HAL
+- [x] **风扇滑块持久化**: 从 `useState(硬编码)` → `useState(() => loadFromLS(...))` + saveToLS，刷新保留上次设定值
+- [x] **电压偏移持久化**: localStorage 键 `douzhanzhe_voltage_offset`，所有模式通用
+- [x] **非自定义模式 slider 闪跳修复**: fetch(/api/custom-params) 仅在 mode === "custom" 时覆盖 uxtuParams，其他模式保持 MODE_PRESETS
 
 ### 前端 — 系统功能
 - [x] 主题切换（4 套皮肤）
@@ -202,6 +205,7 @@
 - 2026-06-06: Vite dev server 废弃 — 前端嵌入 C# wwwroot/，清理 dev/start/server 脚本 + concurrently + 文档架构图
 - 2026-06-06: 风扇控制全栈后端 (C# HAL/API/Debug) + WriteEc 0x80→0x81 修复 + WaitEcReady 轮询
 - - 2026-06-06: 电源计划按钮修复 — PerformancePanel.jsx POWER_PLANS 添加 halValue，按钮点击实际下发 C# HAL
+- - 2026-06-06: 持久化修复 — 风扇滑块/电压偏移 localStorage, fetch 非 custom 模式不覆盖, uxtuParams 初始值改 MODE_PRESETS
 
 ---
 
