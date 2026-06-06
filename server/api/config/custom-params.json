@@ -4,7 +4,7 @@
   "cpuTurboDisabled": false,
   "cpuTempLimitC": 80,
   "cpuCoreLimit": 0,
-  "cpuPowerPlan": "efficiency",
+  "cpuPowerPlan": "balance",
   "cpuVoltageOffset": 0,
   "cpuLongPptW": 55,
   "cpuShortPptW": 70,
@@ -18,5 +18,5 @@
   "gpuCoreOffsetMhz": 0,
   "gpuMemOffsetMhz": 0,
   "fanLargeRpmTarget": 2200,
-  "fanSmallRpmTarget": 3100
+  "fanSmallRpmTarget": 4100
 }

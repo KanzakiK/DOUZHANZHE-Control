@@ -23,7 +23,7 @@
 
 
 #### 前端（路由修复 → 散热联动 → 电源计划 → 其他）
-- [ ] **电源计划**: `PerformancePanel.jsx` 电源管理按钮双发 C# HAL `power_plan`
+- [x] **电源计划**: `PerformancePanel.jsx` 电源管理按钮双发 C# HAL `power_plan`  halValue 断链修复
 
 #### 前端（新增任务 — 2026-06-05 第二轮）
 - [ ] **GPU 模式独立卡片**: 三个按钮（混合模式/集显模式/独显直连），替代 SettingPanel 中的 dGpuDirect/gpuOnly 开关
@@ -152,6 +152,7 @@
 - [x] 散热模式: `App.jsx` 5 个模式按钮联动 `POST /api/control target=thermal_mode`
 - [x] 模式重构（部分）: CPU/GPU 控件在四种模式下均可调
 - [x] 电源计划: `uxtuAdapter.js` 导出 `powerPlanHALMap`
+- [x] **电源计划按钮双发修复**: PerformancePanel.jsx POWER_PLANS 添加 halValue，按钮点击实际下发 C# HAL
 
 ### 前端 — 系统功能
 - [x] 主题切换（4 套皮肤）
@@ -200,6 +201,7 @@
 - 2026-06-06: 风扇负载曲线隐藏 (EC 16 位竞态心电图) — 前端 `<Sparkline>` 移除 + `fanPctSeries` 清理 + 文档同步
 - 2026-06-06: Vite dev server 废弃 — 前端嵌入 C# wwwroot/，清理 dev/start/server 脚本 + concurrently + 文档架构图
 - 2026-06-06: 风扇控制全栈后端 (C# HAL/API/Debug) + WriteEc 0x80→0x81 修复 + WaitEcReady 轮询
+- - 2026-06-06: 电源计划按钮修复 — PerformancePanel.jsx POWER_PLANS 添加 halValue，按钮点击实际下发 C# HAL
 
 ---
 

@@ -11,6 +11,14 @@
 - **保留**：`vite` + `@vitejs/plugin-react` + `postcss` + `tailwindcss`（构建工具链，`npm run build` 需要）
 - **文档**：dev-index.md / dev-architecture.md / dev-backend.md / dev-frontend.md 全部更新架构图与快速启动
 
+## 2026-06-06 (电源计划按钮修复)
+
+- **问题**：`PerformancePanel.jsx` 电源计划（最高能效/平衡/最佳性能）按钮点击后从未实际调用 C# HAL
+- **根因**：`POWER_PLANS` 数组缺少 `halValue` 字段，按钮点击时 `plan.halValue === undefined`，被 `if (plan.halValue !== undefined)` 拦截
+- **修复**：三行代码，每个 plan 添加 `halValue: powerPlanHALMap[效率/平衡/性能]`
+- **后端联调**：`POST /api/control power_plan` 端点早已实现，Debug 页 3 按钮已验证 ✅
+- **验证**：前端点击任意电源按钮，浏览器 DevTools Network 看到实际 `POST /api/control target=power_plan value=X`
+
 ## 2026-06-06 (Fan Curve Hidden)
 - **问题**：风扇负载曲线仍心电图（HAL 双读仲裁降低瞬态 0 但未完全消除）
 - **决定**：不再深追，前端移除了风扇 `Sparkline` 组件
@@ -339,6 +347,14 @@
 - **保留**：`vite` + `@vitejs/plugin-react` + `postcss` + `tailwindcss`（构建工具链，`npm run build` 需要）
 - **文档**：dev-index.md / dev-architecture.md / dev-backend.md / dev-frontend.md 全部更新架构图与快速启动
 
+## 2026-06-06 (电源计划按钮修复)
+
+- **问题**：`PerformancePanel.jsx` 电源计划（最高能效/平衡/最佳性能）按钮点击后从未实际调用 C# HAL
+- **根因**：`POWER_PLANS` 数组缺少 `halValue` 字段，按钮点击时 `plan.halValue === undefined`，被 `if (plan.halValue !== undefined)` 拦截
+- **修复**：三行代码，每个 plan 添加 `halValue: powerPlanHALMap[效率/平衡/性能]`
+- **后端联调**：`POST /api/control power_plan` 端点早已实现，Debug 页 3 按钮已验证 ✅
+- **验证**：前端点击任意电源按钮，浏览器 DevTools Network 看到实际 `POST /api/control target=power_plan value=X`
+
 ## 2026-06-06 (Fan Curve Hidden)
 - **问题**：风扇负载曲线仍心电图（HAL 双读仲裁降低瞬态 0 但未完全消除）
 - **决定**：不再深追，前端移除了风扇 `Sparkline` 组件
@@ -383,6 +399,14 @@
 - **保留**：`vite` + `@vitejs/plugin-react` + `postcss` + `tailwindcss`（构建工具链，`npm run build` 需要）
 - **文档**：dev-index.md / dev-architecture.md / dev-backend.md / dev-frontend.md 全部更新架构图与快速启动
 
+## 2026-06-06 (电源计划按钮修复)
+
+- **问题**：`PerformancePanel.jsx` 电源计划（最高能效/平衡/最佳性能）按钮点击后从未实际调用 C# HAL
+- **根因**：`POWER_PLANS` 数组缺少 `halValue` 字段，按钮点击时 `plan.halValue === undefined`，被 `if (plan.halValue !== undefined)` 拦截
+- **修复**：三行代码，每个 plan 添加 `halValue: powerPlanHALMap[效率/平衡/性能]`
+- **后端联调**：`POST /api/control power_plan` 端点早已实现，Debug 页 3 按钮已验证 ✅
+- **验证**：前端点击任意电源按钮，浏览器 DevTools Network 看到实际 `POST /api/control target=power_plan value=X`
+
 ## 2026-06-06 (Fan Curve Hidden)
 - **问题**：风扇负载曲线仍心电图（HAL 双读仲裁降低瞬态 0 但未完全消除）
 - **决定**：不再深追，前端移除了风扇 `Sparkline` 组件
@@ -414,6 +438,14 @@
 - **清理**：`vite.config.js` 删 `server` 块，`package.json` 删 `dev`/`start`/`server`/`preview`/`backend`+`concurrently`
 - **保留**：`vite` + `@vitejs/plugin-react` + `postcss` + `tailwindcss`（构建工具链，`npm run build` 需要）
 - **文档**：dev-index.md / dev-architecture.md / dev-backend.md / dev-frontend.md 全部更新架构图与快速启动
+
+## 2026-06-06 (电源计划按钮修复)
+
+- **问题**：`PerformancePanel.jsx` 电源计划（最高能效/平衡/最佳性能）按钮点击后从未实际调用 C# HAL
+- **根因**：`POWER_PLANS` 数组缺少 `halValue` 字段，按钮点击时 `plan.halValue === undefined`，被 `if (plan.halValue !== undefined)` 拦截
+- **修复**：三行代码，每个 plan 添加 `halValue: powerPlanHALMap[效率/平衡/性能]`
+- **后端联调**：`POST /api/control power_plan` 端点早已实现，Debug 页 3 按钮已验证 ✅
+- **验证**：前端点击任意电源按钮，浏览器 DevTools Network 看到实际 `POST /api/control target=power_plan value=X`
 
 ## 2026-06-06 (Fan Curve Hidden)
 - **问题**：风扇负载曲线仍心电图（HAL 双读仲裁降低瞬态 0 但未完全消除）
