@@ -23,8 +23,9 @@ export default function SettingsPanel({ settings, setSettings, uxtuPayload, show
       return;
     }
     if (key in halMap) {
-      const mappedValue = key === "dGpuDirect" ? (value ? 2 : 0) : (value ? 1 : 0);
-      applyHardwareControl(halMap[key], value ? (key === "dGpuDirect" ? 2 : 1) : 0)
+      // kb_light 透传数值 0-3，其余开关做 bool→0/1 映射
+      const mappedValue = key === "kbBrightnessLevel" ? value : (key === "dGpuDirect" ? (value ? 2 : 0) : (value ? 1 : 0));
+      applyHardwareControl(halMap[key], mappedValue)
         .catch(() => toast?.("设置下发失败", "error"));
     } else {
       console.warn("[SettingsPanel] unknown key:", key, value);
