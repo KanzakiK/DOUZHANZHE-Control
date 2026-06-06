@@ -7,6 +7,8 @@
 
 | 日期 | 会话主题 |
 |:-----|:--------|
+| 2026-06-06 | [速查表滚动截断 + 同会话合并](#速查表滚动截断-同会话合并) |
+| 2026-06-06 | [`.ship` 流程改进 — 归档去重+GitHub 同步](#ship-流程改进-归档去重GitHub-同步) |
 | 2026-06-06 | [Vite Dev Server 废弃 + 架构简化](#Vite-Dev-Server-废弃-架构简化) |
 | 2026-06-06 | [键盘灯亮度修复](#键盘灯亮度修复) |
 | 2026-06-06 | [移除自定义模式 + 网格修正](#移除自定义模式-网格修正) |
@@ -20,17 +22,14 @@
 | 2026-06-05 | [全站整理](#全站整理) |
 | 2026-06-05 | [文档体系重构](#文档体系重构) |
 | 2026-06-05 | [文档体系重构 · 续](#文档体系重构-续) |
-| 2026-06-05 | [风扇控制探索全栈 · 第二阶段](#风扇控制探索全栈-第二阶段) |
-| 2026-06-05 | [风扇控制探索 · 第三阶段 + BLDFnHotkeyUtility 反编译](#风扇控制探索-第三阶段-BLDFnHotkeyUtility-反编译) |
-| 2026-06-05 | [风扇控制突破·大扇 0x5F 发现](#风扇控制突破-大扇-0x5F-发现) |
-| 2026-06-05 | [AppBridge 废弃](#AppBridge-废弃) |
-| 2026-06-05 | [SMU 子进程集成修复](#SMU-子进程集成修复) |
-| 2026-06-05 | [Git cleanup: gitignore + gitattributes](#Git-cleanup-gitignore-gitattributes) |
-| 2026-06-05 | [Documentation audit + SMU dep chain fix](#Documentation-audit-SMU-dep-chain-fix) |
-| 2026-06-05 | [dev-api.md Vite proxy table fix](#dev-api-md-Vite-proxy-table-fix) |
-| 2026-06-05 | [C# reverse proxy + smu/api-type](#C-reverse-proxy-smu-api-type) |
-| 2026-06-05 | [Ship 2: thermal mode + routing + Node.js retirement](#Ship-2-thermal-mode-routing-Node-js-retirement) |
+| ... | [共 16 条](#完整列表) |
 
+---
+
+## 2026-06-06 (速查表滚动截断 + 同会话合并)
+- **问题**：速查表无限膨胀（当前 24 行）；同会话多次 .ship 产生重复条目
+- **方案**：速查表保留最近 15 行，超出时删除最旧行并保留汇总行 `[共 N 条]`；`.plan` 将标题写入 current-task.md，`.ship` 归档时标题匹配则合并追加而非新建
+- **修改文件**：`.github/copilot-instructions.md` §5 `.plan`/`.ship` 块
 ---
 
 ## 2026-06-06 (`.ship` 流程改进 — 归档去重+GitHub 同步)
