@@ -26,7 +26,7 @@
 - [x] **电源计划**: `PerformancePanel.jsx` 电源管理按钮双发 C# HAL `power_plan`  halValue 断链修复
 
 #### 前端（新增任务 — 2026-06-05 第二轮）
-- [ ] **GPU 模式独立卡片**: 三个按钮（混合模式/集显模式/独显直连），替代 SettingPanel 中的 dGpuDirect/gpuOnly 开关
+- [x] **隐藏系统开关冗余项**: 移除了独显直连、集显模式、关闭OSD三个SwitchRow（功能已由GPU模式独立卡片替代，待后续实现）
 
 
 #### 其他（文档 → 清理）
@@ -154,7 +154,8 @@
 - [x] 电源计划: `uxtuAdapter.js` 导出 `powerPlanHALMap`
 - [x] **电源计划按钮双发修复**: PerformancePanel.jsx POWER_PLANS 添加 halValue，按钮点击实际下发 C# HAL
 - [x] **风扇滑块持久化**: 从 `useState(硬编码)` → `useState(() => loadFromLS(...))` + saveToLS，刷新保留上次设定值
-- [x] **电压偏移持久化**: localStorage 键 `douzhanzhe_voltage_offset`，所有模式通用
+- [x] **电压偏移持久化**: localStorage
+- [x] **隐藏系统开关冗余项**: 移除独显直连/集显模式/关闭OSD三个SwitchRow 键 `douzhanzhe_voltage_offset`，所有模式通用
 - [x] **非自定义模式 slider 闪跳修复**: fetch(/api/custom-params) 仅在 mode === "custom" 时覆盖 uxtuParams，其他模式保持 MODE_PRESETS
 
 ### 前端 — 系统功能
