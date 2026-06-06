@@ -152,6 +152,7 @@
 - [x] 散热模式: `App.jsx` 5 个模式按钮联动 `POST /api/control target=thermal_mode`
 - [x] 模式重构（部分）: CPU/GPU 控件在四种模式下均可调
 - [x] 电源计划: `uxtuAdapter.js` 导出 `powerPlanHALMap`
+- [x] **系统信息动态化**: 新增GET /api/system/info + HAL 4 WMI属性 + 前端useEffect
 - [x] **电源计划按钮双发修复**: PerformancePanel.jsx POWER_PLANS 添加 halValue，按钮点击实际下发 C# HAL
 - [x] **风扇滑块持久化**: 从 `useState(硬编码)` → `useState(() => loadFromLS(...))` + saveToLS，刷新保留上次设定值
 - [x] **电压偏移持久化**: localStorage
