@@ -162,19 +162,21 @@ export function useControlState(onSaveResult) {
           if (data.gpuMemFreqMhz !== undefined && (data.gpuMemFreqMhz > 3 || data.gpuMemFreqMhz < 0)) {
             data.gpuMemFreqMhz = 1;
           }
-          setUxtuParams({ ...defaultParams, ...data });
+          setUxtuParams((prev) => ({ ...prev, ...data }));
         }
       })
       .catch(() => {})
       .finally(() => setParamsLoaded(true));
   }, []);
 
-  const [fanLargeRpmTarget, setFanLargeRpmTarget] = useState(2200);
-  const [fanSmallRpmTarget, setFanSmallRpmTarget] = useState(4100);
+  const [fanLargeRpmTarget, setFanLargeRpmTarget] = useState(() => loadFromLS("douzhanzhe_fan_large", 2200));
+  const [fanSmallRpmTarget, setFanSmallRpmTarget] = useState(() => loadFromLS("douzhanzhe_fan_small", 4100));
 
-  // 风扇目标转速变化时调用 C# API（去抖 600ms）
+  // 风扇目标转速变化时保存到 localStorage + 调用 C# API（去抖 600ms）
   const fanTimerRef = useRef(null);
   useEffect(() => {
+    saveToLS("douzhanzhe_fan_large", fanLargeRpmTarget);
+    saveToLS("douzhanzhe_fan_small", fanSmallRpmTarget);
     clearTimeout(fanTimerRef.current);
     fanTimerRef.current = setTimeout(() => {
       fetch("/api/fan/set-target", {
