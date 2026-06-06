@@ -794,6 +794,10 @@
 
 - [x] **小风扇控制寄存器 0x5B**: ✅ EC 直写 `WriteEc(0x5B, RPM/100)` 已验证
 
+- [x] **EC 16 位风扇竞态修复 (HAL 双读仲裁)**: CpuFanRpm/GpuFanRpm 最多重读 3 次取首个非零值，消除 EC 瞬态 0 导致风扇曲线"心电图"问题 ✅
+
+- [x] **遥测广播改为无条件推送 250ms**: TelemetryBackgroundService 删除变化检测过滤，每次轮询都推送全量数据；间隔 500ms→250ms
+
 
 
 - [x] **WmiInterface.cs** ✅ 已实现（`root\WMI`，32 字节协议，零依赖）
@@ -924,7 +928,9 @@
 
 
 
-- 2026-06-05: 风扇控制全栈后端 (C# HAL/API/Debug) + WriteEc 0x80→0x81 修复 + WaitEcReady 轮询
+- 2026-06-06: EC 16 位风扇竞态修复 (HAL 双读仲裁) + TelemetryBackgroundService 无条件推送 250ms + HAL 文档同步
+
+- - 2026-06-06: 风扇控制全栈后端 (C# HAL/API/Debug) + WriteEc 0x80→0x81 修复 + WaitEcReady 轮询
 
 
 

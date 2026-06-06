@@ -18,6 +18,15 @@
 
 
 
+## 2026-06-06 (EC 16-bit Race Fix + Telemetry Unconditional Push)
+
+- **问题**：风扇曲线"心电图"（掉到 0 又跳回），CPU/GPU 曲线正常
+- **根因**：EC 16 位风扇寄存器（0x9D/0x9E, 0x96/0x97）被非原子读取，hi/lo 在固件更新间隙读到 0x0000
+- **HAL 层修复**：`CpuFanRpm`/`GpuFanRpm` 双读仲裁（for 循环最多 3 次，非零即返回），根治 EC 瞬态 0
+- **TelemetryBackgroundService 修复**：删除 `if (!changed) continue;` 变化检测，改为无条件每次推送；间隔 500ms→250ms 提升分辨率
+- **清理**：删除 `_prev*` 快照字段、`_last*`/`ZeroCount` 去抖字段（不再需要）
+- **验证**：`curl /api/telemetry` 跟踪 101 样本，大风扇 =0 次数 0%，小风扇 =0 次数 0%，最长连续=0 0 次 ✅
+
 ## 2026-06-05 (Step C/D/G)
 
 

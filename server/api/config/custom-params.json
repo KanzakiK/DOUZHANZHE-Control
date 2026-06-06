@@ -18,5 +18,5 @@
   "gpuCoreOffsetMhz": 0,
   "gpuMemOffsetMhz": 0,
   "fanLargeRpmTarget": 2200,
-  "fanSmallRpmTarget": 4100
+  "fanSmallRpmTarget": 3100
 }

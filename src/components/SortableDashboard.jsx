@@ -47,10 +47,6 @@ export default function SortableDashboard({
     toast?.(ok ? "排序已保存" : "排序保存失败", ok ? "success" : "error");
   }, [toast]);
   const { order, visibleCards, hiddenList, moveCard, resetOrder, toggleHidden, showAll, syncToServer } = useCardOrder(onSyncResult);
-  const fanPctSeries = telemetry.fanLargeMax > 0
-    ? history.fan.map((v) => Math.round((v / telemetry.fanLargeMax) * 100))
-    : [];
-
   // 退出编辑模式时同步到服务端
   const prevEditRef = useRef(editMode);
   useEffect(() => {
@@ -149,7 +145,7 @@ export default function SortableDashboard({
                   onChange={(v) => setFanSmallRpmTarget(v)}/>
                 <Gauge label="小风扇负载" value={Math.round((telemetry.fanSmallRpm / Math.max(1, telemetry.fanSmallMax)) * 100)}/>
               </div>
-              <Sparkline data={fanPctSeries} title="风扇负载曲线" color="var(--ok)"/>
+              {/* 风扇负载曲线已隐藏 — EC 16 位竞态导致心电图问题 */}
             </div>
           </Card>
         );

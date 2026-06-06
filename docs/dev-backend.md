@@ -63,7 +63,7 @@ EC 寄存器地址映射为语义化 C# 属性。
 |-----------|---------|----------|----------|
 | CpuTemperature | EC IO 0x1C | `ReadEc(0x1C)` | ✅ ec_reader 验证 |
 | GpuTemperature | 物理内存 0xFE8004E0 | `ReadPhys(BASE + 0xE0)` | ❌ 返回 0，需 nvidia-smi |
-| CpuFanRpm | EC IO 0x9D/0x9E | `ReadEc(0x9D)<<8|ReadEc(0x9E)` | ✅ ec_reader 验证 |
+| CpuFanRpm | EC IO 0x9D/0x9E | `ReadEc(0x9D)<<8|ReadEc(0x9E)` — **双读仲裁**（最多 3 次，非零即返） | ✅ EC 16 位竞态已修复 |
 | GpuFanRpm | EC IO 0x96/0x97 |
 | **CpuFanControl ✅** | **EC Index 0x5F (EC 实时差分扫描发现)** | **`WriteEc(0x5F, val)` val=RPM/100** | **✅ 2026-06-05 真机验证，Range 19-44 (1900-4400 RPM)，受散热模式区间限制** |
 | GpuFanControl ❌ | EC Index 0xB3 (LLT ec_writer.cs 推导) / 待发现 | `WriteEc(0xB3, val)` ❌ | ❌ 0xB3 已验证无效。小风扇控制寄存器待差分扫描发现 | `ReadEc(0x96)<<8|ReadEc(0x97)` | ✅ ec_reader 验证 |
@@ -110,10 +110,11 @@ EC 寄存器地址映射为语义化 C# 属性。
 
 ### 4. TelemetryBackgroundService (server/api/TelemetryBackgroundService.cs)
 
-- 500ms 轮询 HardwareAbstractionLayer
-- 检测温度/风扇值变化后才推送（避免无效数据）
+- **250ms** 轮询 HardwareAbstractionLayer（原 500ms）
+- **每次轮询无条件推送**全量遥测（删除了变化检测过滤 `if (!changed) continue;`）
 - 推送到所有已连接的 WebSocket 客户端
 - 管理客户端增删（线程安全 List + lock）
+
 
 ---
 
