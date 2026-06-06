@@ -257,23 +257,7 @@ app.MapGet("/api/system/info", (HardwareAbstractionLayer hal) =>
         systemModel = hal.SystemModel,
         cpuName = hal.CpuName,
         cpuCores = hal.CpuCores,
-        cpuFreq = hal.CpuFreq,
-        gpuDiscrete = hal.GpuDiscreteName,
-        gpuIntegrated = hal.GpuIntegratedName,
-        memoryTotal = hal.MemoryTotalGB,
-        memoryFreq = hal.MemoryFreq,
-        diskTotal = hal.DiskTotalGB,
-    });
-});
-
-app.MapGet("/api/system/info", (HardwareAbstractionLayer hal) =>
-{
-    return Results.Json(new
-    {
-        systemModel = hal.SystemModel,
-        cpuName = hal.CpuName,
-        cpuCores = hal.CpuCores,
-        cpuFreq = Math.Round(hal.CpuFreq, 1),
+        cpuFreq = Math.Round((double)hal.CpuFreq, 1),
         gpuDiscrete = hal.GpuDiscreteName,
         gpuIntegrated = hal.GpuIntegratedName,
         memoryTotal = hal.MemoryTotalGB,
@@ -1053,21 +1037,6 @@ app.MapPost("/api/wmi/cmd", (WmiInterface wmi, WmiCmdRequest req) =>
 
 
 
-
-app.MapGet("/api/system/info", (HardwareAbstractionLayer hal) =>
-{
-    return Results.Json(new
-    {
-        systemModel = hal.SystemModel,
-        cpuName = hal.CpuName,
-        cpuCores = hal.CpuCores,
-        gpuDiscrete = hal.GpuDiscreteName,
-        gpuIntegrated = hal.GpuIntegratedName,
-        memoryTotalGB = hal.MemoryTotalGB,
-        memoryFreq = hal.MemoryFreq,
-        diskTotalGB = hal.DiskTotalGB,
-    });
-});
 
 app.MapPost("/api/system/settings", (HttpContext ctx) =>
 

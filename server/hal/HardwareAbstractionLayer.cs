@@ -35,7 +35,6 @@ public sealed class HardwareAbstractionLayer : IDisposable
     private int _sgDiskUsage, _sgDiskTotal, _sgDiskFree;
     private DateTime _sgDiskTime = DateTime.MinValue;
 
-    // System info cache (WMI, long-lived)
     private string _sysModel = "";
     private string _cpuName = "";
     private string _gpuD = "";
