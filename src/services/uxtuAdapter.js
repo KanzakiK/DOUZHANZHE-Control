@@ -71,12 +71,12 @@ export function createTelemetrySocket(onData, onError) {
 }
 
 export const GPU_BASE_CLOCK = 2700; // RTX 5060 典型 boost 频率 (nvidia-smi 无法读取，用户提供)
-export const GPU_MEM_BASE_CLOCK = 9001; // 显存基准频率
+export const GPU_MEM_BASE_CLOCK = 12001; // 显存最大频率 (limit-memory 作为上限使用) // 显存基准频率
 
 // GPU 控制: action = "limit-max" | "lock-exact" | "reset-clocks" | "reset-memory-clocks"
-export async function applyGpuControl(action, value) {
+export async function applyGpuControl(action, value, min, max) {
   const body = value !== undefined
-    ? { action, value }
+    ? { action, min, max, value }
     : { action };
   const res = await fetch(`/api/gpu/set`, {
     method: "POST",

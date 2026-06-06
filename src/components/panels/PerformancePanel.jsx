@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { applyUxtuLimits, applyHardwareControl, powerPlanHALMap, applyGpuControl, fetchGpuStatus, GPU_BASE_CLOCK, GPU_MEM_BASE_CLOCK } from "../../services/uxtuAdapter";
+import { applyUxtuLimits, applyHardwareControl, powerPlanHALMap, applyGpuControl, fetchGpuStatus } from "../../services/uxtuAdapter";
 import Card from "../ui/Card";
 import SliderRow from "../ui/SliderRow";
 import { useToast } from "../ui/Toast";
@@ -131,18 +131,24 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
                 await applyGpuControl("limit-max", v);
               }} />
           )}
-          <SliderRow label="显卡超频(偏移)" value={uxtuParams.gpuCoreOffsetMhz}
-            min={-200} max={200} step={25} unit="MHz"
+          <SliderRow label="核心频率" value={uxtuParams.gpuCoreFreqMhz}
+            min={1000} max={3090} step={50} unit="MHz"
             onChange={async (v) => {
-              update("gpuCoreOffsetMhz")(v);
-              const target = GPU_BASE_CLOCK + v;
-              await applyGpuControl("limit-max", target);
+              update("gpuCoreFreqMhz")(v);
+              if (uxtuParams.gpuFreqLocked) {
+                await applyGpuControl("lock-exact", v);
+              } else if (uxtuParams.gpuFreqLimitEnabled) {
+                await applyGpuControl("limit-max", Math.min(uxtuParams.gpuFreqLimitMhz, v));
+              } else {
+                await applyGpuControl("limit-max", v);
+              }
             }} />
-          <SliderRow label="显存超频(偏移)" value={uxtuParams.gpuMemOffsetMhz}
-            min={-500} max={500} step={50} unit="MHz"
+          <SliderRow label="显存频率" value={uxtuParams.gpuMemFreqMhz}
+            min={180} max={12001} step={50} unit="MHz"
             onChange={async (v) => {
-              update("gpuMemOffsetMhz")(v);
-              await applyGpuControl("limit-max", 9001 + v);
+              update("gpuMemFreqMhz")(v);
+              if (v === 9000) await applyGpuControl("reset-memory-clocks");
+              else await applyGpuControl("limit-memory", v);
             }} />
           <div className="flex items-center gap-2">
             <input type="checkbox" checked={uxtuParams.gpuFreqLocked}
@@ -150,14 +156,26 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
                 const on = e.target.checked;
                 update("gpuFreqLocked")(on);
                 if (on) {
-                  const target = GPU_BASE_CLOCK + uxtuParams.gpuCoreOffsetMhz;
-                  await applyGpuControl("lock-exact", target);
+                  await applyGpuControl("lock-exact", uxtuParams.gpuCoreFreqMhz);
                 } else {
                   await applyGpuControl("reset-clocks");
                 }
               }}
               className="accent-cyan-400" />
             <span className="text-xs">锁定频率</span>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button onClick={async () => {
+              await applyGpuControl("reset-clocks");
+              await applyGpuControl("reset-memory-clocks");
+              update("gpuFreqLimitEnabled")(false);
+              update("gpuFreqLocked")(false);
+              update("gpuCoreFreqMhz")(2700);
+              update("gpuMemFreqMhz")(9000);
+            }}
+              className="text-xs px-3 py-1.5 rounded-lg cursor-pointer"
+              style={{ border: "1px solid var(--warn)", color: "var(--warn)", background: "transparent" }}
+            >重置 GPU</button>
           </div>
         </div>
       </Card>}</>

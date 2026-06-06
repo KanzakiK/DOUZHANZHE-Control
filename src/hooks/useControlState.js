@@ -29,8 +29,8 @@ const MODE_PRESETS = {
     cpuShortPptW: 45,
     gpuPptLimitW: 60,
     gpuTempLimitC: 75,
-    gpuCoreOffsetMhz: 0,
-    gpuMemOffsetMhz: 0,
+    gpuCoreFreqMhz: 2700,
+    gpuMemFreqMhz: 9000,
     gpuFreqLimitEnabled: false,
     gpuFreqLimitMhz: 1800,
     gpuFreqLocked: false,
@@ -43,8 +43,8 @@ const MODE_PRESETS = {
     cpuShortPptW: 70,
     gpuPptLimitW: 75,
     gpuTempLimitC: 85,
-    gpuCoreOffsetMhz: 0,
-    gpuMemOffsetMhz: 0,
+    gpuCoreFreqMhz: 2700,
+    gpuMemFreqMhz: 9000,
     gpuFreqLimitEnabled: false,
     gpuFreqLimitMhz: 2200,
     gpuFreqLocked: false,
@@ -57,8 +57,8 @@ const MODE_PRESETS = {
     cpuShortPptW: 100,
     gpuPptLimitW: 100,
     gpuTempLimitC: 90,
-    gpuCoreOffsetMhz: 0,
-    gpuMemOffsetMhz: 0,
+    gpuCoreFreqMhz: 2700,
+    gpuMemFreqMhz: 9000,
     gpuFreqLimitEnabled: false,
     gpuFreqLimitMhz: 2600,
     gpuFreqLocked: false,
@@ -71,8 +71,8 @@ const MODE_PRESETS = {
     cpuShortPptW: 140,
     gpuPptLimitW: 115,
     gpuTempLimitC: 95,
-    gpuCoreOffsetMhz: 0,
-    gpuMemOffsetMhz: 0,
+    gpuCoreFreqMhz: 2700,
+    gpuMemFreqMhz: 9000,
     gpuFreqLimitEnabled: false,
     gpuFreqLimitMhz: 3000,
     gpuFreqLocked: false,
@@ -85,8 +85,8 @@ const MODE_PRESETS = {
     cpuShortPptW: 85,
     gpuPptLimitW: 115,
     gpuTempLimitC: 87,
-    gpuCoreOffsetMhz: 0,
-    gpuMemOffsetMhz: 0,
+    gpuCoreFreqMhz: 2700,
+    gpuMemFreqMhz: 9000,
     gpuFreqLimitEnabled: false,
     gpuFreqLimitMhz: 2600,
     gpuFreqLocked: false,
@@ -139,8 +139,8 @@ export function useControlState(onSaveResult) {
     cpuShortPptW: 85,
     gpuFreqLimitEnabled: false,
     gpuFreqLimitMhz: 2600,
-    gpuCoreOffsetMhz: 0,
-    gpuMemOffsetMhz: 0,
+    gpuCoreFreqMhz: 2700,
+    gpuMemFreqMhz: 9000,
     gpuFreqLocked: false,
     gpuPptLimitW: 115,
     gpuTempLimitC: 87,
@@ -148,13 +148,13 @@ export function useControlState(onSaveResult) {
   const [uxtuParams, setUxtuParams] = useState(defaultParams);
   const [paramsLoaded, setParamsLoaded] = useState(false);
 
-  // 启动时从服务端加载自定义参数
+  // 启动时从服务端加载自定义参数（合并到默认值，确保新字段存在）
   useEffect(() => {
     fetch(API_CUSTOM_PARAMS)
       .then((r) => r.json())
       .then((data) => {
         if (data && Object.keys(data).length > 0) {
-          setUxtuParams(data);
+          setUxtuParams({ ...defaultParams, ...data });
         }
       })
       .catch(() => {})
@@ -263,8 +263,8 @@ export function useControlState(onSaveResult) {
       cpuShortPptW: preset.cpuShortPptW,
       gpuPptLimitW: preset.gpuPptLimitW,
       gpuTempLimitC: preset.gpuTempLimitC,
-      gpuCoreOffsetMhz: preset.gpuCoreOffsetMhz,
-      gpuMemOffsetMhz: preset.gpuMemOffsetMhz,
+      gpuCoreFreqMhz: preset.gpuCoreFreqMhz,
+      gpuMemFreqMhz: preset.gpuMemFreqMhz,
       gpuFreqLimitEnabled: preset.gpuFreqLimitEnabled,
       gpuFreqLimitMhz: preset.gpuFreqLimitMhz,
       gpuFreqLocked: preset.gpuFreqLocked,
