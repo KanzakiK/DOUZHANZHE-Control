@@ -545,3 +545,14 @@
   - Debug 页 SMU 区重写：新增短时功耗/CO电压/频率限制/睿频控制按钮
   - `dev-api.md` + `dev-backend.md` 文档同步
 - **编译**：0 errors, 8 warnings (all pre-existing)
+
+## 2026-06-06 (CPU 核心数限制后端实现 + 前后端全链路对齐)
+- **背景**：前端核心数限制控件 (`cpuCoreLimit`) 后端无实现，审计发现前端 8 个 CPU 控件全部存在
+- **变更**：
+  - 新建 `CpuAffinityManager.cs` — `Process.ProcessorAffinity` + WMI 新进程监控
+  - `Douzhanzhe.HAL.csproj` — 添加 `System.Management` 引用
+  - `Program.cs` — `POST /api/uxtu/apply` 核心数限制占位替换为实际调用
+  - 修复核心数 `errors.Add()` 无条件执行导致误报 bug
+  - `package.json` — 新增 `postbuild` 脚本（`npm run build` 自动复制到 `wwwroot/`）
+  - `dev-api.md` + `dev-backend.md` 文档同步
+- **编译**：0 errors

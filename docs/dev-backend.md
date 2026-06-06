@@ -309,6 +309,24 @@ POST /api/smu/set
 - 新增方法: `SetShortPowerLimit(fastMw, slowMw)`、`SetCurveOptimizer(mV)`、`SetCpuFreqLimit(mhz)`、`SetTurboDisabled(bool)` — 均通过 RyzenAdj 子进程实现
 - 运行时依赖 `WinRing0` 驱动（由 `run.ps1` 自动部署）+ `ryzenadj.exe`
 
+## 7. CpuAffinityManager — CPU 核心数限制 (进程亲和性)
+
+> 通过 `Process.ProcessorAffinity` 设置所有进程的 CPU 亲和性掩码，限制可用核心数。
+> 新建进程自动应用限制（WMI `Win32_ProcessStartTrace` 监听）。
+
+### 依赖
+- `System.Management` NuGet 包
+
+### API 集成
+| 端点 | 来源 | 说明 |
+|------|------|------|
+| `POST /api/uxtu/apply` | `body.Params.CpuCoreLimit` | 0=不限制，>0=限制核心数 |
+
+### 已知限制
+- 仅限 Windows（`Process.ProcessorAffinity` + WMI 平台限制）
+- 单处理器组支持（逻辑核心 ≤ 64）
+- `CpuAffinityManager.Reset()` 不会恢复已有进程的原始亲和性
+
 ## 5. AppBridge — ~~反射调用官方控制台 DLL~~ 🗑️ 已废弃 (2026-06-05)
 
 所有功能已通过 `WmiInterface`（`root\WMI` 原生直通）替代，无需 `斗战者控制台.dll` 依赖。

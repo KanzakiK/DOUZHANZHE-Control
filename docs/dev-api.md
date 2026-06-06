@@ -59,6 +59,11 @@ SMU 参数下发 (SmuController → ryzenadj.exe 子进程 + WinRing0)。Body: `
 | `turbo_disable` | 0/1 | 关闭/开启睿频 (1=关, 0=开) |
 Return: `{ ok: bool, rc: int }`(rc=0 成功)
 
+### POST /api/uxtu/apply
+CPU 参数综合下发。Body: `{ params: { cpuLongPptW, cpuShortPptW, cpuTempLimitC, cpuVoltageOffset, cpuFreqLimitEnabled, cpuFreqLimitMhz, cpuTurboDisabled, cpuCoreLimit } }`
+- `cpuCoreLimit`: 核心数限制 (0=不限制)，通过 `CpuAffinityManager.SetCoreLimit` 实现（`Process.ProcessorAffinity` + WMI 新进程监控）
+- 其余参数字段映射至对应 `POST /api/smu/set` 参数
+
 ### GET /api/smu/probe
 SMU 连通性探测 (SmuController → ryzenadj.exe 子进程)。Return: `{ ok: bool, source: "ryzenadj" }`
 
