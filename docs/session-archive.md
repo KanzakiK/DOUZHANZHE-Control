@@ -3,6 +3,42 @@
 > 此文档由主记忆 `douzhanzhe-progress.md` §4 迁出，随项目进展持续追加。
 > 最近日期在上，最早日期在下。
 
+## 速查表
+
+| 日期 | 会话主题 |
+|:-----|:--------|
+| 2026-06-06 | [Vite Dev Server 废弃 + 架构简化](#Vite-Dev-Server-废弃-架构简化) |
+| 2026-06-06 | [键盘灯亮度修复](#键盘灯亮度修复) |
+| 2026-06-06 | [移除自定义模式 + 网格修正](#移除自定义模式-网格修正) |
+| 2026-06-06 | [持久化修复 + 加载闪修复](#持久化修复-加载闪修复) |
+| 2026-06-06 | [电源计划按钮修复](#电源计划按钮修复) |
+| 2026-06-06 | [Fan Curve Hidden](#Fan-Curve-Hidden) |
+| 2026-06-06 | [风扇控制突破·WMI Bellator 协议修复](#风扇控制突破-WMI-Bellator-协议修复) |
+| 2026-06-06 | [写入策略改造 — 编辑器工具 + 后验清洗](#写入策略改造-编辑器工具-后验清洗) |
+| 2026-06-06 | [`_verify_write.py --check` 模式](#_verify_write-py-check-模式) |
+| 2026-06-06 | [跨会话加载流程](#跨会话加载流程) |
+| 2026-06-05 | [全站整理](#全站整理) |
+| 2026-06-05 | [文档体系重构](#文档体系重构) |
+| 2026-06-05 | [文档体系重构 · 续](#文档体系重构-续) |
+| 2026-06-05 | [风扇控制探索全栈 · 第二阶段](#风扇控制探索全栈-第二阶段) |
+| 2026-06-05 | [风扇控制探索 · 第三阶段 + BLDFnHotkeyUtility 反编译](#风扇控制探索-第三阶段-BLDFnHotkeyUtility-反编译) |
+| 2026-06-05 | [风扇控制突破·大扇 0x5F 发现](#风扇控制突破-大扇-0x5F-发现) |
+| 2026-06-05 | [AppBridge 废弃](#AppBridge-废弃) |
+| 2026-06-05 | [SMU 子进程集成修复](#SMU-子进程集成修复) |
+| 2026-06-05 | [Git cleanup: gitignore + gitattributes](#Git-cleanup-gitignore-gitattributes) |
+| 2026-06-05 | [Documentation audit + SMU dep chain fix](#Documentation-audit-SMU-dep-chain-fix) |
+| 2026-06-05 | [dev-api.md Vite proxy table fix](#dev-api-md-Vite-proxy-table-fix) |
+| 2026-06-05 | [C# reverse proxy + smu/api-type](#C-reverse-proxy-smu-api-type) |
+| 2026-06-05 | [Ship 2: thermal mode + routing + Node.js retirement](#Ship-2-thermal-mode-routing-Node-js-retirement) |
+
+---
+
+## 2026-06-06 (`.ship` 流程改进 — 归档去重+GitHub 同步)
+- **问题**：`.ship` 使用 marker 字符串定位插入导致重复；缺少 GitHub 自动同步
+- **修复**：会话归档改为扫描现有标题去重、定位速查表分隔线前方插入、同步更新速查表
+- **新增**：`.ship` 第 4 步 `git add -A` → `git commit` → `git push`（无变更跳过，失败仅警告）
+- **修改文件**：`.github/copilot-instructions.md` §5 `.ship` 块
+---
 
 ## 2026-06-06 (Vite Dev Server 废弃 + 架构简化)
 - **背景**：当前工作流已完全转向 C# Debug 页 + run.ps1 重编译，Vite dev server (`:5173`) 无人使用
@@ -11,16 +47,22 @@
 - **保留**：`vite` + `@vitejs/plugin-react` + `postcss` + `tailwindcss`（构建工具链，`npm run build` 需要）
 - **文档**：dev-index.md / dev-architecture.md / dev-backend.md / dev-frontend.md 全部更新架构图与快速启动
 
+---
+
 ## 2026-06-06 (键盘灯亮度修复)
 
 - **问题**: 键盘灯亮度 1/2/3 全部被压缩成 1（仅能开关）
 - **根因**: toggleSetting 中 mappedValue 计算了正确值但从未使用，实际发的是 value ? 1 : 0
 - **修复**: kbBrightnessLevel 直接透传数值 0-3
 
+---
+
 ## 2026-06-06 (移除自定义模式 + 网格修正)
 
 - **隐藏自定义模式**: MODE_ITEMS 移除 custom 条目
 - **网格修正**: grid-cols-5 → grid-cols-4，消除空白占位
+
+---
 
 ## 2026-06-06 (持久化修复 + 加载闪修复)
 
@@ -28,6 +70,8 @@
 - **风扇修复**：`useState(2200)` → `useState(() => loadFromLS())` + useEffect saveToLS
 - **电压修复**：localStorage 键 `douzhanzhe_voltage_offset`，初始化时恢复，变化即存
 - **slider 闪修复**：fetch 返回 `/api/custom-params` 仅在 `mode === "custom"` 时覆盖；uxtuParams 初始值改用 MODE_PRESETS 而非 defaultParams
+
+---
 
 ## 2026-06-06 (电源计划按钮修复)
 
@@ -37,67 +81,92 @@
 - **后端联调**：`POST /api/control power_plan` 端点早已实现，Debug 页 3 按钮已验证 ✅
 - **验证**：前端点击任意电源按钮，浏览器 DevTools Network 看到实际 `POST /api/control target=power_plan value=X`
 
+---
+
 ## 2026-06-06 (Fan Curve Hidden)
 - **问题**：风扇负载曲线仍心电图（HAL 双读仲裁降低瞬态 0 但未完全消除）
 - **决定**：不再深追，前端移除了风扇 `Sparkline` 组件
 - **改动**：`SortableDashboard.jsx` — 删除 `fanPctSeries` 计算变量 + `<Sparkline>` 替换为注释
 
-## 2026-06-06 (EC 16-bit Race Fix + Telemetry Unconditional Push)
-- **问题**：风扇曲线"心电图"（掉到 0 又跳回），CPU/GPU 曲线正常
-- **根因**：EC 16 位风扇寄存器（0x9D/0x9E, 0x96/0x97）被非原子读取，hi/lo 在固件更新间隙读到 0x0000
-- **HAL 层修复**：`CpuFanRpm`/`GpuFanRpm` 双读仲裁（for 循环最多 3 次，非零即返回），根治 EC 瞬态 0
-- **TelemetryBackgroundService 修复**：删除 `if (!changed) continue;` 变化检测，改为无条件每次推送；间隔 500ms→250ms 提升分辨率
-- **清理**：删除 `_prev*` 快照字段、`_last*`/`ZeroCount` 去抖字段（不再需要）
-- **验证**：`curl /api/telemetry` 跟踪 101 样本，大风扇 =0 次数 0%，小风扇 =0 次数 0%，最长连续=0 0 次 ✅
+---
 
-## 2026-06-05 (Step C/D/G)
-- DriverBridge 32-bit IO: Inp32/Out32 + ReadPhys32/WritePhys32
-- SmuController 子进程调用 ryzenadj.exe（底层仍依赖 WinRing0 驱动）
-- Debug 页 SMU 控制区 5 按钮
-- GPU 模式真机验证（混合/集显/独显）✅
-- 修复 run.ps1 AppBridge 运行时自动部署 bug
-- 任务看板重构三板块（Release 1 优先 / 后续 / 已完成）
+## 2026-06-06 (风扇控制突破·WMI Bellator 协议修复)
 
-## 2026-06-04 (Step 1~3)
-- WS 遥测 28 字段全量推送
-- Debug 页 GitHub Dark 横向布局重构
-- AppBridge 命令测试区（下拉框+文本框+发送+Hex翻译）
-- 电源计划切换 (powrprof.dll)
-- DSDT 反编译 + EC 寄存器全表
+### 诊断结论
+- **应用崩溃修复**: SettingsPanel.jsx 移除不存在的 applySystemSetting 导入 → React 应用恢复渲染
+- **风扇控制修复**: EC 0x5F/0x5B WriteEc ❌ 改为 **WMI MiInterface MaxFanSpeed(21) 协议** ✅
+  - BellatorFanControl 协议：data[4]=FanType(0大扇/1小扇), data[5]=RPM/100
+  - MaxFanSwitch(20): 启用手动/恢复固件控制
+- **WinRing0 驱动从工具链中清理**
 
-## 2026-06-03
-- C# HAL 架构 + 双后端部署
+### 代码变更
+| 文件 | 变更 |
+|------|------|
+| server/api/WmiInterface.cs | 新增 SetFanManual(bool) + SetFanSpeed(byte,byte) 方法 |
+| server/api/Program.cs | fan/set-target 从 hal.CpuFanControl 改为 wmi.SetFanManual+SetFanSpeed |
+| src/components/panels/SettingsPanel.jsx | 移除不存在的 applySystemSetting 导入 |
+| src/hooks/useControlState.js | 注入调试日志（已保留供后续排查） |
 
-## 2026-06-05 (风扇控制后端 + WriteEc 协议修复)
+### 真机验证
+- 写入 2800 → 8秒后 2782 ✅
+- 写入 3300 → 8秒后 3286 ✅
+- 写入 2500（低于均衡下限）→ 2878（EC 截断）⚠️
+
+### 文档同步
+- dev-api.md: POST /api/fan/set-target 控制路径更新为 WMI
+- dev-ec-map.md: 0x5F/0x5B 标记为只读状态寄存器，新增 WMI 控制说明
+- dev-task-board.md: 标记完成
+- dev-release-plan.md: 对比表更新
+- dev-backend.md: CpuFanControl/GpuFanControl 路径更新
+
+---
+
+---
+
+## 2026-06-06 (写入策略改造 — 编辑器工具 + 后验清洗)
+
+### 背景
+- 之前"绝对禁止编辑器工具，一律走 Python 管道"的策略导致 C# 转义问题频发（\r\n 被 Python 提前解释）
+- 实际问题的根源：编辑器工具写入会导致 \r 堆叠、空白行拉伸、$mid 注入
+- 但这些是真污染，不是不可解决的
+
+### 方案
+- **允许**使用编辑器工具（`replace_string_in_file` / `insert_edit_into_file` / `create_file`）
+- 每次写入后自动调用 `_verify_write.py <filepath>` 后验清洗
+- 后验脚本归一化三项：\r 堆叠压平、3+ 空白行压缩、$mid 尾部截断（仅尾部 500 字节范围内）
+- 同时输出 `CLEAN` 或 `FIXED` 状态 + 密度报告
+
+### 遗留
+- `$mid` 在 read_file 等工具的输出层仍可能出现伪影（工具层幻觉，磁盘文件正常）
+- 前置破幻对账规则不变：先读磁盘确认，再决定是否清洗
 
 ### 修改文件
 | 文件 | 变更 |
 |:-----|:------|
-| `server/hal/DriverBridge.cs` | `WriteEc` 0x80→0x81 写命令修复 + `WaitEcReady` IBF 轮询（匹配 ec_writer.cs 协议） |
-| `server/hal/HardwareAbstractionLayer.cs` | 新增 `CpuFanControl`/`GpuFanControl` 语义属性（EC 0xB2/0xB3） |
-| `server/api/Program.cs` | 新增 `POST /api/fan/set-target` + Debug 页风扇滑块 |
-| `server/api/Program.cs` | `FanSetRequest` record 加 `[JsonPropertyName]` |
-
-### 验证结果
-- ✅ `WriteEc` 协议修复——写命令从 `0x80`(读) 改 `0x81`(写)，增加 `WaitEcReady` IBF 轮询
-- ✅ EC 寄存器 0xB2/0xB3 字节写入工作正确（API 返回值 = 量化后值）
-- ❌ 风扇物理转速不响应 0xB2/0xB3 写入——需额外硬件逆向
-- ℹ️ 键盘背光 `WritePhys` 直线一直有效（离线的 `SetPhysLong`，不走 EC 协议）
-
-### 根因发现
-- `WriteEc` 从项目初始就一直用 `0x80`（读命令），所有 EC IO 协议写入从未生效过
-- 其他功能（键盘灯/Fn锁/散热模式）走 `WritePhys(SetPhysLong)` 所以不受影响
-- 0xB2/0xB3 实测也走 EC IO 协议（文档确认 `0x66→0x81`），非物理内存映射
-
-### 已知遗留
-- 风扇物理控制需探索额外 EC 寄存器组合（可能需手动风扇模式开关）
-- SMU Debug 页功能未真机实测
+| `_verify_write.py` | **新建** — 后验清洗脚本 |
+| `.github/copilot-instructions.md` | §1 重写（禁止→允许+后验）、§5 .execute/.ship 引用同步 |
+| `/memories/douzhanzhe-progress.md` | §1 速查表更新、§4 归档指针追加 |
+| `docs/dev-task-board.md` | 已完成追加"开发流程"任务项 |
 
 ---
 
 
 > 项目主记忆：[douzhanzhe-progress.md](vscode://file/c:\Users\liufe\AppData\Roaming\Code\User\globalStorage\github.copilot-chat\memory-tool\memories\douzhanzhe-progress.md) | 操作守则：[.github/copilot-instructions.md](.github/copilot-instructions.md)
 
+---
+
+## 2026-06-06 (`_verify_write.py --check` 模式)
+- **需求**：前置破幻对账需要快速只读诊断脚本，避免每次手动 `open(path, 'rb').read()` 核对
+- **方案**：`_verify_write.py` 新增 `--check` 参数，只读不修改，输出 `CLEAN` 或 `DIAG`（含 `$mid`/`cr-stack`/`3blanks` 标识）
+- **修改文件**：`_verify_write.py` 重构双函数 + `--check` 参数；守则 §1 更新前置破幻和脚本说明；主记忆速查表同步
+
+---
+
+## 2026-06-06 (跨会话加载流程)
+- **需求**：主记忆顶部缺少跨会话时如何读取本文件+守则+速查表+文档地图的完整流程指引
+- **方案**：主记忆 blockquote 内新增 5 步加载流程（自动加载→速查表→文档地图→对账→GSD）
+
+---
 
 ## 2026-06-05 (全站整理)
 - **记忆重构**：4 个用户记忆文件合并为 1 个唯一主记忆，3 个虚拟仓库记忆转为实体 docs/ 文件
@@ -108,6 +177,8 @@
 - **reference-consoles.md**：写入斗战者/蛟龙完整功能详情（145行）
 - **task-board-conventions.md**：看板整理原则独立文档
 - **session-archive.md**：首次创建，主记忆历史外迁
+
+---
 
 ## 2026-06-05 (文档体系重构)
 - 记忆文件优化: 5个用户记忆文件 → 1个唯一主记忆 (357行→91行), 删除3个冗余文件
@@ -121,6 +192,8 @@
 - reference-consoles.md 创建: 斗战者+蛟龙完整功能详情（145行）
 - 三方映射审计完成: 记忆↔文档↔守则 闭环确认
 
+---
+
 ## 2026-06-05 (文档体系重构 · 续)
 - 记忆虚拟文件转实体: repo/task-board-conventions.md, session-archive.md, reference-consoles.md
 - dev-index.md 补全新增文档索引 + 主记忆/守则引用脚注
@@ -129,6 +202,8 @@
 - copilot-instructions.md §4-5 同步更新: 记忆结构/归档路径/分流整理规则
 - 主记忆空行污染根除: 123行→69行, 多出的54行结构性空行彻底清洗
 - 三方映射审计完成, 发现缺失密度对账规则并补入守则
+
+---
 
 ## 2026-06-05 (风扇控制探索全栈 · 第二阶段)
 
@@ -163,6 +238,7 @@
 
 > 项目主记忆：[douzhanzhe-progress.md](vscode://file/c:\Users\liufe\AppData\Roaming\Code\User\globalStorage\github.copilot-chat\memory-tool\memories\douzhanzhe-progress.md) | 操作守则：[.github/copilot-instructions.md](.github/copilot-instructions.md)
 
+---
 
 ## 2026-06-05 (风扇控制探索 · 第三阶段 + BLDFnHotkeyUtility 反编译)
 
@@ -189,6 +265,7 @@
 
 > 项目主记忆：[douzhanzhe-progress.md](vscode://file/c:\Users\liufe\AppData\Roaming\Code\User\globalStorage\github.copilot-chat\memory-tool\memories\douzhanzhe-progress.md) | 操作守则：[.github/copilot-instructions.md](.github/copilot-instructions.md)
 
+---
 
 ## 2026-06-05 (风扇控制突破·大扇 0x5F 发现)
 
@@ -227,6 +304,8 @@
 - GpuFanControl 已从 0xB3 迁移至 0x5B，Debug 页滑块已生效
 - 大小风扇控制全部攻克：**0x5F(大扇) + 0x5B(小扇)**
 
+---
+
 ## 2026-06-05 Node.js 废弃 + 前端路由修复
 
 ### 变更范围
@@ -254,6 +333,8 @@
 - 模式前后台命名映射错乱
 - GPU 模式需做独立卡片（三按钮替代现有开关）
 
+---
+
 ## 2026-06-05 19:17 — WMI 迁移 + Debug 页重构
 **修改文件**：
 
@@ -271,6 +352,8 @@
 - `POST /api/control gpu_mode=0/1/2` 切换成功
 - 风扇独立下发 EC 寄存器验证生效
 
+---
+
 ## 2026-06-05 (AppBridge 废弃)
 - 废弃 AppLib.cs + AppBridge/ 子项目 + run.ps1 部署
 - 删除 /api/app-cmd、/api/app-status 端点
@@ -283,6 +366,7 @@
 
 ---
 
+---
 
 ## 2026-06-05 — SMU 写入验证 + 架构重构
 
@@ -313,6 +397,8 @@
 - `server/api/Program.cs` — 追加 GET /api/pci/probe, 更新 SMU 端点
 - `server/tools/` — 更新 ryzenadj.exe v0.19.0 + WinRing0x64.sys
 
+---
+
 ## 2026-06-05 (SMU 子进程集成修复)
 - **SMU 子进程 0xC0000005 根因诊断**: ryzenadj.exe 在 `RedirectStandardOutput=true` 时 crash（已知上游 v0.19.0 bug #370），非 C# 子进程路径问题
 - **SmuController.cs** 三处修复:
@@ -322,17 +408,15 @@
 - **run.ps1**: 新增 WinRing0x64.dll / WinRing0x64.sys / ryzenadj.exe 自动复制到运行目录（`inpoutx64.dll` 复制旁插入）
 - **验证结果**: probe=true, set65=true rc=0, temp90=true rc=0, status=true ✅
 
-## 2026-06-05 (Git cleanup: gitignore + gitattributes)
-- **.gitignore full rewrite**: added `**/bin/` `**/obj/` `**/wwwroot/` to ignore all C# build artifacts
-- **New .gitattributes**: line ending normalization, semantic diff for C#/MD, binary markers
-- **New ignore rules**: `**/Properties/launchSettings.json` `*.nodebak` `wmi-scan-result.json` `body_clean.json`
-- **Result**: untracked files dropped from 173 to ~20 source files; `git status` now reviewable
+---
 
 ## 2026-06-05 (Git cleanup: gitignore + gitattributes)
 - **.gitignore full rewrite**: added `**/bin/` `**/obj/` `**/wwwroot/` to ignore all C# build artifacts
 - **New .gitattributes**: line ending normalization, semantic diff for C#/MD, binary markers
 - **New ignore rules**: `**/Properties/launchSettings.json` `*.nodebak` `wmi-scan-result.json` `body_clean.json`
 - **Result**: untracked files dropped from 173 to ~20 source files; `git status` now reviewable
+
+---
 
 ## 2026-06-05 (Documentation audit + SMU dep chain fix)
 - **文档 Node.js 定位修正**: README/dev-index/dev-backend/dev-architecture Node.js 从双后端降级为可选配置服务
@@ -341,15 +425,21 @@
 - **GitHub 同步**: v1.1.0 commit (C# HAL/WMI/SMU/文档) + 4 个 docs fix commits
 - **主记忆更新**: 已验证硬件表 + 运行时依赖表 SMU/WinRing0 澄清
 
+---
+
 ## 2026-06-05 (dev-api.md Vite proxy table fix)
 - dev-api.md Vite 代理表 7 行目标端口从 :3099 改为 :3100（custom-params/ui-state/default-config/fan/ryzenadj/uxtu/system）
 - 与 vite.config.js 实际配置完全同步
 - 任务看板对应条目可打勾✔（文档同步）
 
+---
+
 ## 2026-06-05 (C# reverse proxy + smu/api-type)
 - C# Program.cs: 新增 app.Use() 中间件，C# 未匹配的 /api/* 自动转发到 Node.js :3099（Node.js 不可用时返回 502）
 - 新增 GET /api/smu/api-type 端点（返回“subprocess”）
 - 编译 0 错误，已推送 GitHub
+
+---
 
 ## 2026-06-05 (Ship 2: thermal mode + routing + Node.js retirement)
 - 提取 thermalModeMap + powerPlanHALMap 到 uxtuAdapter.js
@@ -357,202 +447,3 @@
 - 路由修复 SettingsPanel halMap 已正确
 - 任务看板全面审计：打勾完成、合并重复、移除已完成项
 - 文档同步：Node.js 参考移除、Vite 代理表简化
-
-## 2026-06-06 (Vite Dev Server 废弃 + 架构简化)
-- **背景**：当前工作流已完全转向 C# Debug 页 + run.ps1 重编译，Vite dev server (`:5173`) 无人使用
-- **风险审计**：代理功能（`/api`/`/ws`）已冗余（前端同域访问），WebSocket 直连 `ws://:3100/ws`，HMR 已被替换为 `run.ps1` 重编译
-- **清理**：`vite.config.js` 删 `server` 块，`package.json` 删 `dev`/`start`/`server`/`preview`/`backend`+`concurrently`
-- **保留**：`vite` + `@vitejs/plugin-react` + `postcss` + `tailwindcss`（构建工具链，`npm run build` 需要）
-- **文档**：dev-index.md / dev-architecture.md / dev-backend.md / dev-frontend.md 全部更新架构图与快速启动
-
-## 2026-06-06 (键盘灯亮度修复)
-
-- **问题**: 键盘灯亮度 1/2/3 全部被压缩成 1（仅能开关）
-- **根因**: toggleSetting 中 mappedValue 计算了正确值但从未使用，实际发的是 value ? 1 : 0
-- **修复**: kbBrightnessLevel 直接透传数值 0-3
-
-## 2026-06-06 (移除自定义模式 + 网格修正)
-
-- **隐藏自定义模式**: MODE_ITEMS 移除 custom 条目
-- **网格修正**: grid-cols-5 → grid-cols-4，消除空白占位
-
-## 2026-06-06 (持久化修复 + 加载闪修复)
-
-- **问题**：风扇滑块刷新回到 2200/4100、电压偏移回到 0、CPU/GPU slider 在非自定义模式刷新闪
-- **风扇修复**：`useState(2200)` → `useState(() => loadFromLS())` + useEffect saveToLS
-- **电压修复**：localStorage 键 `douzhanzhe_voltage_offset`，初始化时恢复，变化即存
-- **slider 闪修复**：fetch 返回 `/api/custom-params` 仅在 `mode === "custom"` 时覆盖；uxtuParams 初始值改用 MODE_PRESETS 而非 defaultParams
-
-## 2026-06-06 (电源计划按钮修复)
-
-- **问题**：`PerformancePanel.jsx` 电源计划（最高能效/平衡/最佳性能）按钮点击后从未实际调用 C# HAL
-- **根因**：`POWER_PLANS` 数组缺少 `halValue` 字段，按钮点击时 `plan.halValue === undefined`，被 `if (plan.halValue !== undefined)` 拦截
-- **修复**：三行代码，每个 plan 添加 `halValue: powerPlanHALMap[效率/平衡/性能]`
-- **后端联调**：`POST /api/control power_plan` 端点早已实现，Debug 页 3 按钮已验证 ✅
-- **验证**：前端点击任意电源按钮，浏览器 DevTools Network 看到实际 `POST /api/control target=power_plan value=X`
-
-## 2026-06-06 (Fan Curve Hidden)
-- **问题**：风扇负载曲线仍心电图（HAL 双读仲裁降低瞬态 0 但未完全消除）
-- **决定**：不再深追，前端移除了风扇 `Sparkline` 组件
-- **改动**：`SortableDashboard.jsx` — 删除 `fanPctSeries` 计算变量 + `<Sparkline>` 替换为注释
-
-## 2026-06-06 (风扇控制突破·WMI Bellator 协议修复)
-
-### 诊断结论
-- **应用崩溃修复**: SettingsPanel.jsx 移除不存在的 applySystemSetting 导入 → React 应用恢复渲染
-- **风扇控制修复**: EC 0x5F/0x5B WriteEc ❌ 改为 **WMI MiInterface MaxFanSpeed(21) 协议** ✅
-  - BellatorFanControl 协议：data[4]=FanType(0大扇/1小扇), data[5]=RPM/100
-  - MaxFanSwitch(20): 启用手动/恢复固件控制
-- **WinRing0 驱动从工具链中清理**
-
-### 代码变更
-| 文件 | 变更 |
-|------|------|
-| server/api/WmiInterface.cs | 新增 SetFanManual(bool) + SetFanSpeed(byte,byte) 方法 |
-| server/api/Program.cs | fan/set-target 从 hal.CpuFanControl 改为 wmi.SetFanManual+SetFanSpeed |
-| src/components/panels/SettingsPanel.jsx | 移除不存在的 applySystemSetting 导入 |
-| src/hooks/useControlState.js | 注入调试日志（已保留供后续排查） |
-
-### 真机验证
-- 写入 2800 → 8秒后 2782 ✅
-- 写入 3300 → 8秒后 3286 ✅
-- 写入 2500（低于均衡下限）→ 2878（EC 截断）⚠️
-
-### 文档同步
-- dev-api.md: POST /api/fan/set-target 控制路径更新为 WMI
-- dev-ec-map.md: 0x5F/0x5B 标记为只读状态寄存器，新增 WMI 控制说明
-- dev-task-board.md: 标记完成
-- dev-release-plan.md: 对比表更新
-- dev-backend.md: CpuFanControl/GpuFanControl 路径更新
-
----
-
-
-## 2026-06-06 (Vite Dev Server 废弃 + 架构简化)
-- **背景**：当前工作流已完全转向 C# Debug 页 + run.ps1 重编译，Vite dev server (`:5173`) 无人使用
-- **风险审计**：代理功能（`/api`/`/ws`）已冗余（前端同域访问），WebSocket 直连 `ws://:3100/ws`，HMR 已被替换为 `run.ps1` 重编译
-- **清理**：`vite.config.js` 删 `server` 块，`package.json` 删 `dev`/`start`/`server`/`preview`/`backend`+`concurrently`
-- **保留**：`vite` + `@vitejs/plugin-react` + `postcss` + `tailwindcss`（构建工具链，`npm run build` 需要）
-- **文档**：dev-index.md / dev-architecture.md / dev-backend.md / dev-frontend.md 全部更新架构图与快速启动
-
-## 2026-06-06 (键盘灯亮度修复)
-
-- **问题**: 键盘灯亮度 1/2/3 全部被压缩成 1（仅能开关）
-- **根因**: toggleSetting 中 mappedValue 计算了正确值但从未使用，实际发的是 value ? 1 : 0
-- **修复**: kbBrightnessLevel 直接透传数值 0-3
-
-## 2026-06-06 (移除自定义模式 + 网格修正)
-
-- **隐藏自定义模式**: MODE_ITEMS 移除 custom 条目
-- **网格修正**: grid-cols-5 → grid-cols-4，消除空白占位
-
-## 2026-06-06 (持久化修复 + 加载闪修复)
-
-- **问题**：风扇滑块刷新回到 2200/4100、电压偏移回到 0、CPU/GPU slider 在非自定义模式刷新闪
-- **风扇修复**：`useState(2200)` → `useState(() => loadFromLS())` + useEffect saveToLS
-- **电压修复**：localStorage 键 `douzhanzhe_voltage_offset`，初始化时恢复，变化即存
-- **slider 闪修复**：fetch 返回 `/api/custom-params` 仅在 `mode === "custom"` 时覆盖；uxtuParams 初始值改用 MODE_PRESETS 而非 defaultParams
-
-## 2026-06-06 (电源计划按钮修复)
-
-- **问题**：`PerformancePanel.jsx` 电源计划（最高能效/平衡/最佳性能）按钮点击后从未实际调用 C# HAL
-- **根因**：`POWER_PLANS` 数组缺少 `halValue` 字段，按钮点击时 `plan.halValue === undefined`，被 `if (plan.halValue !== undefined)` 拦截
-- **修复**：三行代码，每个 plan 添加 `halValue: powerPlanHALMap[效率/平衡/性能]`
-- **后端联调**：`POST /api/control power_plan` 端点早已实现，Debug 页 3 按钮已验证 ✅
-- **验证**：前端点击任意电源按钮，浏览器 DevTools Network 看到实际 `POST /api/control target=power_plan value=X`
-
-## 2026-06-06 (Fan Curve Hidden)
-- **问题**：风扇负载曲线仍心电图（HAL 双读仲裁降低瞬态 0 但未完全消除）
-- **决定**：不再深追，前端移除了风扇 `Sparkline` 组件
-- **改动**：`SortableDashboard.jsx` — 删除 `fanPctSeries` 计算变量 + `<Sparkline>` 替换为注释
-
-## 2026-06-06 (散热模式修复 + 风扇状态端点)
-
-### 已完成
-1. **散热模式按钮联动修复**: `thermalModeMap` 值映射纠正（安静=2,均衡=0,斗战=3,野兽=1），真机验证通过
-2. **自定义模式风扇触发**: 切自定义模式时自动调用 `POST /api/fan/set-target`，静默无感
-3. **CPU/GPU 控件解锁**: `paramsLocked=false`，移除自动切自定义模式逻辑，清理 `presetRef`
-4. **模式名称统一**（游戏→斗战, 狂暴→野兽），按钮顺序（安静/均衡/野兽/斗战/自定义）
-5. **真实硬件风扇状态查询**: `GET /api/fan/status` — WMI GET 方法 20/21 读回，发现本模具 GET 不回写开关状态
-6. **BellatorFanControl 源码审计**: 查表算法 `PickTarget`、回差控制 `ShouldWrite`、默认曲线表全部记录
-7. **reference-consoles.md**: 5 处过时内容修正
-
-### 关键发现
-- WMI MaxFanSwitch(20) SET 有效但 GET 不回写开关状态（`result[5]` 始终 0x00）
-- `POST /api/fan/set-target` 风扇控制确实生效（实测 2600→2860↑），`/api/wmi/cmd` raw 通道不适用于风扇（缺 data[5]）
-- 风扇转速受散热模式区间限制（区间内持久，区间外 ~8s 被覆盖）
-- 自定义风扇 + SMU/nvidia-smi 全量覆盖方案已讨论，待下期实施
-
----
-
-
-## 2026-06-06 (Vite Dev Server 废弃 + 架构简化)
-- **背景**：当前工作流已完全转向 C# Debug 页 + run.ps1 重编译，Vite dev server (`:5173`) 无人使用
-- **风险审计**：代理功能（`/api`/`/ws`）已冗余（前端同域访问），WebSocket 直连 `ws://:3100/ws`，HMR 已被替换为 `run.ps1` 重编译
-- **清理**：`vite.config.js` 删 `server` 块，`package.json` 删 `dev`/`start`/`server`/`preview`/`backend`+`concurrently`
-- **保留**：`vite` + `@vitejs/plugin-react` + `postcss` + `tailwindcss`（构建工具链，`npm run build` 需要）
-- **文档**：dev-index.md / dev-architecture.md / dev-backend.md / dev-frontend.md 全部更新架构图与快速启动
-
-## 2026-06-06 (键盘灯亮度修复)
-
-- **问题**: 键盘灯亮度 1/2/3 全部被压缩成 1（仅能开关）
-- **根因**: toggleSetting 中 mappedValue 计算了正确值但从未使用，实际发的是 value ? 1 : 0
-- **修复**: kbBrightnessLevel 直接透传数值 0-3
-
-## 2026-06-06 (移除自定义模式 + 网格修正)
-
-- **隐藏自定义模式**: MODE_ITEMS 移除 custom 条目
-- **网格修正**: grid-cols-5 → grid-cols-4，消除空白占位
-
-## 2026-06-06 (持久化修复 + 加载闪修复)
-
-- **问题**：风扇滑块刷新回到 2200/4100、电压偏移回到 0、CPU/GPU slider 在非自定义模式刷新闪
-- **风扇修复**：`useState(2200)` → `useState(() => loadFromLS())` + useEffect saveToLS
-- **电压修复**：localStorage 键 `douzhanzhe_voltage_offset`，初始化时恢复，变化即存
-- **slider 闪修复**：fetch 返回 `/api/custom-params` 仅在 `mode === "custom"` 时覆盖；uxtuParams 初始值改用 MODE_PRESETS 而非 defaultParams
-
-## 2026-06-06 (电源计划按钮修复)
-
-- **问题**：`PerformancePanel.jsx` 电源计划（最高能效/平衡/最佳性能）按钮点击后从未实际调用 C# HAL
-- **根因**：`POWER_PLANS` 数组缺少 `halValue` 字段，按钮点击时 `plan.halValue === undefined`，被 `if (plan.halValue !== undefined)` 拦截
-- **修复**：三行代码，每个 plan 添加 `halValue: powerPlanHALMap[效率/平衡/性能]`
-- **后端联调**：`POST /api/control power_plan` 端点早已实现，Debug 页 3 按钮已验证 ✅
-- **验证**：前端点击任意电源按钮，浏览器 DevTools Network 看到实际 `POST /api/control target=power_plan value=X`
-
-## 2026-06-06 (Fan Curve Hidden)
-- **问题**：风扇负载曲线仍心电图（HAL 双读仲裁降低瞬态 0 但未完全消除）
-- **决定**：不再深追，前端移除了风扇 `Sparkline` 组件
-- **改动**：`SortableDashboard.jsx` — 删除 `fanPctSeries` 计算变量 + `<Sparkline>` 替换为注释
-
-## 2026-06-06 GPU 控制后端+前端完整实现
-**变更清单**：
-
-- 后端：新建 server/hal/GpuController.cs（nvidia-smi 子进程封装）
-- 后端：Program.cs 新增 POST /api/gpu/set（6 种 action）+ GET /api/gpu/status
-- 前端：uxtuAdapter.js 新增 pplyGpuControl()、etchGpuStatus()
-- 前端：PerformancePanel.jsx GPU 调节卡片（核心频率/显存4频点/核心频率限制/锁定核心频率/重置）
-- 前端：显存频率支持自动/9001/11001/12001 四个频点
-- Debug：Debug 页 GPU 区块同步更新（核心+显存控制按钮）
-- 修复：频率限制与锁频互斥
-- 修复：锁频时释放显存锁定避免 P-state 冲突
-- 修复：limit-max/limit-memory 正确读取 alue 字段
-
-## 2026-06-06 (SMU 功能扩展 — RyzenAdj 全命令覆盖)
-- **背景**：前端 PerformancePanel 有 4 个 CPU 控制功能无后端实现，通过扩展 SmuController + Program.cs API 补齐
-- **变更**：
-  - `SmuController.cs` 新增 4 方法：`SetShortPowerLimit`、`SetCurveOptimizer`、`SetCpuFreqLimit`、`SetTurboDisabled`
-  - `Program.cs`：`UxtuParams` record 扩展 6 字段、`POST /api/smu/set` 新增 4 case、`POST /api/uxtu/apply` 提取新字段
-  - Debug 页 SMU 区重写：新增短时功耗/CO电压/频率限制/睿频控制按钮
-  - `dev-api.md` + `dev-backend.md` 文档同步
-- **编译**：0 errors, 8 warnings (all pre-existing)
-
-## 2026-06-06 (CPU 核心数限制后端实现 + 前后端全链路对齐)
-- **背景**：前端核心数限制控件 (`cpuCoreLimit`) 后端无实现，审计发现前端 8 个 CPU 控件全部存在
-- **变更**：
-  - 新建 `CpuAffinityManager.cs` — `Process.ProcessorAffinity` + WMI 新进程监控
-  - `Douzhanzhe.HAL.csproj` — 添加 `System.Management` 引用
-  - `Program.cs` — `POST /api/uxtu/apply` 核心数限制占位替换为实际调用
-  - 修复核心数 `errors.Add()` 无条件执行导致误报 bug
-  - `package.json` — 新增 `postbuild` 脚本（`npm run build` 自动复制到 `wwwroot/`）
-  - `dev-api.md` + `dev-backend.md` 文档同步
-- **编译**：0 errors

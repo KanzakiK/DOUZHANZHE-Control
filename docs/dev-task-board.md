@@ -178,6 +178,15 @@
 - [x] douzhanzhe-progress.md — 项目进度快照
 - [x] `dev-api.md`: Vite 代理表端口误标为 :3099 → 修复为 :3100 ✅
 
+### 开发流程
+- [x] **写入策略改造**: 放弃 Python 管道，恢复编辑器工具写入 + `_verify_write.py` 后验清洗，copilot-instructions.md §1 重写、主记忆同步
+- [x] **反覆写/反回滚规则**: copilot-instructions.md §2 新增"禁止全量覆写"和"禁止隐式回滚"，§3 新增"跨会话衔接契约"
+- [x] **`_verify_write.py --check` 模式**: 新增只读诊断模式用于前置破幻对账，守则 §1 更新引用，主记忆同步
+- [x] **主记忆跨会话加载流程**: 主记忆顶部新增 5 步加载流程，明确新会话时如何读取本文件+守则+速查表+文档地图
+- [x] **会话归档重构**: 98 个会话去重为 26 个独立条目，时间倒序排列，顶部新增速查表，体积从 86KB→24KB
+- [x] **`.ship` 流程改进**: 会话归档新增去重检查、定位插入（速查表分隔线处）、速查表同步；新增第 4 步 GitHub 同步（git add→commit→push）
+
+
 ### 已修复 Bug
 - [x] ~~mockTelemetry.js cpuCores:32~~ — 已修复
 - [x] SortableDashboard.jsx 重复属性 `showGpu={false}` — 仅一处，非重复 ✅

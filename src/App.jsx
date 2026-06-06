@@ -32,26 +32,18 @@ export default function App() {
     catch { return "dashboard"; }
   });
   const [editMode, setEditMode] = useState(false);
-  const applyTimerRef = useRef(null);
-  const isFirstMount = useRef(true);
-
-  // 参数变化时自动下发（去抖 500ms）
+  // 模式切换时全量下发 SMU 参数
+  const prevModeRef = useRef(settings.mode);
   useEffect(() => {
-    if (isFirstMount.current) {
-      isFirstMount.current = false;
-      return;
-    }
-    clearTimeout(applyTimerRef.current);
-    applyTimerRef.current = setTimeout(async () => {
-      try {
-        const result = await applyUxtuLimits(uxtuPayload);
+    if (prevModeRef.current !== settings.mode) {
+      prevModeRef.current = settings.mode;
+      applyUxtuLimits(uxtuPayload).then(result => {
         toast?.(result.message || "参数已下发", "success");
-      } catch (err) {
+      }).catch(err => {
         toast?.(`下发失败: ${err.message}`, "error");
-      }
-    }, 500);
-    return () => clearTimeout(applyTimerRef.current);
-  }, [uxtuPayload, toast]);
+      });
+    }
+  }, [settings.mode, uxtuPayload, toast]);
 
   // 持久化当前标签页
   useEffect(() => {
@@ -59,7 +51,6 @@ export default function App() {
   }, [activeTab]);
 
   return (
-    <ToastProvider>
     <div className={`${theme} min-h-screen p-3 md:p-4`}>
       <div className="max-w-[1750px] mx-auto grid grid-cols-1 md:grid-cols-[220px_1fr] gap-4">
         <aside className="rounded-2xl p-3 flex flex-col gap-4 md:sticky md:top-4 md:self-start md:max-h-[calc(100vh-2rem)]" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
@@ -122,6 +113,5 @@ export default function App() {
         </main>
       </div>
     </div>
-    </ToastProvider>
   );
 }

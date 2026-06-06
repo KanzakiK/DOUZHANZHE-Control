@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
-import { applyUxtuLimits, applyHardwareControl, powerPlanHALMap, applyGpuControl, fetchGpuStatus } from "../../services/uxtuAdapter";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { MODE_PRESETS, applyUxtuLimits, applySmuSet, applyHardwareControl, powerPlanHALMap, applyGpuControl, fetchGpuStatus } from "../../services/uxtuAdapter";
 import Card from "../ui/Card";
 import SliderRow from "../ui/SliderRow";
 import { useToast } from "../ui/Toast";
@@ -16,6 +16,15 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
   const [applyMessage, setApplyMessage] = useState("");
   const [smuInfo, setSmuInfo] = useState(null);
   const [smuError, setSmuError] = useState(false);
+  const smuTimer = useRef(null);
+
+  function queueSmu(parameter, valueM) {
+    clearTimeout(smuTimer.current);
+    smuTimer.current = setTimeout(async () => {
+      try { await applySmuSet(parameter, valueM); }
+      catch (err) { console.error("SMU set failed:", err); }
+    }, 600);
+  }
   const paramsLocked = false;
 
   useEffect(() => {
@@ -72,7 +81,7 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
             <span className="text-xs">关闭睿频</span>
           </div>
           <SliderRow label="温度墙" value={uxtuParams.cpuTempLimitC}
-            min={60} max={100} unit="°C" onChange={update("cpuTempLimitC")} disabled={paramsLocked} />
+            min={60} max={100} unit="°C" onChange={(v) => { update("cpuTempLimitC")(v); queueSmu("temp_limit", v); }} disabled={paramsLocked} />
           <div className="flex items-center gap-2">
             <input type="checkbox" checked={uxtuParams.cpuCoreLimit > 0}
               onChange={(e) => update("cpuCoreLimit")(e.target.checked ? 8 : 0)}
@@ -100,11 +109,11 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
             </div>
           </div>
           <SliderRow label="电压调节(降压)" value={uxtuParams.cpuVoltageOffset}
-            min={-30} max={0} step={1} unit="mV" onChange={update("cpuVoltageOffset")} disabled={paramsLocked} />
+            min={-30} max={0} step={1} unit="mV" onChange={(v) => { update("cpuVoltageOffset")(v); queueSmu("co_all", v); }} disabled={paramsLocked} />
           <SliderRow label="长时功耗" value={uxtuParams.cpuLongPptW}
-            min={15} max={150} unit="W" onChange={update("cpuLongPptW")} disabled={paramsLocked} />
+            min={15} max={150} unit="W" onChange={(v) => { update("cpuLongPptW")(v); queueSmu("power_limit", v); }} disabled={paramsLocked} />
           <SliderRow label="短时功耗" value={uxtuParams.cpuShortPptW}
-            min={15} max={180} unit="W" onChange={update("cpuShortPptW")} disabled={paramsLocked} />
+            min={15} max={180} unit="W" onChange={(v) => { update("cpuShortPptW")(v); queueSmu("short_power_limit", v); }} disabled={paramsLocked} />
         </div>
       </Card>
 
@@ -193,3 +202,21 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
       </Card>}</>
   );
 }
+          <div className="flex gap-2 pt-2">
+            <button onClick={() => {
+              const preset = MODE_PRESETS[settings.mode] || {};
+              setUxtuParams((p) => ({ ...p, ...preset }));
+              if (preset.cpuTempLimitC) queueSmu("temp_limit", preset.cpuTempLimitC);
+              if (preset.cpuLongPptW) queueSmu("power_limit", preset.cpuLongPptW);
+              if (preset.cpuShortPptW) queueSmu("short_power_limit", preset.cpuShortPptW);
+              if (preset.cpuVoltageOffset !== undefined) queueSmu("co_all", preset.cpuVoltageOffset);
+              if (preset.cpuFreqLimitMhz) queueSmu("cpu_freq_limit", preset.cpuFreqLimitMhz);
+              toast?.("\u5df2\u6062\u590d\u9884\u8bbe\u503c", "success");
+            }}
+              className="text-xs px-3 py-1.5 rounded-lg cursor-pointer"
+              style={{ border: "1px solid var(--warn)", color: "var(--warn)", background: "transparent" }}
+            >\u6062\u590d\u9884\u8bbe</button>
+          </div>
+
+
+// DEBUG_MARKER_20260606

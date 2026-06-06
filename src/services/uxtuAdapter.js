@@ -93,3 +93,23 @@ export async function fetchGpuStatus() {
   if (!res.ok) throw new Error(`GPU 状态返回 ${res.status}`);
   return res.json();
 }
+
+
+// CPU/GPU/fan mode presets
+export const MODE_PRESETS = {
+  silent: { cpuTempLimitC: 75, cpuLongPptW: 35, cpuShortPptW: 45, cpuVoltageOffset: 0, cpuFreqLimitMhz: 3000, cpuTurboDisabled: false, cpuFreqLimitEnabled: false },
+  office: { cpuTempLimitC: 80, cpuLongPptW: 55, cpuShortPptW: 70, cpuVoltageOffset: 0, cpuFreqLimitMhz: 4500, cpuTurboDisabled: false, cpuFreqLimitEnabled: false },
+  gaming: { cpuTempLimitC: 88, cpuLongPptW: 85, cpuShortPptW: 100, cpuVoltageOffset: 0, cpuFreqLimitMhz: 5000, cpuTurboDisabled: false, cpuFreqLimitEnabled: false },
+  beast: { cpuTempLimitC: 95, cpuLongPptW: 120, cpuShortPptW: 140, cpuVoltageOffset: 0, cpuFreqLimitMhz: 5500, cpuTurboDisabled: false, cpuFreqLimitEnabled: false },
+  custom: { cpuTempLimitC: 90, cpuLongPptW: 65, cpuShortPptW: 85, cpuVoltageOffset: 0, cpuFreqLimitMhz: 4500, cpuTurboDisabled: false, cpuFreqLimitEnabled: false },
+};
+
+export async function applySmuSet(parameter, valueM) {
+  const res = await fetch("/api/smu/set", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ parameter, valueM }),
+  });
+  if (!res.ok) throw new Error("SMU return " + res.status);
+  return res.json();
+}
