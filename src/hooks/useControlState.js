@@ -147,8 +147,12 @@ export function useControlState(onSaveResult) {
   };
   const [uxtuParams, setUxtuParams] = useState(() => {
     const saved = loadFromLS(LS_SETTINGS, { mode: "office" });
+    // 恢复 localStorage 中保存的电压偏移等通用参数
+    const savedVoltage = loadFromLS("douzhanzhe_voltage_offset", undefined);
     const preset = MODE_PRESETS[saved.mode];
-    return preset ? { ...defaultParams, ...preset } : defaultParams;
+    const base = preset ? { ...defaultParams, ...preset } : defaultParams;
+    if (savedVoltage !== undefined) base.cpuVoltageOffset = savedVoltage;
+    return base;
   });
   const [paramsLoaded, setParamsLoaded] = useState(false);
 
@@ -210,8 +214,10 @@ export function useControlState(onSaveResult) {
   useEffect(() => { saveToLS(LS_SETTINGS, settings); }, [settings]);
 
   // 自定义参数持久化到服务端（去抖 1s）— 仅在自定义模式下保存
+  // 同时将电压偏移持久化到 localStorage（所有模式通用）
   const saveTimerRef = useRef(null);
   useEffect(() => {
+    saveToLS("douzhanzhe_voltage_offset", uxtuParams.cpuVoltageOffset);
     if (!paramsLoaded || settings.mode !== "custom") return;
     clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
