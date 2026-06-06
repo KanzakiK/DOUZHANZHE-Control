@@ -90,67 +90,82 @@
 
 ## ✅ 三、已完成
 
-### 后端 — C# HAL 硬件驱动架构
+### 后端 — 架构与驱动
 - [x] DriverBridge 单例（inpoutx64 P/Invoke）
+- [x] DriverBridge 32-bit IO: Inp32/Out32 + ReadPhys32/WritePhys32
 - [x] HardwareAbstractionLayer（EC 寄存器语义映射）
 - [x] WebConsoleAPI（Minimal API + WebSocket + TelemetryBackgroundService）
 - [x] DSDT ACPI 反编译 + EC 寄存器全表导出
 - [x] 替换 WinRing0 -> inpoutx64 (MIT 自管)
 - [x] SmuController 子进程调用 ryzenadj.exe（程序集零外部依赖，运行时依赖 WinRing0 驱动）
-- [x] **SMU 子进程集成修复**: SmuController.cs 路径候选修复 + run.ps1 自动复制 WinRing0/ryzenadj + 移除 Redirect 导致 0xC0000005 + 接受无害崩溃退出码 ✅
-- [x] DriverBridge 32-bit IO: Inp32/Out32 + ReadPhys32/WritePhys32
+- [x] SMU 子进程集成修复: 路径候选 + run.ps1 自动复制 WinRing0/ryzenadj + 移除 Redirect + 接受 0xC0000005 ✅
+- [x] WmiInterface.cs（`root\WMI`，32 字节协议，零依赖）
+- [x] C# 静态文件服务: `wwwroot/` + `UseStaticFiles()` + `MapFallbackToFile("index.html")`
+- [x] C# 反向代理 Node.js 遗留端点
 
-### 后端 — AppBridge 集成
+### 后端 — 控制端点与遥测
+- [x] `POST /api/control`: kb_light, fn_lock, num_lock, caps_lock, touchpad_lock, power_plan, thermal_mode, igpu_only, gpu_mode
+- [x] `POST /api/smu/set`: stapm_limit, temp_limit
+- [x] `POST /api/fan/set-target` + `POST /api/fan/restore`
+- [x] `GET /api/telemetry` 全量遥测（28 字段）
+- [x] `WS /ws` WebSocket 实时推送
+- [x] `GET /debug` 内嵌 Debug 面板
+- [x] 跑通全链路: GET /api/health -> POST /api/control -> 物理 EC 写入生效
+- [x] Node.js JSON 持久化迁移: C# `GET|POST /api/custom-params`、`GET|POST /api/ui-state`
+- [x] Node.js 遥测迁移: C# 补齐 `systeminformation` 类数据（CPU/内存/硬盘全量）
+- [x] TelemetryBackgroundService 无条件推送 250ms: 删除变化检测，间隔 500ms→250ms
+- [x] 废弃 Vite dev server: 前端迁入 `wwwroot/`，清理 proxy/watch/concurrently/dev/start/server 脚本
+
+### 后端 — 风扇控制
+- [x] EC 寄存器发现 (0xB2/0xB3) + 公式 `val=round(rpm/maxRpm*255)` 经 ec_writer.cs 验证
+- [x] ~~0xB2/0xB3 直写~~ ❌ → **0x5F(大扇)/0x5B(小扇) ✅** WriteEc 直接生效，值=RPM/100，受散热区间限制
+- [x] **小风扇控制寄存器 0x5B**: EC 直写 `WriteEc(0x5B, RPM/100)` 已验证
+- [x] C# API + Debug 页风扇目标转速滑块 ✅ **0x5F 控制已验证**
+- [x] WMI Bellator 协议修复: MaxFanSwitch(20)+MaxFanSpeed(21) data[4]=FanType
+- [x] 恢复固件控制: `POST /api/fan/restore` — Debug 页按钮
+- [x] EC 16 位风扇竞态修复 (HAL 双读仲裁): CpuFanRpm/GpuFanRpm 最多重读 3 次取非零，瞬态 0 率降至 0%
+
+### 后端 — WMI 迁移 + AppBridge 废弃
+- [x] WmiInterface 实现: GPUMode(9) ✅ FnLock(11) ✅ TPLock(12) ✅
 - [x] AppBridge 子进程 + AppLib.cs 封装（反射调用 BLD.WMIOperation）
 - [x] 运行时依赖自动部署（System.Management + 斗战者控制台.dll）
 - [x] GPU 模式控制（混合/集显/独显）真机验证
 - [x] 端点: `/api/app-cmd`, `/api/app-status`, `/api/ec-scan`
 - [x] Debug 页 AppBridge 命令调试区
+- [x] 废弃 AppBridge: 砍掉 AppLib.cs + AppBridge 子项目 + 斗战者控制台.dll 依赖
 
-### 后端 — 控制端点
-- [x] `POST /api/control`: kb_light, fn_lock, num_lock, caps_lock, touchpad_lock, power_plan, thermal_mode, igpu_only, gpu_mode
-- [x] `POST /api/smu/set`: stapm_limit, temp_limit
-- [x] `GET /api/telemetry` 全量遥测（28字段）
-- [x] `WS /ws` WebSocket 实时推送
-- [x] **废弃 Vite dev server**: 前端从 `:5173` 迁移至 C# API `wwwroot/`，删除 `vite.config.js` proxy/watch 配置、`concurrently` 依赖、`dev`/`start`/`server`/`preview`/`backend` 脚本
-- [x] **TelemetryBackgroundService 无条件推送 250ms**: 删除变化检测，间隔 500ms→250ms
-- [x] **EC 16 位风扇竞态修复**: CpuFanRpm/GpuFanRpm 双读仲裁（最多 3 次取非零），瞬态 0 率降至 0%
-- [x] `GET /debug` 内嵌 Debug 面板
-- [x] 跑通全链路: GET /api/health -> POST /api/control -> 物理 EC 写入生效
-- [x] **Node.js JSON 持久化迁移**: C# 新增 `GET/POST /api/custom-params`、`GET/POST /api/ui-state` 文件持久化 ✅
-- [x] **Node.js 遥测迁移**: C# 补齐 `systeminformation` 类数据（CPU/内存/硬盘全量） ✅
-
-### 后端 — 风扇控制发现
-- [x] EC 寄存器发现 (0xB2/0xB3) + 公式 `val=round(rpm/maxRpm*255)` 经 ec_writer.cs 验证
-
-### 后端 — SMU 调优全链路
+### 后端 — SMU 调优
 - [x] Step 1~D: libryzenadj 封装 -> server.js 重构 -> SmuController 物理地址直写
 - [x] Step G: WinRing0x64.dll 仍依赖于 SmuController（通过 ryzenadj.exe），DriverBridge 已全面移除对 WinRing0 的直接依赖
+- [x] SMU 写入验证: Dragon Range 地址确认 + ryzenadj 子进程写入 25W 功率墙成功
+- [x] Debug 页按钮: SMU 功率/温度设置按钮已整合 ✅
 
-### 前端 — 遥测监控
-- [x] CPU 占用率、温度、频率、核心数
-- [x] GPU 占用率、温度、频率、显存
+### 前端 — 遥测与仪表盘
+- [x] CPU 占用率/温度/频率/核心数
+- [x] GPU 占用率/温度/频率/显存
 - [x] 内存占用/总量 + 硬盘占用/总量
-- [x] CPU/GPU 风扇转速 + 负载曲线
+- [x] CPU/GPU 风扇转速数字显示
 - [x] WebSocket 对接硬件实时遥测（离线时 mock 回退）
-- [x] **隐藏风扇负载曲线**: EC 16 位竞态导致心电图问题，前端 `fan-info` 卡片移除 `<Sparkline>` 组件及其 `fanPctSeries` 计算变量
+- [x] 拖拽排序（@dnd-kit） + 卡片隐藏/显示 + 排序持久化
+- [x] 历史曲线图 Sparkline 渲染排查 ✅ NaN 兜底修复
+- [x] 隐藏风扇负载曲线: EC 竞态心电图，移除 `<Sparkline>` + `fanPctSeries`
 
-### 前端 — 性能调节
+### 前端 — 性能与调节
 - [x] CPU 长时/短时功耗墙、温度墙、睿频控制
 - [x] GPU 功耗墙、温度墙
-- [x] 模式预设（安静/均衡/游戏/狂暴/自定义）
-- [x] 自动应用参数（500ms 去抖）
-- [x] 非自定义模式锁定控件
-
-### 前端 — 仪表盘自定义
-- [x] 拖拽排序（@dnd-kit）
-- [x] 卡片隐藏/显示 + 排序持久化（localStorage + 服务端）
+- [x] 模式预设（安静/均衡/斗战/野兽/自定义）+ 非自定义模式锁定控件
+- [x] 自动应用参数（500ms 去抖） + 模式切换联动
+- [x] 路由修复: `SettingsPanel.jsx` halMap 追加 `gpuOnly->igpu_only`、`touchpadLock->touchpad_lock`
+- [x] 散热模式: `uxtuAdapter.js` 导出 `thermalModeMap` + `powerPlanHALMap`
+- [x] 散热模式: `App.jsx` 5 个模式按钮联动 `POST /api/control target=thermal_mode`
+- [x] 模式重构（部分）: CPU/GPU 控件在四种模式下均可调
+- [x] 电源计划: `uxtuAdapter.js` 导出 `powerPlanHALMap`
 
 ### 前端 — 系统功能
-- [x] 主题切换（4套皮肤）
+- [x] 主题切换（4 套皮肤）
 - [x] 导航标签页 + 持久化
 - [x] 键盘背光滑块 UI
-- [x] 系统开关 UI（Fn锁/NumLock/CapsLock/触摸板锁）
+- [x] 系统开关 UI（Fn 锁 / NumLock / CapsLock / 触摸板锁）
 - [x] GPL v3 许可证 + 技术信息面板
 - [x] Toast 通知反馈
 - [x] CHANGELOG.md + README.md
@@ -163,34 +178,13 @@
 - [x] dev-frontend.md — 组件树/状态管理
 - [x] dev-release-plan.md — Release 1 对比表
 - [x] douzhanzhe-progress.md — 项目进度快照
-- [x] `dev-api.md`: Vite 代理表 custom-params/ui-state/default-config 目标端口误标为 :3099，应为 :3100 ✅
+- [x] `dev-api.md`: Vite 代理表端口误标为 :3099 → 修复为 :3100 ✅
 
 ### 已修复 Bug
 - [x] ~~mockTelemetry.js cpuCores:32~~ — 已修复
-
----
-
-
-### 后端 — 风扇控制 + WMI + Debug
-- [x] C# 静态文件服务: `wwwroot/` + `UseStaticFiles()` + `MapFallbackToFile("index.html")` ✅
-- [x] C# 反向代理 Node.js 遗留端点 ✅
-- [x] ~~`CpuFanControl`/`GpuFanControl`~~ ❌ LLT 路径(0xB2/0xB3)无效 → **0x5F 大扇控制 ✅**（GpuFanControl 小扇待发现）
-- [x] **C# API**: `POST /api/fan/set-target` 端点 ✅ **0x5F 控制已验证**
-- [x] **C# Debug 页**: 风扇目标转速滑块 ✅ **0x5F 控制已验证**
-- [x] **风扇物理控制探索**: ~~0xB2/0xB3 直写~~ ❌ → **0x5F(大扇)/0x5B(小扇) ✅** WriteEc 直接生效，值=RPM/100，受散热区间限制
-- [x] **小风扇控制寄存器 0x5B**: ✅ EC 直写 `WriteEc(0x5B, RPM/100)` 已验证
-- [x] **EC 16 位风扇竞态修复 (HAL 双读仲裁)**: CpuFanRpm/GpuFanRpm 最多重读 3 次取首个非零值，消除 EC 瞬态 0 导致风扇曲线"心电图"问题 ✅
-- [x] **遥测广播改为无条件推送 250ms**: TelemetryBackgroundService 删除变化检测过滤，每次轮询都推送全量数据；间隔 500ms→250ms
-- [x] **WmiInterface.cs** ✅ 已实现（`root\WMI`，32 字节协议，零依赖）
-- [x] **GPUMode (WMI)** ✅ `POST /api/control` gpu_mode 已迁移到 WmiInterface
-- [x] **WMI 迁移 — `POST /api/control` FnLock(11)**: 从 AppBridge 迁移到 WmiInterface ✅
-- [x] **WMI 迁移 — `POST /api/control` TPLock(12)**: 从 AppBridge 迁移到 WmiInterface ✅
-- [x] **恢复固件控制**: `POST /api/fan/restore` — Debug 页按钮; 调 fan/set-target largeRpm=0,smallRpm=0 ✅
-- [x] **Debug 页**: 添加"恢复固件控制"按钮 ✅
-- [x] **废弃 AppBridge**: 砍掉 AppLib.cs + AppBridge 子项目 + 斗战者控制台.dll 依赖 ✅
-- [x] **路由修复**: `SettingsPanel.jsx` — `osdDisabled` Toast 提示"暂不支持" ✅
-- [x] **历史曲线**: 排查 Sparkline 渲染（代码存在，可能卡片被隐藏） ✅
-
+- [x] SortableDashboard.jsx 重复属性 `showGpu={false}` — 仅一处，非重复 ✅
+- [x] 历史曲线图 Sparkline NaN 渲染 — 兜底修复 ✅
+- [x] `SettingsPanel.jsx` — `osdDisabled` Toast 提示"暂不支持" ✅
 ## 附录
 
 ### 架构迁移对账
@@ -213,7 +207,7 @@
 - 2026-06-06: EC 16 位风扇竞态修复 (HAL 双读仲裁) + TelemetryBackgroundService 无条件推送 250ms + HAL 文档同步
 - 2026-06-06: 风扇负载曲线隐藏 (EC 16 位竞态心电图) — 前端 `<Sparkline>` 移除 + `fanPctSeries` 清理 + 文档同步
 - 2026-06-06: Vite dev server 废弃 — 前端嵌入 C# wwwroot/，清理 dev/start/server 脚本 + concurrently + 文档架构图
-- - 2026-06-06: 风扇控制全栈后端 (C# HAL/API/Debug) + WriteEc 0x80→0x81 修复 + WaitEcReady 轮询
+- 2026-06-06: 风扇控制全栈后端 (C# HAL/API/Debug) + WriteEc 0x80→0x81 修复 + WaitEcReady 轮询
 
 ---
 
