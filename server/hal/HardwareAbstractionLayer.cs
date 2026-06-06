@@ -188,9 +188,15 @@ public sealed class HardwareAbstractionLayer : IDisposable
     {
         get
         {
-            var hi = _io.ReadEc(0x9D);
-            var lo = _io.ReadEc(0x9E);
-            return (ushort)((hi << 8) | lo);
+            // 双读仲裁：最多 3 次，取首个非零值，消除 EC 16 位竞态
+            for (int i = 0; i < 3; i++)
+            {
+                var hi = _io.ReadEc(0x9D);
+                var lo = _io.ReadEc(0x9E);
+                var val = (ushort)((hi << 8) | lo);
+                if (val != 0) return val;
+            }
+            return 0;
         }
     }
 
@@ -199,9 +205,15 @@ public sealed class HardwareAbstractionLayer : IDisposable
     {
         get
         {
-            var hi = _io.ReadEc(0x96);
-            var lo = _io.ReadEc(0x97);
-            return (ushort)((hi << 8) | lo);
+            // 双读仲裁：最多 3 次，取首个非零值，消除 EC 16 位竞态
+            for (int i = 0; i < 3; i++)
+            {
+                var hi = _io.ReadEc(0x96);
+                var lo = _io.ReadEc(0x97);
+                var val = (ushort)((hi << 8) | lo);
+                if (val != 0) return val;
+            }
+            return 0;
         }
     }
 
