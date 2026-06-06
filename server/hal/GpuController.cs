@@ -91,7 +91,8 @@ public sealed class GpuController
         var output = RunNvidiaSmi("--query-supported-clocks=gr --format=csv,noheader,nounits");
         var lines = output.Split(new char[] { "\n"[0], "\r"[0] }, StringSplitOptions.RemoveEmptyEntries);
         if (lines.Length == 0) return 2700;
-        if (int.TryParse(lines[0].Trim(), out var val) && val > 0)
+        var idx = Math.Max(0, lines.Length / 7);
+        if (int.TryParse(lines[idx].Trim(), out var val) && val > 0)
             return val;
         return 2700;
     }
