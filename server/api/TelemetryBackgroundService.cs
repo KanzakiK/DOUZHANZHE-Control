@@ -19,6 +19,10 @@ public class TelemetryBackgroundService : BackgroundService
     private readonly HardwareAbstractionLayer _hal;
     private readonly ILogger<TelemetryBackgroundService> _log;
 
+    // 上次非零风扇值 — 过滤 EC 瞬态读到 0 的心电图问题
+    private ushort _lastCpuFan;
+    private ushort _lastGpuFan;
+
     // WebSocket 客户端列表
     private static readonly List<WebSocket> _clients = new();
     private static readonly object _clientLock = new();
@@ -63,6 +67,10 @@ public class TelemetryBackgroundService : BackgroundService
                 var gpuTemp = _hal.GpuTemperature;
                 var cpuFan = _hal.CpuFanRpm;
                 var gpuFan = _hal.GpuFanRpm;
+
+                // 过滤 EC 瞬态读到 0 的心电图问题：非零才更新 last，零则用 last
+                if (cpuFan == 0 && _lastCpuFan > 0) cpuFan = _lastCpuFan; else _lastCpuFan = cpuFan;
+                if (gpuFan == 0 && _lastGpuFan > 0) gpuFan = _lastGpuFan; else _lastGpuFan = gpuFan;
 
                 // 构建 JSON 负载（全量遥测）
                 var payload = JsonSerializer.Serialize(new
