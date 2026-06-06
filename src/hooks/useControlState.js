@@ -30,7 +30,7 @@ const MODE_PRESETS = {
     gpuPptLimitW: 60,
     gpuTempLimitC: 75,
     gpuCoreFreqMhz: 2700,
-    gpuMemFreqMhz: 9000,
+    gpuMemFreqMhz: 1,
     gpuFreqLimitEnabled: false,
     gpuFreqLimitMhz: 1800,
     gpuFreqLocked: false,
@@ -44,7 +44,7 @@ const MODE_PRESETS = {
     gpuPptLimitW: 75,
     gpuTempLimitC: 85,
     gpuCoreFreqMhz: 2700,
-    gpuMemFreqMhz: 9000,
+    gpuMemFreqMhz: 1,
     gpuFreqLimitEnabled: false,
     gpuFreqLimitMhz: 2200,
     gpuFreqLocked: false,
@@ -58,7 +58,7 @@ const MODE_PRESETS = {
     gpuPptLimitW: 100,
     gpuTempLimitC: 90,
     gpuCoreFreqMhz: 2700,
-    gpuMemFreqMhz: 9000,
+    gpuMemFreqMhz: 1,
     gpuFreqLimitEnabled: false,
     gpuFreqLimitMhz: 2600,
     gpuFreqLocked: false,
@@ -72,7 +72,7 @@ const MODE_PRESETS = {
     gpuPptLimitW: 115,
     gpuTempLimitC: 95,
     gpuCoreFreqMhz: 2700,
-    gpuMemFreqMhz: 9000,
+    gpuMemFreqMhz: 1,
     gpuFreqLimitEnabled: false,
     gpuFreqLimitMhz: 3000,
     gpuFreqLocked: false,
@@ -86,7 +86,7 @@ const MODE_PRESETS = {
     gpuPptLimitW: 115,
     gpuTempLimitC: 87,
     gpuCoreFreqMhz: 2700,
-    gpuMemFreqMhz: 9000,
+    gpuMemFreqMhz: 1,
     gpuFreqLimitEnabled: false,
     gpuFreqLimitMhz: 2600,
     gpuFreqLocked: false,
@@ -140,7 +140,7 @@ export function useControlState(onSaveResult) {
     gpuFreqLimitEnabled: false,
     gpuFreqLimitMhz: 2600,
     gpuCoreFreqMhz: 2700,
-    gpuMemFreqMhz: 9000,
+    gpuMemFreqMhz: 1,
     gpuFreqLocked: false,
     gpuPptLimitW: 115,
     gpuTempLimitC: 87,
@@ -154,6 +154,10 @@ export function useControlState(onSaveResult) {
       .then((r) => r.json())
       .then((data) => {
         if (data && Object.keys(data).length > 0) {
+          // Normalize gpuMemFreqMhz from old MHz values to index 0-3
+          if (data.gpuMemFreqMhz !== undefined && (data.gpuMemFreqMhz > 3 || data.gpuMemFreqMhz < 0)) {
+            data.gpuMemFreqMhz = 1;
+          }
           setUxtuParams({ ...defaultParams, ...data });
         }
       })

@@ -1,11 +1,10 @@
-export default function SliderRow({ label, value, min, max, step = 1, onChange, unit = "", disabled = false }) {
+export default function SliderRow({ label, value, min, max, step = 1, onChange, unit = "", displayValue, disabled = false }) {
   return (
     <label className="block" style={{ opacity: disabled ? 0.5 : 1, cursor: disabled ? "not-allowed" : "auto" }}>
       <div className="flex justify-between text-sm mb-1">
         <span>{label}</span>
         <span style={{ color: "var(--muted)" }}>
-          {value}
-          {unit}
+          {displayValue ?? value}{displayValue === "自动" ? "" : unit}
         </span>
       </div>
       <input
