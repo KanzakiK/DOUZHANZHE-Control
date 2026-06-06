@@ -194,6 +194,7 @@
 - [x] **速查表滚动截断**: session-archive.md 速查表限 15 行+汇总行，溢出时自动删除最旧行
 - [x] **主记忆参考表重构+reference-consoles.md 速查表**: 主记忆 §3 从 3 行扩展为 7 行（BellatorFanControl/UXTU/EnumDLL/nvidia-smi），reference-consoles.md 新增顶部速查表、修复章节编号
 - [x] **主记忆 §3/§4 追加近期摘要**: 已知遗留问题追加 2 行、会话归档追加 3 行近期摘要信息
+- [x] **`dev-api.md` 顶部维护规则**: 新增分组追加/废弃/同步等更新规则
 
 
 ### 已修复 Bug
