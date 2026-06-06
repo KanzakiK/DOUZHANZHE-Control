@@ -15,6 +15,6 @@
   "gpuFreqLocked": false,
   "gpuPptLimitW": 75,
   "gpuTempLimitC": 85,
-  "fanLargeRpmTarget": 2200,
-  "fanSmallRpmTarget": 4100
+  "fanLargeRpmTarget": 4400,
+  "fanSmallRpmTarget": 5600
 }
