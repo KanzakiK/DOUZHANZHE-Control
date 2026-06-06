@@ -35,6 +35,13 @@ public sealed class HardwareAbstractionLayer : IDisposable
     private int _sgDiskUsage, _sgDiskTotal, _sgDiskFree;
     private DateTime _sgDiskTime = DateTime.MinValue;
 
+    // System info cache (WMI, long-lived)
+    private string _sysModel = "";
+    private string _cpuName = "";
+    private string _gpuD = "";
+    private string _gpuI = "";
+    private DateTime _sysInfoTime = DateTime.MinValue;
+
     public const ushort FanLargeMax = 4400;
     public const ushort FanSmallMax = 8200;
 
@@ -437,6 +444,130 @@ public sealed class HardwareAbstractionLayer : IDisposable
     /// <summary>通过 EC IO 协议写入寄存器 (备选方法)</summary>
     public void WriteEcPort(byte reg, byte val) => _io.WriteEc(reg, val);
     
+
+    // ================================================================
+    // 系统信息 (WMI 子进程)
+    // ================================================================
+
+    public string SystemModel
+    {
+        get
+        {
+            if ((DateTime.UtcNow - _sysInfoTime).TotalSeconds < 10 && !string.IsNullOrEmpty(_sysModel))
+                return _sysModel;
+            try
+            {
+                using var p = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = "powershell",
+                        Arguments = "-NoProfile -Command \"(Get-CimInstance Win32_ComputerSystem).Manufacturer + ' ' + (Get-CimInstance Win32_ComputerSystem).Model\"",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        CreateNoWindow = true
+                    }
+                };
+                p.Start();
+                if (!p.WaitForExit(3000)) { p.Kill(); return _sysModel; }
+                var line = p.StandardOutput.ReadToEnd().Trim();
+                if (!string.IsNullOrEmpty(line)) _sysModel = line;
+            }
+            catch { }
+            _sysInfoTime = DateTime.UtcNow;
+            return _sysModel;
+        }
+    }
+
+    public string CpuName
+    {
+        get
+        {
+            if ((DateTime.UtcNow - _sysInfoTime).TotalSeconds < 10 && !string.IsNullOrEmpty(_cpuName))
+                return _cpuName;
+            try
+            {
+                using var p = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = "powershell",
+                        Arguments = "-NoProfile -Command \"(Get-CimInstance Win32_Processor).Name\"",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        CreateNoWindow = true
+                    }
+                };
+                p.Start();
+                if (!p.WaitForExit(3000)) { p.Kill(); return _cpuName; }
+                var line = p.StandardOutput.ReadToEnd().Trim();
+                if (!string.IsNullOrEmpty(line)) _cpuName = line;
+            }
+            catch { }
+            _sysInfoTime = DateTime.UtcNow;
+            return _cpuName;
+        }
+    }
+
+    public string GpuDiscreteName
+    {
+        get
+        {
+            if ((DateTime.UtcNow - _sysInfoTime).TotalSeconds < 10 && !string.IsNullOrEmpty(_gpuD))
+                return _gpuD;
+            try
+            {
+                using var p = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = "powershell",
+                        Arguments = "-NoProfile -Command \"(Get-CimInstance Win32_VideoController | Where-Object { $_.PNPDeviceID -match 'VEN_10DE' }).Name\"",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        CreateNoWindow = true
+                    }
+                };
+                p.Start();
+                if (!p.WaitForExit(3000)) { p.Kill(); return _gpuD; }
+                var line = p.StandardOutput.ReadToEnd().Trim();
+                if (!string.IsNullOrEmpty(line)) _gpuD = line;
+            }
+            catch { }
+            _sysInfoTime = DateTime.UtcNow;
+            return _gpuD;
+        }
+    }
+
+    public string GpuIntegratedName
+    {
+        get
+        {
+            if ((DateTime.UtcNow - _sysInfoTime).TotalSeconds < 10 && !string.IsNullOrEmpty(_gpuI))
+                return _gpuI;
+            try
+            {
+                using var p = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = "powershell",
+                        Arguments = "-NoProfile -Command \"(Get-CimInstance Win32_VideoController | Where-Object { $_.PNPDeviceID -match 'VEN_1002' }).Name\"",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        CreateNoWindow = true
+                    }
+                };
+                p.Start();
+                if (!p.WaitForExit(3000)) { p.Kill(); return _gpuI; }
+                var line = p.StandardOutput.ReadToEnd().Trim();
+                if (!string.IsNullOrEmpty(line)) _gpuI = line;
+            }
+            catch { }
+            _sysInfoTime = DateTime.UtcNow;
+            return _gpuI;
+        }
+    }
 
     // ================================================================
     // 系统遥测

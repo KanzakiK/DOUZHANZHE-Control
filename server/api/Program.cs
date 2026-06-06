@@ -250,6 +250,22 @@ app.MapGet("/api/telemetry", (HardwareAbstractionLayer hal, WmiInterface wmi) =>
 
 
 
+app.MapGet("/api/system/info", (HardwareAbstractionLayer hal) =>
+{
+    return Results.Json(new
+    {
+        systemModel = hal.SystemModel,
+        cpuName = hal.CpuName,
+        cpuCores = hal.CpuCores,
+        cpuFreq = hal.CpuFreq,
+        gpuDiscrete = hal.GpuDiscreteName,
+        gpuIntegrated = hal.GpuIntegratedName,
+        memoryTotal = hal.MemoryTotalGB,
+        memoryFreq = hal.MemoryFreq,
+        diskTotal = hal.DiskTotalGB,
+    });
+});
+
 app.MapGet("/api/health", (HardwareAbstractionLayer hal) =>
 
 {
@@ -1021,6 +1037,21 @@ app.MapPost("/api/wmi/cmd", (WmiInterface wmi, WmiCmdRequest req) =>
 
 
 
+
+app.MapGet("/api/system/info", (HardwareAbstractionLayer hal) =>
+{
+    return Results.Json(new
+    {
+        systemModel = hal.SystemModel,
+        cpuName = hal.CpuName,
+        cpuCores = hal.CpuCores,
+        gpuDiscrete = hal.GpuDiscreteName,
+        gpuIntegrated = hal.GpuIntegratedName,
+        memoryTotalGB = hal.MemoryTotalGB,
+        memoryFreq = hal.MemoryFreq,
+        diskTotalGB = hal.DiskTotalGB,
+    });
+});
 
 app.MapPost("/api/system/settings", (HttpContext ctx) =>
 
