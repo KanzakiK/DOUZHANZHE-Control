@@ -10,11 +10,13 @@
   "cpuShortPptW": 70,
   "gpuFreqLimitEnabled": false,
   "gpuFreqLimitMhz": 2200,
-  "gpuCoreOffsetMhz": 0,
-  "gpuMemOffsetMhz": 0,
+  "gpuCoreFreqMhz": 2700,
+  "gpuMemFreqMhz": 1,
   "gpuFreqLocked": false,
   "gpuPptLimitW": 75,
   "gpuTempLimitC": 85,
-  "fanLargeRpmTarget": 4400,
-  "fanSmallRpmTarget": 5600
+  "gpuCoreOffsetMhz": 0,
+  "gpuMemOffsetMhz": 0,
+  "fanLargeRpmTarget": 2200,
+  "fanSmallRpmTarget": 4100
 }

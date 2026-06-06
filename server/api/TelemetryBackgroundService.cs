@@ -19,9 +19,12 @@ public class TelemetryBackgroundService : BackgroundService
     private readonly HardwareAbstractionLayer _hal;
     private readonly ILogger<TelemetryBackgroundService> _log;
 
-    // 上次非零风扇值 — 过滤 EC 瞬态读到 0 的心电图问题
-    private ushort _lastCpuFan;
-    private ushort _lastGpuFan;
+    // 风扇零值去抖 — 连续 N 次读到 0 才认为风扇真的停了
+    private ushort _lastGoodCpuFan;
+    private ushort _lastGoodGpuFan;
+    private byte _cpuFanZeroCount;
+    private byte _gpuFanZeroCount;
+    private const byte ZERO_DEBOUNCE = 8; // 8 x 250ms = 2s
 
     // WebSocket 客户端列表
     private static readonly List<WebSocket> _clients = new();
@@ -68,9 +71,11 @@ public class TelemetryBackgroundService : BackgroundService
                 var cpuFan = _hal.CpuFanRpm;
                 var gpuFan = _hal.GpuFanRpm;
 
-                // 过滤 EC 瞬态读到 0 的心电图问题：非零才更新 last，零则用 last
-                if (cpuFan == 0 && _lastCpuFan > 0) cpuFan = _lastCpuFan; else _lastCpuFan = cpuFan;
-                if (gpuFan == 0 && _lastGpuFan > 0) gpuFan = _lastGpuFan; else _lastGpuFan = gpuFan;
+                // 去抖过滤：连续 ZERO_DEBOUNCE 次读到 0 才放过，否则保持上次有效值
+                if (cpuFan > 0) { _cpuFanZeroCount = 0; _lastGoodCpuFan = cpuFan; }
+                else if (++_cpuFanZeroCount < ZERO_DEBOUNCE && _lastGoodCpuFan > 0) cpuFan = _lastGoodCpuFan;
+                if (gpuFan > 0) { _gpuFanZeroCount = 0; _lastGoodGpuFan = gpuFan; }
+                else if (++_gpuFanZeroCount < ZERO_DEBOUNCE && _lastGoodGpuFan > 0) gpuFan = _lastGoodGpuFan;
 
                 // 构建 JSON 负载（全量遥测）
                 var payload = JsonSerializer.Serialize(new
