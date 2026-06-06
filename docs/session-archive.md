@@ -13,7 +13,8 @@
 
 | 日期 | 会话主题 |
 |:-----|:--------|
-| 2| 2026-06-06 | [docs 维护规则补全 — dev-frontend.md](#docs-维护规则补全-dev-frontendmd) |
+| 2| 2026-06-06 | [audit fix P0](#audit-fix-P0) |
+| 2026-06-06 | [docs 维护规则补全 — dev-frontend.md](#docs-维护规则补全-dev-frontendmd) |
 | 2026-06-06 | [docs 维护规则补全 — dev-ec-map.md](#docs-维护规则补全-dev-ec-mapmd) |
 | 2026-06-06 | [docs 维护规则补全 — dev-backend.md](#docs-维护规则补全-dev-backendmd) |
 | 2026-06-06 | [docs 维护规则补全 — dev-api.md](#docs-维护规则补全-dev-apimd) |
@@ -27,9 +28,12 @@
 | 2026-06-06 | [电源计划按钮修复](#电源计划按钮修复) |
 | 2026-06-06 | [Fan Curve Hidden](#Fan-Curve-Hidden) |
 | 2026-06-06 | [风扇控制突破·WMI Bellator 协议修复](#风扇控制突破-WMI-Bellator-协议修复) |
-| 2026-06-06 | [写入策略改造 — 编辑器工具 + 后验清洗](#写入策略改造-编辑器工具-后验清洗) |
 | ... | [共 16 条](#完整列表) |
 
+---
+
+## 2026-06-06 (audit fix P0)
+- .ship step 1: added "sync document map in memory section 1" rule; disambiguated "section 2 recent work" vs "section 4 session summary"
 ---
 
 ## 2026-06-06 (docs 维护规则补全 — dev-frontend.md)
