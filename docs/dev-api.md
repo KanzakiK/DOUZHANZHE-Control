@@ -25,6 +25,12 @@ Return: `{ ok: bool, timestamp: long }`
 | `igpu_only` | 0/1 | 仅集显模式 |
 | `gpu_mode` | 0-2 | GPU 模式 (0=混合,1=集显,2=独显, AppBridge) |
 
+### GET /api/fan/status
+风扇状态查询（WMI Bellator GET）。
+Return: `{ ok: bool, manualEnabled: bool, largeRpmTarget: int, smallRpmTarget: int }`
+- manualEnabled: ⚠️ 本模具 WMI GET 不回写开关状态，始终为 false
+- largeRpmTarget / smallRpmTarget: 固件当前认的目标转速（RPM）
+
 ### GET /api/discover
 硬件探测。Return: `{ available, ecBase, driverLoaded, touchpad }`
 

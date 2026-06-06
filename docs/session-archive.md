@@ -446,3 +446,22 @@
 - dev-task-board.md: 标记完成
 - dev-release-plan.md: 对比表更新
 - dev-backend.md: CpuFanControl/GpuFanControl 路径更新
+
+---
+
+## 2026-06-06 (散热模式修复 + 风扇状态端点)
+
+### 已完成
+1. **散热模式按钮联动修复**: `thermalModeMap` 值映射纠正（安静=2,均衡=0,斗战=3,野兽=1），真机验证通过
+2. **自定义模式风扇触发**: 切自定义模式时自动调用 `POST /api/fan/set-target`，静默无感
+3. **CPU/GPU 控件解锁**: `paramsLocked=false`，移除自动切自定义模式逻辑，清理 `presetRef`
+4. **模式名称统一**（游戏→斗战, 狂暴→野兽），按钮顺序（安静/均衡/野兽/斗战/自定义）
+5. **真实硬件风扇状态查询**: `GET /api/fan/status` — WMI GET 方法 20/21 读回，发现本模具 GET 不回写开关状态
+6. **BellatorFanControl 源码审计**: 查表算法 `PickTarget`、回差控制 `ShouldWrite`、默认曲线表全部记录
+7. **reference-consoles.md**: 5 处过时内容修正
+
+### 关键发现
+- WMI MaxFanSwitch(20) SET 有效但 GET 不回写开关状态（`result[5]` 始终 0x00）
+- `POST /api/fan/set-target` 风扇控制确实生效（实测 2600→2860↑），`/api/wmi/cmd` raw 通道不适用于风扇（缺 data[5]）
+- 风扇转速受散热模式区间限制（区间内持久，区间外 ~8s 被覆盖）
+- 自定义风扇 + SMU/nvidia-smi 全量覆盖方案已讨论，待下期实施

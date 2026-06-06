@@ -4,7 +4,7 @@
   "cpuTurboDisabled": false,
   "cpuTempLimitC": 80,
   "cpuCoreLimit": 0,
-  "cpuPowerPlan": "balance",
+  "cpuPowerPlan": "efficiency",
   "cpuVoltageOffset": 0,
   "cpuLongPptW": 55,
   "cpuShortPptW": 70,
