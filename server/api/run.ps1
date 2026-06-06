@@ -38,8 +38,8 @@ if ($LASTEXITCODE -ne 0) { Write-Host "Frontend build failed!" -Foreground Red; 
 $distDir = Join-Path $projRoot "dist"
 $wwwrootDir = Join-Path $runDir "wwwroot"
 if (Test-Path $distDir) {
-    if (Test-Path $wwwrootDir) { Remove-Item "$wwwrootDir\*" -Recurse -Force }
-    Copy-Item "$distDir\*" $wwwrootDir -Recurse -Force
+    if (Test-Path $wwwrootDir) { Remove-Item $wwwrootDir -Recurse -Force }
+    Copy-Item $distDir $wwwrootDir -Recurse -Force
     Write-Host "Frontend dist copied to wwwroot" -Foreground Green
 }
 Pop-Location
