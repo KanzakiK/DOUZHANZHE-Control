@@ -18,6 +18,14 @@
 
 
 
+## 2026-06-06 (Vite Dev Server 废弃 + 架构简化)
+
+- **背景**：当前工作流已完全转向 C# Debug 页 + run.ps1 重编译，Vite dev server (`:5173`) 无人使用
+- **风险审计**：代理功能（`/api`/`/ws`）已冗余（前端同域访问），WebSocket 直连 `ws://:3100/ws`，HMR 已被替换为 `run.ps1` 重编译
+- **清理**：`vite.config.js` 删 `server` 块，`package.json` 删 `dev`/`start`/`server`/`preview`/`backend`+`concurrently`
+- **保留**：`vite` + `@vitejs/plugin-react` + `postcss` + `tailwindcss`（构建工具链，`npm run build` 需要）
+- **文档**：dev-index.md / dev-architecture.md / dev-backend.md / dev-frontend.md 全部更新架构图与快速启动
+
 ## 2026-06-06 (Fan Curve Hidden)
 
 - **问题**：风扇负载曲线仍心电图（HAL 双读仲裁降低瞬态 0 但未完全消除）
@@ -853,6 +861,14 @@
 
 
 
+## 2026-06-06 (Vite Dev Server 废弃 + 架构简化)
+
+- **背景**：当前工作流已完全转向 C# Debug 页 + run.ps1 重编译，Vite dev server (`:5173`) 无人使用
+- **风险审计**：代理功能（`/api`/`/ws`）已冗余（前端同域访问），WebSocket 直连 `ws://:3100/ws`，HMR 已被替换为 `run.ps1` 重编译
+- **清理**：`vite.config.js` 删 `server` 块，`package.json` 删 `dev`/`start`/`server`/`preview`/`backend`+`concurrently`
+- **保留**：`vite` + `@vitejs/plugin-react` + `postcss` + `tailwindcss`（构建工具链，`npm run build` 需要）
+- **文档**：dev-index.md / dev-architecture.md / dev-backend.md / dev-frontend.md 全部更新架构图与快速启动
+
 ## 2026-06-06 (Fan Curve Hidden)
 
 - **问题**：风扇负载曲线仍心电图（HAL 双读仲裁降低瞬态 0 但未完全消除）
@@ -918,6 +934,14 @@
 
 ---
 
+## 2026-06-06 (Vite Dev Server 废弃 + 架构简化)
+
+- **背景**：当前工作流已完全转向 C# Debug 页 + run.ps1 重编译，Vite dev server (`:5173`) 无人使用
+- **风险审计**：代理功能（`/api`/`/ws`）已冗余（前端同域访问），WebSocket 直连 `ws://:3100/ws`，HMR 已被替换为 `run.ps1` 重编译
+- **清理**：`vite.config.js` 删 `server` 块，`package.json` 删 `dev`/`start`/`server`/`preview`/`backend`+`concurrently`
+- **保留**：`vite` + `@vitejs/plugin-react` + `postcss` + `tailwindcss`（构建工具链，`npm run build` 需要）
+- **文档**：dev-index.md / dev-architecture.md / dev-backend.md / dev-frontend.md 全部更新架构图与快速启动
+
 ## 2026-06-06 (Fan Curve Hidden)
 
 - **问题**：风扇负载曲线仍心电图（HAL 双读仲裁降低瞬态 0 但未完全消除）
@@ -942,6 +966,14 @@
 - 自定义风扇 + SMU/nvidia-smi 全量覆盖方案已讨论，待下期实施
 
 ---
+
+## 2026-06-06 (Vite Dev Server 废弃 + 架构简化)
+
+- **背景**：当前工作流已完全转向 C# Debug 页 + run.ps1 重编译，Vite dev server (`:5173`) 无人使用
+- **风险审计**：代理功能（`/api`/`/ws`）已冗余（前端同域访问），WebSocket 直连 `ws://:3100/ws`，HMR 已被替换为 `run.ps1` 重编译
+- **清理**：`vite.config.js` 删 `server` 块，`package.json` 删 `dev`/`start`/`server`/`preview`/`backend`+`concurrently`
+- **保留**：`vite` + `@vitejs/plugin-react` + `postcss` + `tailwindcss`（构建工具链，`npm run build` 需要）
+- **文档**：dev-index.md / dev-architecture.md / dev-backend.md / dev-frontend.md 全部更新架构图与快速启动
 
 ## 2026-06-06 (Fan Curve Hidden)
 

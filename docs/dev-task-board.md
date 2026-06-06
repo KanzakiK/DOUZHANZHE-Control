@@ -502,6 +502,10 @@
 
 - [x] `WS /ws` WebSocket 实时推送
 
+- [x] **废弃 Vite dev server**: 前端从 `:5173` 迁移至 C# API `wwwroot/`，删除 `vite.config.js` proxy/watch 配置、`concurrently` 依赖、`dev`/`start`/`server`/`preview`/`backend` 脚本
+- [x] **TelemetryBackgroundService 无条件推送 250ms**: 删除变化检测，间隔 500ms→250ms
+- [x] **EC 16 位风扇竞态修复**: CpuFanRpm/GpuFanRpm 双读仲裁（最多 3 次取非零），瞬态 0 率降至 0%
+
 
 
 - [x] `GET /debug` 内嵌 Debug 面板
@@ -933,6 +937,8 @@
 - 2026-06-06: EC 16 位风扇竞态修复 (HAL 双读仲裁) + TelemetryBackgroundService 无条件推送 250ms + HAL 文档同步
 
 - 2026-06-06: 风扇负载曲线隐藏 (EC 16 位竞态心电图) — 前端 `<Sparkline>` 移除 + `fanPctSeries` 清理 + 文档同步
+
+- 2026-06-06: Vite dev server 废弃 — 前端嵌入 C# wwwroot/，清理 dev/start/server 脚本 + concurrently + 文档架构图
 
 - - 2026-06-06: 风扇控制全栈后端 (C# HAL/API/Debug) + WriteEc 0x80→0x81 修复 + WaitEcReady 轮询
 

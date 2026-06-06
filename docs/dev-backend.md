@@ -8,12 +8,12 @@
 |------|------|------|------|
 | C# HAL API | :3100 | .NET 8 Minimal API | 遥测、硬件控制、WebSocket、SMU、Debug、配置持久化 |
 
-### Vite 代理分流
+### Vite 代理分流（已废弃）
 
-> 详细代理规则表见 [dev-architecture.md#Vite-代理规则](dev-architecture.md)。
-> 完整配置见 `vite.config.js`。
+> Vite dev server (`:5173`) 已移除。前端页面由 `run.ps1` 中 `npm run build` 构建后嵌入 C# API `wwwroot/`。
+> 统一访问 `http://127.0.0.1:3100/`。
 >
-> 前端的 WebSocket 直连 `ws://127.0.0.1:3100/ws`（绕过 Vite 代理）。
+> 前端的 WebSocket 直连 `ws://127.0.0.1:3100/ws`。
 
 ---
 
