@@ -486,7 +486,7 @@ app.MapPost("/api/uxtu/apply", (HttpContext ctx, SmuController smu) =>
         if (cpuVoltage.HasValue) { var rc = smu.SetCurveOptimizer(cpuVoltage.Value); if (rc != 0) errors.Add($"cpuVoltage rc={rc}"); }
         if (cpuFreqEnabled.HasValue && cpuFreqEnabled.Value && cpuFreqMhz.HasValue) { var rc = smu.SetCpuFreqLimit((uint)cpuFreqMhz.Value); if (rc != 0) errors.Add($"cpuFreq rc={rc}"); }
         if (cpuTurboOff.HasValue) { var rc = smu.SetTurboDisabled(cpuTurboOff.Value); if (rc != 0) errors.Add($"cpuTurbo rc={rc}"); }
-        if (cpuCoreLimit.HasValue) { CpuAffinityManager.SetCoreLimit(cpuCoreLimit.Value); errors.Add($"coreLimit set to {cpuCoreLimit.Value}"); }
+        if (cpuCoreLimit.HasValue) { CpuAffinityManager.SetCoreLimit(cpuCoreLimit.Value); }
         return Results.Json(new { ok = errors.Count == 0, message = errors.Count > 0 ? string.Join("; ", errors) : "OK" });
     }
     catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }); }
