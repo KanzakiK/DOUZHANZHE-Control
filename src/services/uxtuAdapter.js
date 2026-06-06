@@ -69,3 +69,27 @@ export function createTelemetrySocket(onData, onError) {
   };
   return ws;
 }
+
+export const GPU_BASE_CLOCK = 1342; // RTX 5060 默认 boost 频率上限 (supported-clocks 第一行)
+export const GPU_MEM_BASE_CLOCK = 9001; // 显存基准频率
+
+// GPU 控制: action = "limit-max" | "lock-exact" | "reset-clocks" | "reset-memory-clocks"
+export async function applyGpuControl(action, value) {
+  const body = value !== undefined
+    ? { action, value }
+    : { action };
+  const res = await fetch(`/api/gpu/set`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`GPU 控制返回 ${res.status}`);
+  return res.json();
+}
+
+// 读取 GPU 状态 (当前频率/基准/最大)
+export async function fetchGpuStatus() {
+  const res = await fetch(`/api/gpu/status`);
+  if (!res.ok) throw new Error(`GPU 状态返回 ${res.status}`);
+  return res.json();
+}

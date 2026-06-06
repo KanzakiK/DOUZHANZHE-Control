@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { applyUxtuLimits, applyHardwareControl, powerPlanHALMap } from "../../services/uxtuAdapter";
+import { applyUxtuLimits, applyHardwareControl, powerPlanHALMap, applyGpuControl, fetchGpuStatus, GPU_BASE_CLOCK, GPU_MEM_BASE_CLOCK } from "../../services/uxtuAdapter";
 import Card from "../ui/Card";
 import SliderRow from "../ui/SliderRow";
 import { useToast } from "../ui/Toast";
@@ -114,23 +114,48 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <input type="checkbox" checked={uxtuParams.gpuFreqLimitEnabled}
-              onChange={(e) => update("gpuFreqLimitEnabled")(e.target.checked)}
-            disabled={paramsLocked}
+              onChange={async (e) => {
+                const on = e.target.checked;
+                update("gpuFreqLimitEnabled")(on);
+                if (!on) await applyGpuControl("reset-clocks");
+                else await applyGpuControl("limit-max", uxtuParams.gpuFreqLimitMhz);
+              }}
               className="accent-cyan-400" />
             <span className="text-xs">频率限制</span>
           </div>
           {uxtuParams.gpuFreqLimitEnabled && (
             <SliderRow label="最大频率" value={uxtuParams.gpuFreqLimitMhz}
-              min={1000} max={3200} step={50} unit="MHz" onChange={update("gpuFreqLimitMhz")} disabled={paramsLocked} />
+              min={1000} max={3200} step={50} unit="MHz"
+              onChange={async (v) => {
+                update("gpuFreqLimitMhz")(v);
+                await applyGpuControl("limit-max", v);
+              }} />
           )}
           <SliderRow label="显卡超频(偏移)" value={uxtuParams.gpuCoreOffsetMhz}
-            min={-200} max={200} step={25} unit="MHz" onChange={update("gpuCoreOffsetMhz")} disabled={paramsLocked} />
+            min={-200} max={200} step={25} unit="MHz"
+            onChange={async (v) => {
+              update("gpuCoreOffsetMhz")(v);
+              const target = GPU_BASE_CLOCK + v;
+              await applyGpuControl("limit-max", target);
+            }} />
           <SliderRow label="显存超频(偏移)" value={uxtuParams.gpuMemOffsetMhz}
-            min={-500} max={500} step={50} unit="MHz" onChange={update("gpuMemOffsetMhz")} disabled={paramsLocked} />
+            min={-500} max={500} step={50} unit="MHz"
+            onChange={async (v) => {
+              update("gpuMemOffsetMhz")(v);
+              await applyGpuControl("limit-max", 9001 + v);
+            }} />
           <div className="flex items-center gap-2">
             <input type="checkbox" checked={uxtuParams.gpuFreqLocked}
-              onChange={(e) => update("gpuFreqLocked")(e.target.checked)}
-            disabled={paramsLocked}
+              onChange={async (e) => {
+                const on = e.target.checked;
+                update("gpuFreqLocked")(on);
+                if (on) {
+                  const target = GPU_BASE_CLOCK + uxtuParams.gpuCoreOffsetMhz;
+                  await applyGpuControl("lock-exact", target);
+                } else {
+                  await applyGpuControl("reset-clocks");
+                }
+              }}
               className="accent-cyan-400" />
             <span className="text-xs">锁定频率</span>
           </div>
