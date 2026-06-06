@@ -18,7 +18,6 @@ const MODE_ITEMS = [
   { id: "office", label: "均衡模式" },
   { id: "beast", label: "野兽模式" },
   { id: "gaming", label: "斗战模式" },
-  { id: "custom", label: "自定义模式" },
 ];
 
 export default function App() {
