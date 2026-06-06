@@ -16,8 +16,8 @@ const NAV_TABS = { "主页": "dashboard", "系统": "system", "设置": "setting
 const MODE_ITEMS = [
   { id: "silent", label: "安静模式" },
   { id: "office", label: "均衡模式" },
-  { id: "gaming", label: "游戏模式" },
-  { id: "beast", label: "狂暴模式" },
+  { id: "beast", label: "野兽模式" },
+  { id: "gaming", label: "斗战模式" },
   { id: "custom", label: "自定义模式" },
 ];
 

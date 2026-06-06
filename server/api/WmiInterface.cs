@@ -168,6 +168,35 @@ public sealed class WmiInterface
         catch { return false; }
     }
 
+    // ---- Fan status read (Bellator protocol GET) ----
+    public bool GetFanManualEnabled()
+    {
+        try
+        {
+            var input = new byte[32];
+            input[1] = 250; // GET
+            input[3] = 20;  // MaxFanSwitch
+            input[4] = 0;   // FanType 0 = 大扇
+            var result = CallMethod(input);
+            return result.Length > 5 && result[5] == 1;
+        }
+        catch { return false; }
+    }
+
+    public byte GetFanSpeed(byte fanType)
+    {
+        try
+        {
+            var input = new byte[32];
+            input[1] = 250; // GET
+            input[3] = 21;  // MaxFanSpeed
+            input[4] = fanType;
+            var result = CallMethod(input);
+            return result.Length > 5 ? result[5] : (byte)0;
+        }
+        catch { return 0; }
+    }
+
     // ---- Generic raw command (method number + optional value) ----
     public byte[] SendRawCommand(byte method, byte? value = null)
     {
