@@ -1,4 +1,4 @@
-# EC 寄存器地图
+# EC 寄存器映射
 
 > DSDT 反编译确认 | OperationRegion (ECF2, SystemMemory, 0xFE800400, 0xFF)
 >
