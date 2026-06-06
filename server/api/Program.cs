@@ -446,7 +446,9 @@ app.MapGet("/api/gpu/status", (GpuController gpu) =>
     try
     {
         var info = gpu.GetClockInfo();
-        return Results.Json(new { ok = true, coreClockMHz = info.CoreClockMHz, memoryClockMHz = info.MemoryClockMHz, powerDrawW = info.PowerDrawW });
+        var baseClock = gpu.GetBaseClock();
+        var maxClock = gpu.GetMaxClock();
+        return Results.Json(new { ok = true, coreClockMHz = info.CoreClockMHz, memoryClockMHz = info.MemoryClockMHz, powerDrawW = info.PowerDrawW, baseCoreClockMHz = baseClock, maxCoreClockMHz = maxClock });
     }
     catch (Exception ex)
     {
