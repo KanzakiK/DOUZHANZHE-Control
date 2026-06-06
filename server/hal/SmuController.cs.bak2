@@ -69,32 +69,6 @@ public sealed class SmuController
         var r = RyzenAdj("--tctl-temp=" + celsius);
         return r == 0 || r == 1 || r == SMU_OK_CRASH ? 0 : r;
     }
-    public int SetShortPowerLimit(uint fastMw, uint slowMw)
-    {
-        var r = RyzenAdj("--fast-limit=" + fastMw, "--slow-limit=" + slowMw);
-        return r == 0 || r == 1 || r == SMU_OK_CRASH ? 0 : r;
-    }
-
-    public int SetCurveOptimizer(int mV)
-    {
-        var r = RyzenAdj("--set-coall=" + mV);
-        return r == 0 || r == 1 || r == SMU_OK_CRASH ? 0 : r;
-    }
-
-    public int SetCpuFreqLimit(uint mhz)
-    {
-        var r = RyzenAdj("--max-cpuclk=" + mhz);
-        return r == 0 || r == 1 || r == SMU_OK_CRASH ? 0 : r;
-    }
-
-    public int SetTurboDisabled(bool disabled)
-    {
-        var cmd = disabled ? "--power-saving=1" : "--max-performance=1";
-        var r = RyzenAdj(cmd);
-        return r == 0 || r == 1 || r == SMU_OK_CRASH ? 0 : r;
-    }
-
-    
 
     public int SetVrmCurrent(uint mA) => throw new System.NotSupportedException("VRM current not supported on this hardware");
 
@@ -126,10 +100,6 @@ public sealed class SmuController
         {
             powerLimit = true,
             tempLimit = true,
-            shortPowerLimit = true,
-            curveOptimizer = true,
-            cpuFreqLimit = true,
-            turboDisabled = true,
             probe = true,
             vrmCurrent = false,
             rawCommand = false,
