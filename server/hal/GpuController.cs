@@ -1,5 +1,9 @@
-﻿using System;
+// SPDX-License-Identifier: MIT
+// GpuController -- nvidia-smi 子进程封装
+
+using System;
 using System.Diagnostics;
+using System.Linq;
 
 namespace Douzhanzhe.HAL;
 
@@ -73,7 +77,7 @@ public sealed class GpuController
     public GpuClockInfo GetClockInfo()
     {
         var output = RunNvidiaSmi("--query-gpu=clocks.current.graphics,clocks.current.memory,power.draw --format=csv,noheader,nounits");
-        var parts = output.Split(',');
+        var parts = output.Split(",");
         var info = new GpuClockInfo();
         if (parts.Length >= 1) float.TryParse(parts[0].Trim(), out info.CoreClockMHz);
         if (parts.Length >= 2) float.TryParse(parts[1].Trim(), out info.MemoryClockMHz);
@@ -81,14 +85,15 @@ public sealed class GpuController
         return info;
     }
 
-    /// <summary>GPU 基准频率 — supported-clocks 第一行（默认 boost 上限）</summary>
+    /// <summary>GPU 基准频率 (supported-clocks 第1行 = 固件默认最大频率)</summary>
     public int GetBaseClock()
     {
         var output = RunNvidiaSmi("--query-supported-clocks=gr --format=csv,noheader,nounits");
-        var line = output.Split('\n')[0].Trim();
-        if (int.TryParse(line, out var val) && val > 0)
+        var lines = output.Split(new char[] { "\n"[0], "\r"[0] }, StringSplitOptions.RemoveEmptyEntries);
+        if (lines.Length == 0) return 2700;
+        if (int.TryParse(lines[0].Trim(), out var val) && val > 0)
             return val;
-        return 1342;
+        return 2700;
     }
 
     /// <summary>GPU 硬件最大频率</summary>

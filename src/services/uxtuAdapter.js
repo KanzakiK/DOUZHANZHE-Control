@@ -70,7 +70,7 @@ export function createTelemetrySocket(onData, onError) {
   return ws;
 }
 
-export const GPU_BASE_CLOCK = 1342; // RTX 5060 默认 boost 频率上限 (supported-clocks 第一行)
+export const GPU_BASE_CLOCK = 2700; // RTX 5060 典型 boost 频率 (nvidia-smi 无法读取，用户提供)
 export const GPU_MEM_BASE_CLOCK = 9001; // 显存基准频率
 
 // GPU 控制: action = "limit-max" | "lock-exact" | "reset-clocks" | "reset-memory-clocks"
