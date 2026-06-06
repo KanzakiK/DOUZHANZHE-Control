@@ -105,7 +105,7 @@ export default function App() {
           )}
           {activeTab === "dashboard" && (
           <Card title="模式选择" className="console-dock !p-3">
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               {MODE_ITEMS.map((mode) => (
                 <button key={mode.id} onClick={() => {
                 setSettings((prev) => ({ ...prev, mode: mode.id }));
