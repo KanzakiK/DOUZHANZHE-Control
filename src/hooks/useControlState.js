@@ -145,7 +145,11 @@ export function useControlState(onSaveResult) {
     gpuPptLimitW: 115,
     gpuTempLimitC: 87,
   };
-  const [uxtuParams, setUxtuParams] = useState(defaultParams);
+  const [uxtuParams, setUxtuParams] = useState(() => {
+    const saved = loadFromLS(LS_SETTINGS, { mode: "office" });
+    const preset = MODE_PRESETS[saved.mode];
+    return preset ? { ...defaultParams, ...preset } : defaultParams;
+  });
   const [paramsLoaded, setParamsLoaded] = useState(false);
 
   // 启动时从服务端加载自定义参数（合并到默认值，确保新字段存在）
