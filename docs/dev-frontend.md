@@ -68,16 +68,40 @@ PerformancePanel → update() → setUxtuParams()
 
 - 滑块微调 **单参数下发**：`queueSmu(parameter, valueM)` 600ms 去抖 → `POST /api/smu/set`
 - 模式切换 **全量下发**：`applyUxtuLimits()` → `POST /api/uxtu/apply`
-- 非自定义模式（silent/office/gaming/beast）滑块不锁定（参数编辑后切换模式仍保留）
+- 非自定义模式（silent/office/gaming/beast）滑块不锁定
 
-### 3. 模式切换与恢复预设
+### 3. 每模式独立参数记忆 (localStorage)
+
+每个模式（silent/office/gaming/beast）独立保存一份参数到 localStorage，
+键名 `douzhanzhe_params_{模式名}`，字段结构同 `uxtuParams` + `fanLargeRpmTarget` + `fanSmallRpmTarget`。
+
+```
+切换模式触发:
+  useEffect [settings.mode]
+  → 保存当前 uxtuParams+fans 到旧模式 key
+  → 从新模式 key 加载 (loadFromLS)
+  → 有记忆 → 恢复该模式上次调的值
+  → 无记忆 → fallback MODE_PRESETS 出厂值
+
+参数变化时自动保存:
+  useEffect [uxtuParams, fanLargeRpmTarget, fanSmallRpmTarget]
+  → saveToLS(douzhanzhe_params_{当前模式}, {...})
+  → 跳过 custom 模式 (走服务端持久化)
+```
+
+### 4. 模式切换与恢复预设
 
 ```
 模式按钮 onClick()
-  → MODE_PRESETS[mode.id] 覆盖 uxtuParams
-  → setFanLargeRpmTarget / setFanSmallRpmTarget
+  → setSettings({ mode })  仅改当前模式名
+  → useControlState prevModeRef effect 自动加载该模式记忆
   → applyHardwareControl("thermal_mode") 设散热模式
-  → applyUxtuLimits() 全量下发 SMU 参数
+
+恢复预设按钮 (模式选择 Card action)
+  → localStorage.removeItem(douzhanzhe_params_{当前模式})
+  → 应用 MODE_PRESETS 出厂值
+  → 风扇目标恢复 + applyUxtuLimits() 全量下发
+  → Toast "已恢复预设值"
 
 恢复预设按钮 (模式选择 Card action)
   → MODE_PRESETS[settings.mode] 覆盖全部参数

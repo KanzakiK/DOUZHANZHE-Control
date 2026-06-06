@@ -84,7 +84,9 @@ export default function App() {
           {activeTab === "dashboard" && (
           <Card title="模式选择" className="console-dock !p-3"
             action={<button onClick={() => {
-              const preset = MODE_PRESETS[settings.mode] || {};
+              const mode = settings.mode;
+              localStorage.removeItem("douzhanzhe_params_" + mode);
+              const preset = MODE_PRESETS[mode] || {};
               const merged = { ...uxtuParams, ...preset };
               setUxtuParams(merged);
               setFanLargeRpmTarget(preset.fanLargeRpmTarget ?? 2200);
@@ -103,16 +105,7 @@ export default function App() {
               {MODE_ITEMS.map((mode) => (
                 <button key={mode.id} onClick={() => {
                 setSettings((prev) => ({ ...prev, mode: mode.id }));
-                const preset = MODE_PRESETS[mode.id] || {};
-                setUxtuParams((p) => ({ ...p, ...preset }));
-                setFanLargeRpmTarget(preset.fanLargeRpmTarget ?? 2200);
-                setFanSmallRpmTarget(preset.fanSmallRpmTarget ?? 4100);
                 const tv = thermalModeMap[mode.id]; if (tv !== null && tv !== undefined) applyHardwareControl("thermal_mode", tv).catch(() => {});
-                applyUxtuLimits({ chipset: "Ryzen 9 8940HX", profile: mode.id, params: { ...uxtuParams, ...preset } }).then(r => {
-                  toast?.(r.message || "参数已下发", "success");
-                }).catch(err => {
-                  toast?.(`下发失败: ${err.message}`, "error");
-                });
               }}
                   className="text-xs md:text-sm rounded-lg px-2 py-3 transition-all"
                   style={{ border: "1px solid var(--border)", background: settings.mode === mode.id ? "var(--primary-2)" : "var(--card-2)", color: settings.mode === mode.id ? "#ffffff" : "var(--text)", boxShadow: settings.mode === mode.id ? "0 0 24px rgba(167, 139, 250, 0.35)" : "none" }}

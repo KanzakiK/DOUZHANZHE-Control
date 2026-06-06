@@ -249,14 +249,32 @@ export function useControlState(onSaveResult) {
     [settings.mode, uxtuParams]
   );
 
-  // 当性能模式改变时，自动更新预设值
+  // 每模式独立参数记忆: 参数变化时保存到当前模式 key
+  const LS_PARAMS_PREFIX = "douzhanzhe_params_";
+  const prevParamsRef = useRef({ uxtuParams, fanLargeRpmTarget, fanSmallRpmTarget });
+  useEffect(() => {
+    if (settings.mode === "custom") return;
+    const p = prevParamsRef.current;
+    if (p.uxtuParams === uxtuParams && p.fanLargeRpmTarget === fanLargeRpmTarget && p.fanSmallRpmTarget === fanSmallRpmTarget) return;
+    prevParamsRef.current = { uxtuParams, fanLargeRpmTarget, fanSmallRpmTarget };
+    saveToLS(LS_PARAMS_PREFIX + settings.mode, { ...uxtuParams, fanLargeRpmTarget, fanSmallRpmTarget });
+  }, [uxtuParams, fanLargeRpmTarget, fanSmallRpmTarget, settings.mode]);
+
+  // 模式切换: 保存当前参数到旧模式 → 加载新模式记忆 (或 fallback MODE_PRESETS)
   const prevModeRef = useRef(settings.mode);
   useEffect(() => {
     const prevMode = prevModeRef.current;
     const currentMode = settings.mode;
     prevModeRef.current = currentMode;
+    if (prevMode === currentMode) return;
 
-    // 切换到自定义模式 → 从服务端恢复保存的参数
+    // 保存当前参数到旧模式 key（在加载新模式之前）
+    if (prevMode !== "custom") {
+      const synced = { ...uxtuParams, fanLargeRpmTarget, fanSmallRpmTarget };
+      saveToLS(LS_PARAMS_PREFIX + prevMode, synced);
+    }
+
+    // 切换到自定义模式 → 从服务端加载
     if (currentMode === "custom") {
       if (paramsLoaded) {
         fetch(API_CUSTOM_PARAMS)
@@ -274,25 +292,31 @@ export function useControlState(onSaveResult) {
       return;
     }
 
-    const preset = MODE_PRESETS[currentMode];
-    if (!preset) return;
-
-    setUxtuParams((prev) => ({
-      ...prev,
-      cpuTempLimitC: preset.cpuTempLimitC,
-      cpuLongPptW: preset.cpuLongPptW,
-      cpuShortPptW: preset.cpuShortPptW,
-      gpuPptLimitW: preset.gpuPptLimitW,
-      gpuTempLimitC: preset.gpuTempLimitC,
-      gpuCoreFreqMhz: preset.gpuCoreFreqMhz,
-      gpuMemFreqMhz: preset.gpuMemFreqMhz,
-      gpuFreqLimitEnabled: preset.gpuFreqLimitEnabled,
-      gpuFreqLimitMhz: preset.gpuFreqLimitMhz,
-      gpuFreqLocked: preset.gpuFreqLocked,
-    }));
-
-    setFanLargeRpmTarget(preset.fanLargeRpmTarget);
-    setFanSmallRpmTarget(preset.fanSmallRpmTarget);
+    const saved = loadFromLS(LS_PARAMS_PREFIX + currentMode, null);
+    if (saved) {
+      const { fanLargeRpmTarget: fl, fanSmallRpmTarget: fs, ...rest } = saved;
+      setUxtuParams((prev) => ({ ...prev, ...rest }));
+      if (fl !== undefined) setFanLargeRpmTarget(fl);
+      if (fs !== undefined) setFanSmallRpmTarget(fs);
+    } else {
+      const preset = MODE_PRESETS[currentMode];
+      if (!preset) return;
+      setUxtuParams((prev) => ({
+        ...prev,
+        cpuTempLimitC: preset.cpuTempLimitC,
+        cpuLongPptW: preset.cpuLongPptW,
+        cpuShortPptW: preset.cpuShortPptW,
+        gpuPptLimitW: preset.gpuPptLimitW,
+        gpuTempLimitC: preset.gpuTempLimitC,
+        gpuCoreFreqMhz: preset.gpuCoreFreqMhz,
+        gpuMemFreqMhz: preset.gpuMemFreqMhz,
+        gpuFreqLimitEnabled: preset.gpuFreqLimitEnabled,
+        gpuFreqLimitMhz: preset.gpuFreqLimitMhz,
+        gpuFreqLocked: preset.gpuFreqLocked,
+      }));
+      setFanLargeRpmTarget(preset.fanLargeRpmTarget);
+      setFanSmallRpmTarget(preset.fanSmallRpmTarget);
+    }
   }, [settings.mode]);
 
   // 连接后端 WebSocket 获取真实硬件遥测；后端不可用时退回到 mock
