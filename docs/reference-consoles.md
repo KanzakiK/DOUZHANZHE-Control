@@ -92,13 +92,13 @@
 | EC IO 0xB2/0xB3 (LLT ec_writer.cs 参考) | ❌ | 写入回读成功但风扇无物理响应 |
 | EC 物理内存 0x5B/0x5F (差分扫描发现) | ❌ | 只读状态寄存器 |
 | WMI `SetValue=CPUGPUSYSFanSpeed <Byte[]>` | ❌ | 空壳，返回 OK 但不控硬件 |
-| WMI `SetValue=MaxFanSpeed <0/1>` | ❌ | 返回 OK 但硬件无响应 |
-| WMI `SetValue=MaxFanSpeedSwitch <0/1>` | ❌ | 返回 OK 但硬件无响应 |
+| WMI MaxFanSwitch(20)+MaxFanSpeed(21) (独立`SetValue`无FanType) | ❌ | 缺 data[4]=FanType，调用不生效 |
+| WMI MaxFanSwitch(20)+MaxFanSpeed(21) (完整 Bellator 协议) | ✅ 区间内持久/区间外~8s覆盖 | data[4]=FanType(0大扇/1小扇), data[5]=RPM/100 |
 | 直接写 `AppMachineInfo` (base64 RPM/100) | ❌ | 文件更新但硬件不响应 |
 | KaronOC32.dll 原生导出 | ❌ | 仅 2 个 P-state 函数，无关风扇 |
 | 实时 EC 差分扫描 | ⏳ | 待实施——需连续监控 |
 
-> **风扇控制是唯一未攻克的硬功能**。所有 WMI 调用均返回 OK 但风扇不响应——原因是 WMI 调用触发的事件（CPUFanSpeed=26）需要 BLDFnHotkeyUtility 的 `wMIEventArrived` 处理器接收后，再通过 `StringToByteArray` 解析 hex 命令写入 EC。独立 `SetValue` 缺了事件监听上下文。
+> **风扇控制状态**：Bellator 完整协议（MaxFanSwitch+MaxFanSpeed+data[4]=FanType）已验证 ✅，散热区间内持久、区间外~8s 被固件覆盖。独立 `SetValue`（缺 data[4]）不生效。
 
 ## 2. 蛟龙游戏控制中心功能详情
 
@@ -188,10 +188,10 @@
 | 方法 | 编号 | 用法 | 验证 |
 |:-----|:----:|:-----|:----:|
 | SystemPerMode | 8 | `data[4]=mode` | ✅ |
-| CPUGPUSYSFanSpeed | 13 | Get: OutData[4..5]=大扇1, [6..7]=大扇2, [10..11]=小扇 | ✅ |
-| MaxFanSwitch | 20 | `data[4]=FanType, data[5]=0/1` 启用手动控制 | ✅ |
+| CPUGPUSYSFanSpeed | 13 | Get: OutData[4..5]=大扇1, [6..7]=大扇2, [10..11]=小扇 | ✅ 注意：需读满 12 字节，仅 Take(8) 会截断小扇数据 |
+| MaxFanSwitch | 20 | `data[4]=FanType, data[5]=0/1` 启用手动控制 | ✅ SET有效,⚠️ GET不回写开关状态 |
 | MaxFanSpeed | 21 | `data[4]=FanType, data[5]=val` 设转速(RPM/100) | ✅ 区间内持久 |
-| CPUThermometer | 22 | OutData[4]=温度°C | ✅ |
+| CPUThermometer | 22 | OutData[4]=温度°C | ⏳ 待真机验证 |
 
 ### 默认风扇曲线表
 | 温度 | 大扇(x100) | RPM | 小扇(x100) | RPM |
