@@ -250,14 +250,18 @@ server/
 >
 > C# HAL 必须以管理员权限运行（inpoutx64 驱动要求）。
 
-## 6. SmuController — inpoutx64 物理地址直写 SMU (主线方案)
+## 6. SmuController — ryzenadj.exe 子进程封装 (当前方案)
 
-> 替代方案：原本 `libryzenadj.dll` 的 C API 直调方案在 Dragon Range 上
-> `init_ryzenadj()` 返回 NULL（硬件不支持 PM 表 API），且 依赖 WinRing0。
-> **SmuController** 通过 `DriverBridge.WritePhys32/ReadPhys32` 直接访问 SMN 物理地址，
-> 零外部 DLL 依赖，零 WinRing0，与现有的 inpoutx64 驱动共用。
+> **实际方案**：`SmuController` 通过 `Process.Start` 调用 `ryzenadj.exe` 子进程（带 WinRing0 驱动），
+> 完成 AMD SMU 参数写入（stapm_limit/fast_limit/slow_limit/tctl_temp）。
+>
+> **备选方案已废弃**：原本 `libryzenadj.dll` 的 C API 直调方案在 Dragon Range 上
+> `init_ryzenadj()` 返回 NULL（硬件不支持 PM 表 API），且依赖 WinRing0。
+>
+> **未来（搁置）**：通过 `DriverBridge.WritePhys32/ReadPhys32` 直接访问 SMN 物理地址，
+> 零外部 DLL 依赖，零 WinRing0。当前 ryzenadj 子进程方案工作正常，暂无迁移必要。
 
-### 硬件地址 (Dragon Range MP1)
+### 硬件地址 (Dragon Range MP1) — ryzenadj 源码参考
 
 | 寄存器 | 地址 | 用途 |
 |---------|-------------|------|
@@ -265,7 +269,7 @@ server/
 | REP | `0x03B10578` | 读响应 |
 | ARG_BASE | `0x03B10998` | 写参数 arg0 |
 
-### 命令对照表
+### 命令对照表 (ryzenadj nb_smu_ops.c)
 
 | 功能 | SMU msg | Value |
 |-----------|---------|-------|
@@ -274,14 +278,14 @@ server/
 | set_slow_limit | `0x5f` | mW |
 | set_tctl_temp | `0x3f` | °C |
 
-### 驱动依赖链
+### 调用链
 
 ```
 POST /api/smu/set
   → SmuController (Server/hal/SmuController.cs)
-    → DriverBridge.WritePhys32/ReadPhys32 (inpoutx64.dll)
-      → SetPhysLong/GetPhysLong (inpoutx64 引擎)
-        → inpoutx64.sys (内核驱动)
+    → RyzenAdj(string[] args)
+      → Process.Start(ryzenadj.exe)
+        → WinRing0.sys (内核驱动)
 ```
 
 ### API 端点
@@ -289,12 +293,20 @@ POST /api/smu/set
 | 端点 | 方法 | 说明 |
 |------------|--------|------|
 | `/api/smu/set` | POST | SMU 参数下发。Body: `{ parameter, valueM }` |
-| `/api/smu/probe` | GET | SMU 连通性探测。Return: `{ ok, source: "inpoutx64" }` |
+| `/api/smu/probe` | GET | SMU 连通性探测。Return: `{ ok, source: "ryzenadj" }` |
+| `/api/smu/status` | GET | SMU 状态 + 能力清单。Return: `{ ok, probe, source, capabilities }` |
+| `/api/smu/api-type` | GET | 实现方式说明。Return: `{ ok, type: "subprocess", source }` |
+| `/api/ryzenadj/info` | GET | SMU 探测（前端兼容别名）。Return: `{ ok, data: { probeResult, type, source } }` |
+| `/api/uxtu/apply` | POST | SMU 参数下发兼容格式（`{ params }` / `{ limits }`） |
+| `/api/smu/raw` | POST | 原始 SMU 命令（当前本后端不支持） |
+| `/api/smu/read-reg` | GET | SMN 寄存器读取（当前本后端不支持） |
 
 ### 已知限制
 - Dragon Range 上 PM 表 API 被硬件锁死，`get_table_values()` 不可用
 - `SmuController.Probe()` 已确认可访问（`{ ok: true }`），参数下发成功（`{ rc: 0 }`）
-- 仅支持 32 位物理地址 (< 4GB)，与 inpoutx64 SetPhysLong 限制一致
+- ryzenadj v0.19.0 退出时可能无害崩溃 0xC0000005（不影响实际写入），已适配为成功退出码
+- `SetVrmCurrent`、`SendRawSmuCommand`、`ReadSmnRegister` 均为存根（throw NotSupportedException）
+- 运行时依赖 `WinRing0` 驱动（由 `run.ps1` 自动部署）+ `ryzenadj.exe`
 
 ## 5. AppBridge — ~~反射调用官方控制台 DLL~~ 🗑️ 已废弃 (2026-06-05)
 
