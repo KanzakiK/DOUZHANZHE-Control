@@ -36,12 +36,9 @@ export default function SettingsPanel({ settings, setSettings, uxtuPayload, show
       {showSwitches && (
         <Card title="系统开关" className="!p-3">
           <div className="space-y-1">
-            <SwitchRow label="独显直连" checked={settings.dGpuDirect} onChange={(v) => toggleSetting("dGpuDirect", v)} />
-            <SwitchRow label="集显模式" checked={settings.gpuOnly} onChange={(v) => toggleSetting("gpuOnly", v)} />
             <SwitchRow label="数字键锁定" checked={settings.numLock} onChange={(v) => toggleSetting("numLock", v)} />
             <SwitchRow label="大写键锁定" checked={settings.capsLock} onChange={(v) => toggleSetting("capsLock", v)} />
             <SwitchRow label="触摸板锁定" checked={settings.touchpadLock} onChange={(v) => toggleSetting("touchpadLock", v)} />
-            <SwitchRow label="关闭 OSD 显示" checked={settings.osdDisabled} onChange={(v) => toggleSetting("osdDisabled", v)} />
             <SwitchRow label="Fn 锁定" checked={settings.fnLock} onChange={(v) => toggleSetting("fnLock", v)} />
           </div>
         </Card>
