@@ -536,3 +536,12 @@
 - 修复：频率限制与锁频互斥
 - 修复：锁频时释放显存锁定避免 P-state 冲突
 - 修复：limit-max/limit-memory 正确读取 alue 字段
+
+## 2026-06-06 (SMU 功能扩展 — RyzenAdj 全命令覆盖)
+- **背景**：前端 PerformancePanel 有 4 个 CPU 控制功能无后端实现，通过扩展 SmuController + Program.cs API 补齐
+- **变更**：
+  - `SmuController.cs` 新增 4 方法：`SetShortPowerLimit`、`SetCurveOptimizer`、`SetCpuFreqLimit`、`SetTurboDisabled`
+  - `Program.cs`：`UxtuParams` record 扩展 6 字段、`POST /api/smu/set` 新增 4 case、`POST /api/uxtu/apply` 提取新字段
+  - Debug 页 SMU 区重写：新增短时功耗/CO电压/频率限制/睿频控制按钮
+  - `dev-api.md` + `dev-backend.md` 文档同步
+- **编译**：0 errors, 8 warnings (all pre-existing)

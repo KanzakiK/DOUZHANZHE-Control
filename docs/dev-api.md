@@ -51,12 +51,22 @@ SMU 参数下发 (SmuController → ryzenadj.exe 子进程 + WinRing0)。Body: `
 
 | parameter | valueM | 功能 |
 |-----------|--------|------|
-| `stapm_limit` / `power_limit` | mW | CPU 长时/快速/慢速功耗墙 (stapm+fast+slow 三限同设) |
+| `stapm_limit` / `power_limit` | mW | CPU 长时功耗墙 (stapm+fast+slow 三限同设) |
+| `short_power_limit` | mW | CPU 短时功耗墙 (fast+slow 独立下发) |
 | `tctl_temp` / `temp_limit` | °C | CPU 温度墙 |
+| `co_all` | mV | Curve Optimizer 全核电压偏移 (负值=降压) |
+| `cpu_freq_limit` | MHz | CPU 最大频率限制 |
+| `turbo_disable` | 0/1 | 关闭/开启睿频 (1=关, 0=开) |
 Return: `{ ok: bool, rc: int }`(rc=0 成功)
 
 ### GET /api/smu/probe
 SMU 连通性探测 (SmuController → ryzenadj.exe 子进程)。Return: `{ ok: bool, source: "ryzenadj" }`
+
+### GET /api/smu/status
+SMU 状态 + 能力清单。Return: `{ ok: bool, probe: bool, source: "ryzenadj", capabilities: object }`
+
+### GET /api/smu/api-type
+实现方式说明。Return: `{ ok: bool, type: "subprocess", source: "ryzenadj" }`
 
 ### POST /api/fan/set-target
 风扇目标转速下发（WMI MiInterface MaxFanSpeed 协议）。Body: `{ largeRpm: int, smallRpm: int }`

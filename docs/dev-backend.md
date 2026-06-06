@@ -292,12 +292,12 @@ POST /api/smu/set
 
 | 端点 | 方法 | 说明 |
 |------------|--------|------|
-| `/api/smu/set` | POST | SMU 参数下发。Body: `{ parameter, valueM }` |
+| `/api/smu/set` | POST | SMU 参数下发。支持: `power_limit`, `short_power_limit`, `temp_limit`, `co_all`, `cpu_freq_limit`, `turbo_disable` |
 | `/api/smu/probe` | GET | SMU 连通性探测。Return: `{ ok, source: "ryzenadj" }` |
 | `/api/smu/status` | GET | SMU 状态 + 能力清单。Return: `{ ok, probe, source, capabilities }` |
 | `/api/smu/api-type` | GET | 实现方式说明。Return: `{ ok, type: "subprocess", source }` |
 | `/api/ryzenadj/info` | GET | SMU 探测（前端兼容别名）。Return: `{ ok, data: { probeResult, type, source } }` |
-| `/api/uxtu/apply` | POST | SMU 参数下发兼容格式（`{ params }` / `{ limits }`） |
+| `/api/uxtu/apply` | POST | SMU 参数下发兼容格式。新增字段: `cpuShortPptW`, `cpuVoltageOffset`, `cpuFreqLimitEnabled`, `cpuFreqLimitMhz`, `cpuTurboDisabled` |
 | `/api/smu/raw` | POST | 原始 SMU 命令（当前本后端不支持） |
 | `/api/smu/read-reg` | GET | SMN 寄存器读取（当前本后端不支持） |
 
@@ -306,6 +306,7 @@ POST /api/smu/set
 - `SmuController.Probe()` 已确认可访问（`{ ok: true }`），参数下发成功（`{ rc: 0 }`）
 - ryzenadj v0.19.0 退出时可能无害崩溃 0xC0000005（不影响实际写入），已适配为成功退出码
 - `SetVrmCurrent`、`SendRawSmuCommand`、`ReadSmnRegister` 均为存根（throw NotSupportedException）
+- 新增方法: `SetShortPowerLimit(fastMw, slowMw)`、`SetCurveOptimizer(mV)`、`SetCpuFreqLimit(mhz)`、`SetTurboDisabled(bool)` — 均通过 RyzenAdj 子进程实现
 - 运行时依赖 `WinRing0` 驱动（由 `run.ps1` 自动部署）+ `ryzenadj.exe`
 
 ## 5. AppBridge — ~~反射调用官方控制台 DLL~~ 🗑️ 已废弃 (2026-06-05)
