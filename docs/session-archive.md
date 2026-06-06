@@ -11,6 +11,12 @@
 - **保留**：`vite` + `@vitejs/plugin-react` + `postcss` + `tailwindcss`（构建工具链，`npm run build` 需要）
 - **文档**：dev-index.md / dev-architecture.md / dev-backend.md / dev-frontend.md 全部更新架构图与快速启动
 
+## 2026-06-06 (键盘灯亮度修复)
+
+- **问题**: 键盘灯亮度 1/2/3 全部被压缩成 1（仅能开关）
+- **根因**: toggleSetting 中 mappedValue 计算了正确值但从未使用，实际发的是 value ? 1 : 0
+- **修复**: kbBrightnessLevel 直接透传数值 0-3
+
 ## 2026-06-06 (移除自定义模式 + 网格修正)
 
 - **隐藏自定义模式**: MODE_ITEMS 移除 custom 条目
@@ -359,6 +365,12 @@
 - **保留**：`vite` + `@vitejs/plugin-react` + `postcss` + `tailwindcss`（构建工具链，`npm run build` 需要）
 - **文档**：dev-index.md / dev-architecture.md / dev-backend.md / dev-frontend.md 全部更新架构图与快速启动
 
+## 2026-06-06 (键盘灯亮度修复)
+
+- **问题**: 键盘灯亮度 1/2/3 全部被压缩成 1（仅能开关）
+- **根因**: toggleSetting 中 mappedValue 计算了正确值但从未使用，实际发的是 value ? 1 : 0
+- **修复**: kbBrightnessLevel 直接透传数值 0-3
+
 ## 2026-06-06 (移除自定义模式 + 网格修正)
 
 - **隐藏自定义模式**: MODE_ITEMS 移除 custom 条目
@@ -423,6 +435,12 @@
 - **保留**：`vite` + `@vitejs/plugin-react` + `postcss` + `tailwindcss`（构建工具链，`npm run build` 需要）
 - **文档**：dev-index.md / dev-architecture.md / dev-backend.md / dev-frontend.md 全部更新架构图与快速启动
 
+## 2026-06-06 (键盘灯亮度修复)
+
+- **问题**: 键盘灯亮度 1/2/3 全部被压缩成 1（仅能开关）
+- **根因**: toggleSetting 中 mappedValue 计算了正确值但从未使用，实际发的是 value ? 1 : 0
+- **修复**: kbBrightnessLevel 直接透传数值 0-3
+
 ## 2026-06-06 (移除自定义模式 + 网格修正)
 
 - **隐藏自定义模式**: MODE_ITEMS 移除 custom 条目
@@ -474,6 +492,12 @@
 - **清理**：`vite.config.js` 删 `server` 块，`package.json` 删 `dev`/`start`/`server`/`preview`/`backend`+`concurrently`
 - **保留**：`vite` + `@vitejs/plugin-react` + `postcss` + `tailwindcss`（构建工具链，`npm run build` 需要）
 - **文档**：dev-index.md / dev-architecture.md / dev-backend.md / dev-frontend.md 全部更新架构图与快速启动
+
+## 2026-06-06 (键盘灯亮度修复)
+
+- **问题**: 键盘灯亮度 1/2/3 全部被压缩成 1（仅能开关）
+- **根因**: toggleSetting 中 mappedValue 计算了正确值但从未使用，实际发的是 value ? 1 : 0
+- **修复**: kbBrightnessLevel 直接透传数值 0-3
 
 ## 2026-06-06 (移除自定义模式 + 网格修正)
 
