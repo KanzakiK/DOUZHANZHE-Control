@@ -26,6 +26,12 @@
 
 ---
 
+## 2026-06-06 (主记忆参考表 + reference-consoles.md 重构)
+- **问题**：主记忆 §3 参考表缺失 BellatorFanControl、UXTU、EnumDLL、nvidia-smi 等关键参考项目；reference-consoles.md 无速查表且章节编号冲突
+- **修复**：主记忆 §3 从 3 行扩展为 7 行（含 LLT 标记已淡化）；reference-consoles.md 新增顶部速查表，章节编号修复为 1→5
+- **修改文件**：主记忆 §3 参考项目表、`docs/reference-consoles.md`
+---
+
 ## 2026-06-06 (速查表滚动截断 + 同会话合并)
 - **问题**：速查表无限膨胀（当前 24 行）；同会话多次 .ship 产生重复条目
 - **方案**：速查表保留最近 15 行，超出时删除最旧行并保留汇总行 `[共 N 条]`；`.plan` 将标题写入 current-task.md，`.ship` 归档时标题匹配则合并追加而非新建

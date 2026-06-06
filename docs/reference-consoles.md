@@ -4,6 +4,19 @@
 
 ---
 
+## 速查表
+
+| 章节 | 内容 |
+|:-----|:-----|
+| §1 | 斗战者控制台 — WMI 枚举、风扇写入路径、功能详情 |
+| §2 | 蛟龙控制台 — WinRing0 驱动改造版、功能详情 |
+| §3 | BellatorFanControl — WMI MiInterface 协议、风扇曲线算法 |
+| §4 | 运行时依赖关系 |
+| §5 | 功能对比 + BLDFnHotkeyUtility 反编译 |
+
+---
+
+
 ## 1. 斗战者官方控制台功能详情
 
 ### CPU 监控区
@@ -225,7 +238,7 @@
 | WMI MiInterface 封装 | `BellatorWmi` 类结构可作为 `WmiInterface.cs` 的设计参考 |
 ---
 
-## 3. 运行时依赖关系
+## 4. 运行时依赖关系
 
 | 组件 | 依赖 | 状态 |
 |:----|:----|:----:|
@@ -235,7 +248,7 @@
 | FnLock / TPLock / 散热模式 | inpoutx64 (MIT) | ✅ 无外部依赖 |
 | ~~ryzenadj -> WinRing0x64.dll -> WinRing0.sys~~ | 已淘汰 | ❌ SmuController 替代 |
 
-## 4. 功能对比
+## 5. 功能对比
 
 详见 [dev-release-plan.md](dev-release-plan.md) 完整对比表。
 

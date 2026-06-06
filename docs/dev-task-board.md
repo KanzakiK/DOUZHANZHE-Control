@@ -186,6 +186,7 @@
 - [x] **会话归档重构**: 98 个会话去重为 26 个独立条目，时间倒序排列，顶部新增速查表，体积从 86KB→24KB
 - [x] **`.ship` 流程改进**: 会话归档新增去重检查、定位插入（速查表分隔线处）、速查表同步；新增第 4 步 GitHub 同步（git add→commit→push）
 - [x] **速查表滚动截断**: session-archive.md 速查表限 15 行+汇总行，溢出时自动删除最旧行
+- [x] **主记忆参考表重构+reference-consoles.md 速查表**: 主记忆 §3 从 3 行扩展为 7 行（BellatorFanControl/UXTU/EnumDLL/nvidia-smi），reference-consoles.md 新增顶部速查表、修复章节编号
 
 
 ### 已修复 Bug
