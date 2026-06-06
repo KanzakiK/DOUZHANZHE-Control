@@ -13,7 +13,8 @@
 
 | 日期 | 会话主题 |
 |:-----|:--------|
-| 2| 2026-06-06 | [audit fix P0](#audit-fix-P0) |
+| 2| 2026-06-06 | [恢复预设按钮 + 模式切换联动 + 滑块单发 SMU](#恢复预设按钮-模式切换联动-滑块单发-SMU) |
+| 2026-06-06 | [audit fix P0](#audit-fix-P0) |
 | 2026-06-06 | [docs 维护规则补全 — dev-frontend.md](#docs-维护规则补全-dev-frontendmd) |
 | 2026-06-06 | [docs 维护规则补全 — dev-ec-map.md](#docs-维护规则补全-dev-ec-mapmd) |
 | 2026-06-06 | [docs 维护规则补全 — dev-backend.md](#docs-维护规则补全-dev-backendmd) |
@@ -27,9 +28,17 @@
 | 2026-06-06 | [持久化修复 + 加载闪修复](#持久化修复-加载闪修复) |
 | 2026-06-06 | [电源计划按钮修复](#电源计划按钮修复) |
 | 2026-06-06 | [Fan Curve Hidden](#Fan-Curve-Hidden) |
-| 2026-06-06 | [风扇控制突破·WMI Bellator 协议修复](#风扇控制突破-WMI-Bellator-协议修复) |
 | ... | [共 16 条](#完整列表) |
 
+---
+
+## 2026-06-06 (恢复预设按钮 + 模式切换联动 + 滑块单发 SMU)
+- **新增**：MODE_PRESETS 补全为 13 字段 CPU+GPU+风扇；模式切换时滑块跟随预设更新
+- **新增**：恢复预设按钮位于模式选择 Card 右上角，恢复当前模式全量出厂值
+- **优化**：滑块单发 SMU（600ms 去抖 queueSmu → POST /api/smu/set），而非全量 POST
+- **优化**：移除 App.jsx 重复的 prevModeRef effect，交由 useControlState.js 统一处理
+- **重构**：MODE_PRESETS 从 useControlState.js 迁入 uxtuAdapter.js，打破循环依赖
+- **待办**：每模式独立 localStorage 记忆（非自定义模式切换保留上次调值）
 ---
 
 ## 2026-06-06 (audit fix P0)

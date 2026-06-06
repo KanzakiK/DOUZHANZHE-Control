@@ -8,7 +8,7 @@ import Gauge from "./components/ui/Gauge";
 import SortableDashboard from "./components/SortableDashboard";
 import { ToastProvider, useToast } from "./components/ui/Toast";
 import { useControlState } from "./hooks/useControlState";
-import { applyUxtuLimits, applyHardwareControl, thermalModeMap } from "./services/uxtuAdapter";
+import { MODE_PRESETS, applyUxtuLimits, applyHardwareControl, thermalModeMap } from "./services/uxtuAdapter";
 import { useCallback, useState, useEffect, useRef } from "react";
 
 const NAV_ITEMS = ["主页", "系统", "设置"];
@@ -32,19 +32,6 @@ export default function App() {
     catch { return "dashboard"; }
   });
   const [editMode, setEditMode] = useState(false);
-  // 模式切换时全量下发 SMU 参数
-  const prevModeRef = useRef(settings.mode);
-  useEffect(() => {
-    if (prevModeRef.current !== settings.mode) {
-      prevModeRef.current = settings.mode;
-      applyUxtuLimits(uxtuPayload).then(result => {
-        toast?.(result.message || "参数已下发", "success");
-      }).catch(err => {
-        toast?.(`下发失败: ${err.message}`, "error");
-      });
-    }
-  }, [settings.mode, uxtuPayload, toast]);
-
   // 持久化当前标签页
   useEffect(() => {
     localStorage.setItem("douzhanzhe_active_tab", activeTab);
@@ -95,13 +82,37 @@ export default function App() {
               showSwitches={true} showKeyboard={true} showSummary={true} showCredits={true} />
           )}
           {activeTab === "dashboard" && (
-          <Card title="模式选择" className="console-dock !p-3">
+          <Card title="模式选择" className="console-dock !p-3"
+            action={<button onClick={() => {
+              const preset = MODE_PRESETS[settings.mode] || {};
+              const merged = { ...uxtuParams, ...preset };
+              setUxtuParams(merged);
+              setFanLargeRpmTarget(preset.fanLargeRpmTarget ?? 2200);
+              setFanSmallRpmTarget(preset.fanSmallRpmTarget ?? 4100);
+              applyUxtuLimits({ chipset: uxtuPayload.chipset, profile: uxtuPayload.profile, params: merged }).then(r => {
+                toast?.(r.message || "已恢复预设值", "success");
+              }).catch(err => {
+                toast?.(`恢复失败: ${err.message}`, "error");
+              });
+            }}
+              className="text-xs px-2 py-1 rounded-lg"
+              style={{ border: "1px solid var(--warn)", color: "var(--warn)", background: "transparent" }}
+            >恢复预设</button>}
+          >
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               {MODE_ITEMS.map((mode) => (
                 <button key={mode.id} onClick={() => {
                 setSettings((prev) => ({ ...prev, mode: mode.id }));
+                const preset = MODE_PRESETS[mode.id] || {};
+                setUxtuParams((p) => ({ ...p, ...preset }));
+                setFanLargeRpmTarget(preset.fanLargeRpmTarget ?? 2200);
+                setFanSmallRpmTarget(preset.fanSmallRpmTarget ?? 4100);
                 const tv = thermalModeMap[mode.id]; if (tv !== null && tv !== undefined) applyHardwareControl("thermal_mode", tv).catch(() => {});
-                if (mode.id === 'custom') { fetch('/api/fan/set-target', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ largeRpm: fanLargeRpmTarget, smallRpm: fanSmallRpmTarget }) }).catch(() => {}); }
+                applyUxtuLimits({ chipset: "Ryzen 9 8940HX", profile: mode.id, params: { ...uxtuParams, ...preset } }).then(r => {
+                  toast?.(r.message || "参数已下发", "success");
+                }).catch(err => {
+                  toast?.(`下发失败: ${err.message}`, "error");
+                });
               }}
                   className="text-xs md:text-sm rounded-lg px-2 py-3 transition-all"
                   style={{ border: "1px solid var(--border)", background: settings.mode === mode.id ? "var(--primary-2)" : "var(--card-2)", color: settings.mode === mode.id ? "#ffffff" : "var(--text)", boxShadow: settings.mode === mode.id ? "0 0 24px rgba(167, 139, 250, 0.35)" : "none" }}

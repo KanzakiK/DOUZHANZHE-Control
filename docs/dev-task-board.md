@@ -49,10 +49,11 @@
 
 ## 🧭 二、后续版本
 
-### 后端
-- [ ] **GPU 核心频率超频**: nvidia-smi `--lock-gpu-clocks=base+offset` (基于已验证的 --lock-gpu-clocks)
+### 后端- [x] **恢复预设按钮**: 模式选择 Card 右上角 `action` 按钮，恢复当前模式 CPU+GPU+风扇全量出厂值
+- [x] **模式切换滑块联动**: 切换模式时 `uxtuParams` 跟随 `MODE_PRESETS` 更新，滑块/开关同步跳转- [ ] **GPU 核心频率超频**: nvidia-smi `--lock-gpu-clocks=base+offset` (基于已验证的 --lock-gpu-clocks)
 - [ ] **GPU 功耗墙**: ❌ nvidia-smi `--power-limit` 驱动限制不可用，需另寻路径
 - [ ] **五模式全量配置覆盖**: 安静/均衡/野兽/斗战/自定义各保存一套完整配置（风扇转速×2、CPU功耗墙/温度墙、GPU功耗墙/频率偏移），后端新增 GET|POST /api/mode-config 持久化接口
+- [ ] **每模式独立参数记忆**: localStorage 按模式名隔离 key（`douzhanzhe_params_silent`/`office`/`gaming`/`beast`），切换模式时恢复该模式上次调的值，点"恢复预设"才重置
 - [ ] **遥测扩展**: CPU/GPU 功率
   - GPU `power.draw` (已读 19.12W ✅)
   - CPU (ryzenadj `-i` 解析 SMU)

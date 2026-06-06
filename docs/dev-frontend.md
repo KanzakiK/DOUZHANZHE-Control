@@ -62,13 +62,32 @@ C# HAL WebSocket (ws://127.0.0.1:3100/ws)
 ```
 PerformancePanel → update() → setUxtuParams()
   → useMemo → uxtuPayload { chipset, profile, params }
-  → App.jsx useEffect 500ms debounce → applyUxtuLimits()
-  → POST /api/uxtu/apply (Node.js :3099)
+  → 滑块 600ms 去抖 queueSmu() → POST /api/smu/set (单参)
+  → 模式切换 → applyUxtuLimits() → POST /api/uxtu/apply (全量)
 ```
 
-- 参数变化 **自动下发**，无"应用"按钮
-- 500ms 去抖，避免高频滑块拖动频繁请求
-- 非自定义模式（silent/office/gaming/beast）锁定控件
+- 滑块微调 **单参数下发**：`queueSmu(parameter, valueM)` 600ms 去抖 → `POST /api/smu/set`
+- 模式切换 **全量下发**：`applyUxtuLimits()` → `POST /api/uxtu/apply`
+- 非自定义模式（silent/office/gaming/beast）滑块不锁定（参数编辑后切换模式仍保留）
+
+### 3. 模式切换与恢复预设
+
+```
+模式按钮 onClick()
+  → MODE_PRESETS[mode.id] 覆盖 uxtuParams
+  → setFanLargeRpmTarget / setFanSmallRpmTarget
+  → applyHardwareControl("thermal_mode") 设散热模式
+  → applyUxtuLimits() 全量下发 SMU 参数
+
+恢复预设按钮 (模式选择 Card action)
+  → MODE_PRESETS[settings.mode] 覆盖全部参数
+  → 风扇目标恢复
+  → applyUxtuLimits() 全量下发
+```
+
+- `MODE_PRESETS` 定义在 `uxtuAdapter.js`，含 CPU (7字段) + GPU (6字段) + 风扇 (2字段) = 15 字段
+- 模式切换时滑块跟随预设值跳转
+- "恢复预设"按钮在模式选择 Card 右上角，恢复当前模式的完整出厂值
 
 ### 3. 硬件控制
 
