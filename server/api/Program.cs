@@ -266,6 +266,22 @@ app.MapGet("/api/system/info", (HardwareAbstractionLayer hal) =>
     });
 });
 
+app.MapGet("/api/system/info", (HardwareAbstractionLayer hal) =>
+{
+    return Results.Json(new
+    {
+        systemModel = hal.SystemModel,
+        cpuName = hal.CpuName,
+        cpuCores = hal.CpuCores,
+        cpuFreq = Math.Round(hal.CpuFreq, 1),
+        gpuDiscrete = hal.GpuDiscreteName,
+        gpuIntegrated = hal.GpuIntegratedName,
+        memoryTotal = hal.MemoryTotalGB,
+        memoryFreq = hal.MemoryFreq,
+        diskTotal = hal.DiskTotalGB,
+    });
+});
+
 app.MapGet("/api/health", (HardwareAbstractionLayer hal) =>
 
 {
