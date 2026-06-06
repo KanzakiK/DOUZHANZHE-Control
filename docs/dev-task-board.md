@@ -590,6 +590,8 @@
 
 - [x] WebSocket 对接硬件实时遥测（离线时 mock 回退）
 
+- [x] **隐藏风扇负载曲线**: EC 16 位竞态导致心电图问题，前端 `fan-info` 卡片移除 `<Sparkline>` 组件及其 `fanPctSeries` 计算变量
+
 
 
 
@@ -929,6 +931,8 @@
 
 
 - 2026-06-06: EC 16 位风扇竞态修复 (HAL 双读仲裁) + TelemetryBackgroundService 无条件推送 250ms + HAL 文档同步
+
+- 2026-06-06: 风扇负载曲线隐藏 (EC 16 位竞态心电图) — 前端 `<Sparkline>` 移除 + `fanPctSeries` 清理 + 文档同步
 
 - - 2026-06-06: 风扇控制全栈后端 (C# HAL/API/Debug) + WriteEc 0x80→0x81 修复 + WaitEcReady 轮询
 

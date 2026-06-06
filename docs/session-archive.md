@@ -18,6 +18,12 @@
 
 
 
+## 2026-06-06 (Fan Curve Hidden)
+
+- **问题**：风扇负载曲线仍心电图（HAL 双读仲裁降低瞬态 0 但未完全消除）
+- **决定**：不再深追，前端移除了风扇 `Sparkline` 组件
+- **改动**：`SortableDashboard.jsx` — 删除 `fanPctSeries` 计算变量 + `<Sparkline>` 替换为注释
+
 ## 2026-06-06 (EC 16-bit Race Fix + Telemetry Unconditional Push)
 
 - **问题**：风扇曲线"心电图"（掉到 0 又跳回），CPU/GPU 曲线正常
@@ -847,6 +853,12 @@
 
 
 
+## 2026-06-06 (Fan Curve Hidden)
+
+- **问题**：风扇负载曲线仍心电图（HAL 双读仲裁降低瞬态 0 但未完全消除）
+- **决定**：不再深追，前端移除了风扇 `Sparkline` 组件
+- **改动**：`SortableDashboard.jsx` — 删除 `fanPctSeries` 计算变量 + `<Sparkline>` 替换为注释
+
 ## 2026-06-06 (风扇控制突破·WMI Bellator 协议修复)
 
 
@@ -906,6 +918,12 @@
 
 ---
 
+## 2026-06-06 (Fan Curve Hidden)
+
+- **问题**：风扇负载曲线仍心电图（HAL 双读仲裁降低瞬态 0 但未完全消除）
+- **决定**：不再深追，前端移除了风扇 `Sparkline` 组件
+- **改动**：`SortableDashboard.jsx` — 删除 `fanPctSeries` 计算变量 + `<Sparkline>` 替换为注释
+
 ## 2026-06-06 (散热模式修复 + 风扇状态端点)
 
 ### 已完成
@@ -924,6 +942,12 @@
 - 自定义风扇 + SMU/nvidia-smi 全量覆盖方案已讨论，待下期实施
 
 ---
+
+## 2026-06-06 (Fan Curve Hidden)
+
+- **问题**：风扇负载曲线仍心电图（HAL 双读仲裁降低瞬态 0 但未完全消除）
+- **决定**：不再深追，前端移除了风扇 `Sparkline` 组件
+- **改动**：`SortableDashboard.jsx` — 删除 `fanPctSeries` 计算变量 + `<Sparkline>` 替换为注释
 
 ## 2026-06-06 GPU 控制后端+前端完整实现
 

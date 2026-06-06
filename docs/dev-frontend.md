@@ -277,7 +277,7 @@ C# HAL 推送使用 `camelCase` 命名（C# JsonSerializer 默认），前端期
 | Gauge | label, value, unit, color, max | 水平进度条，百分比自动计算 |
 | SliderRow | label, value, min, max, step, onChange, unit, disabled | 带标签范围输入 |
 | SwitchRow | label, checked, onChange | 开关行 |
-| Sparkline | data, title, color | SVG 迷你趋势线 |
+| Sparkline | data, title, color | SVG 迷你趋势线（风扇负载曲线已隐藏，EC 16 位竞态导致心电图问题） |
 | SortableCard | id, editMode, onHide | @dnd-kit 拖拽包装 |
 | Toast | — | 全局通知 (context)，useToast() hook |
 
