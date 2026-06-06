@@ -18,27 +18,16 @@
 - [ ] 开机自启动（后端注册服务）
 - [ ] 安装程序 / 打包（Inno Setup 或 NSIS）
 
-#### 其他
 
 ### P1 — 核心功能
 
-#### 后端
-- [x] **废弃 Node.js 后端**: 砍掉 server/server.js + tools/Node.js仅用文件 + server.js 依赖 ✅
 
 #### 前端（路由修复 → 散热联动 → 电源计划 → 其他）
-- [x] **路由修复**: `SettingsPanel.jsx` — `halMap` 追加 `gpuOnly->igpu_only`、`touchpadLock->touchpad_lock`，`dGpuDirect->gpu_mode(2/0)` ✅
-- [x] **散热模式**: `uxtuAdapter.js` 导出 `thermalModeMap` + `powerPlanHALMap` ✅
-- [x] **散热模式**: `App.jsx` 5 个模式按钮联动 `POST /api/control target=thermal_mode` ✅
-- [x] **电源计划**: `uxtuAdapter.js` 导出 `powerPlanHALMap` ✅
 - [ ] **电源计划**: `PerformancePanel.jsx` 电源管理按钮双发 C# HAL `power_plan`
 
 #### 前端（新增任务 — 2026-06-05 第二轮）
-- [x] **风扇目标转速不生效**: ✅ WMI Bellator 协议修复（MaxFanSwitch+MaxFanSpeed, data[4]=FanType）
-- [x] ~~模式前后台命名映射错乱~~ ❌ 自定义模式将被砍掉，此 bug 自然消失，不再修复
 - [ ] **GPU 模式独立卡片**: 三个按钮（混合模式/集显模式/独显直连），替代 SettingPanel 中的 dGpuDirect/gpuOnly 开关
 
-#### 前端（模式重构 — 大任务）
-- [x] **模式重构(部分)**: CPU/GPU 控件在四种模式下均可调 ✅
 
 #### 其他（文档 → 清理）
 - [ ] ~~`tools/`: 清理 WinRing0x64 残留~~ ❌ WinRing0x64.dll/sys 为 SmuController 运行时依赖，非冗余文件
@@ -46,8 +35,6 @@
 
 ### 已知 Bug（Release 1 内修复）
 - [ ] 前端模式按钮高亮加载时序（数据就绪前短暂错位）
-- [x] SortableDashboard.jsx 重复属性 `showGpu={false}` ✅ (仅一处，非重复)
-- [x] 历史曲线图 Sparkline 组件渲染排查 ✅ NaN 兜底修复
 
 ---
 
@@ -55,13 +42,7 @@
 ## 🧭 二、后续版本
 
 ### 后端
-- [x] **GpuController.cs (nvidia-smi 子进程封装)**: ✅ `POST /api/gpu/set` 统一接口
-- [x] **GPU 核心频率锁频**: ✅ nvidia-smi `--lock-gpu-clocks=min,max` ✅ 已验证可用 (Process.Start 一行命令)
 - [ ] **GPU 核心频率超频**: nvidia-smi `--lock-gpu-clocks=base+offset` (基于已验证的 --lock-gpu-clocks)
-- [x] **GPU 核心频率上限限制**: ✅ nvidia-smi `--lock-gpu-clocks=,max` (基于已验证的 --lock-gpu-clocks)
-- [x] **重置 GPU 频率**: ✅ nvidia-smi `--reset-gpu-clocks` ✅ 已验证可用
-- [x] **显存超频**: ✅ nvidia-smi `--lock-memory-clocks=min,max` (RTX5060 GDDR7 9001MHz 基线)
-- [x] **重置显存**: ✅ nvidia-smi `--reset-memory-clocks`
 - [ ] **GPU 功耗墙**: ❌ nvidia-smi `--power-limit` 驱动限制不可用，需另寻路径
 - [ ] **五模式全量配置覆盖**: 安静/均衡/野兽/斗战/自定义各保存一套完整配置（风扇转速×2、CPU功耗墙/温度墙、GPU功耗墙/频率偏移），后端新增 GET|POST /api/mode-config 持久化接口
 - [ ] **遥测扩展**: CPU/GPU 功率
@@ -139,6 +120,17 @@
 - [x] Step G: WinRing0x64.dll 仍依赖于 SmuController（通过 ryzenadj.exe），DriverBridge 已全面移除对 WinRing0 的直接依赖
 - [x] SMU 写入验证: Dragon Range 地址确认 + ryzenadj 子进程写入 25W 功率墙成功
 - [x] Debug 页按钮: SMU 功率/温度设置按钮已整合 ✅
+
+### 后端 — GPU 控制 (nvidia-smi)
+- [x] **GpuController.cs (nvidia-smi 子进程封装)**: `POST /api/gpu/set` 统一接口
+- [x] **GPU 核心频率锁频**: nvidia-smi `--lock-gpu-clocks=min,max` ✅ 已验证可用
+- [x] **GPU 核心频率上限限制**: nvidia-smi `--lock-gpu-clocks=,max`
+- [x] **重置 GPU 频率**: nvidia-smi `--reset-gpu-clocks` ✅ 已验证可用
+- [x] **显存超频**: nvidia-smi `--lock-memory-clocks=min,max` (RTX5060 GDDR7 9001MHz 基线)
+- [x] **重置显存**: nvidia-smi `--reset-memory-clocks`
+
+### 后端 — 废弃 Node.js
+- [x] **废弃 Node.js 后端**: 砍掉 server/server.js + tools/Node.js 仅用文件 + server.js 依赖
 
 ### 前端 — 遥测与仪表盘
 - [x] CPU 占用率/温度/频率/核心数
