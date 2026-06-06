@@ -5,9 +5,9 @@ import SliderRow from "../ui/SliderRow";
 import { useToast } from "../ui/Toast";
 
 const POWER_PLANS = [
-  { id: "efficiency", label: "最高能效" },
-  { id: "balance", label: "平衡" },
-  { id: "performance", label: "最佳性能" },
+  { id: "efficiency", label: "最高能效", halValue: powerPlanHALMap.efficiency },
+  { id: "balance", label: "平衡", halValue: powerPlanHALMap.balance },
+  { id: "performance", label: "最佳性能", halValue: powerPlanHALMap.performance },
 ];
 
 export default function PerformancePanel({ settings, setSettings, uxtuParams, setUxtuParams, uxtuPayload, onApplied, showCpu = true, showGpu = true }) {
