@@ -3,7 +3,7 @@
 // TelemetryBackgroundService — 后台遥测心跳
 // ============================================
 // 职责：
-//   每 500ms 轮询 HAL 读取温度/风扇/状态，
+//   每 250ms 轮询 HAL 读取温度/风扇/状态，
 //   通过 WebSocket 推送给前端。
 //   同时检测寄存器变化实现"界面随动"。
 
@@ -18,13 +18,6 @@ public class TelemetryBackgroundService : BackgroundService
 {
     private readonly HardwareAbstractionLayer _hal;
     private readonly ILogger<TelemetryBackgroundService> _log;
-
-    // 上一次值快照 — 用于检测变化
-    private byte _prevCpuTemp;
-    private byte _prevGpuTemp;
-    private ushort _prevCpuFan;
-    private ushort _prevGpuFan;
-    private bool _prevFnLock;
 
     // WebSocket 客户端列表
     private static readonly List<WebSocket> _clients = new();
@@ -63,30 +56,13 @@ public class TelemetryBackgroundService : BackgroundService
         {
             try
             {
-                await Task.Delay(500, ct);
+                await Task.Delay(250, ct);
 
                 // 读取遥测
                 var cpuTemp = _hal.CpuTemperature;
                 var gpuTemp = _hal.GpuTemperature;
                 var cpuFan = _hal.CpuFanRpm;
                 var gpuFan = _hal.GpuFanRpm;
-
-                // 检测是否有变化
-                var fnLock = _hal.FnLock;
-                bool changed = cpuTemp != _prevCpuTemp ||
-                               gpuTemp != _prevGpuTemp ||
-                               cpuFan != _prevCpuFan ||
-                               gpuFan != _prevGpuFan ||
-                               fnLock != _prevFnLock;
-
-                if (!changed) continue;
-
-                // 更新快照
-                _prevCpuTemp = cpuTemp;
-                _prevGpuTemp = gpuTemp;
-                _prevCpuFan = cpuFan;
-                _prevGpuFan = gpuFan;
-                _prevFnLock = fnLock;
 
                 // 构建 JSON 负载（全量遥测）
                 var payload = JsonSerializer.Serialize(new

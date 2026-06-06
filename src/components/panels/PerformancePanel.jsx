@@ -112,27 +112,9 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
 
 {showGpu && <Card title="GPU 调节" className="!p-3">
         <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <input type="checkbox" checked={uxtuParams.gpuFreqLimitEnabled}
-              onChange={async (e) => {
-                const on = e.target.checked;
-                update("gpuFreqLimitEnabled")(on);
-                if (!on) await applyGpuControl("reset-clocks");
-                else await applyGpuControl("limit-max", uxtuParams.gpuFreqLimitMhz);
-              }}
-              className="accent-cyan-400" />
-            <span className="text-xs">频率限制</span>
-          </div>
-          {uxtuParams.gpuFreqLimitEnabled && (
-            <SliderRow label="最大频率" value={uxtuParams.gpuFreqLimitMhz}
-              min={1000} max={3200} step={50} unit="MHz"
-              onChange={async (v) => {
-                update("gpuFreqLimitMhz")(v);
-                await applyGpuControl("limit-max", v);
-              }} />
-          )}
           <SliderRow label="核心频率" value={uxtuParams.gpuCoreFreqMhz}
             min={1000} max={3090} step={50} unit="MHz"
+            disabled={uxtuParams.gpuFreqLocked}
             onChange={async (v) => {
               update("gpuCoreFreqMhz")(v);
               if (uxtuParams.gpuFreqLocked) {
@@ -145,6 +127,7 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
             }} />
           <SliderRow label="显存频率" value={uxtuParams.gpuMemFreqMhz}
             min={0} max={3} step={1} unit=" MHz"
+            disabled={uxtuParams.gpuFreqLocked}
             displayValue={["自动", "9001", "11001", "12001"][uxtuParams.gpuMemFreqMhz] || ""}
             onChange={async (v) => {
               update("gpuMemFreqMhz")(v);
@@ -153,15 +136,37 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
               else await applyGpuControl("limit-memory", map[v]);
             }} />
           <div className="flex items-center gap-2">
+            <input type="checkbox" checked={uxtuParams.gpuFreqLimitEnabled}
+              disabled={uxtuParams.gpuFreqLocked}
+              onChange={async (e) => {
+                const on = e.target.checked;
+                update("gpuFreqLimitEnabled")(on);
+                if (!on) await applyGpuControl("reset-clocks");
+                else await applyGpuControl("limit-max", uxtuParams.gpuFreqLimitMhz);
+              }}
+              className="accent-cyan-400" />
+            <span className="text-xs">核心频率限制</span>
+          </div>
+          {uxtuParams.gpuFreqLimitEnabled && (
+            <SliderRow label="最大频率" value={uxtuParams.gpuFreqLimitMhz}
+              min={1000} max={3200} step={50} unit="MHz"
+              onChange={async (v) => {
+                update("gpuFreqLimitMhz")(v);
+                await applyGpuControl("limit-max", v);
+              }} />
+          )}
+          <div className="flex items-center gap-2">
             <input type="checkbox" checked={uxtuParams.gpuFreqLocked}
+              disabled={uxtuParams.gpuFreqLimitEnabled}
               onChange={async (e) => {
                 const on = e.target.checked;
                 update("gpuFreqLocked")(on);
                 const mems = [0, 9001, 11001, 12001];
-                const memVal = mems[uxtuParams.gpuMemFreqMhz] || 9001;
+                const memIdx = uxtuParams.gpuMemFreqMhz;
+                const memVal = mems[memIdx] || 9001;
                 if (on) {
                   await applyGpuControl("lock-exact", uxtuParams.gpuCoreFreqMhz);
-                  await applyGpuControl("lock-memory-clocks", memVal);
+                  await applyGpuControl("reset-memory-clocks");
                 } else {
                   await applyGpuControl("reset-clocks");
                   if (uxtuParams.gpuMemFreqMhz === 0) await applyGpuControl("reset-memory-clocks");
@@ -169,7 +174,7 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
                 }
               }}
               className="accent-cyan-400" />
-            <span className="text-xs">锁定频率</span>
+            <span className="text-xs">锁定核心频率</span>
           </div>
           <div className="flex gap-2 pt-1">
             <button onClick={async () => {
