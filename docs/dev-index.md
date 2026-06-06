@@ -37,28 +37,29 @@
 - [ ] `npm install` — 前端依赖安装
 - [ ] `cd server/api && dotnet restore` — C# HAL 依赖恢复
 - [ ] C# HAL 编译：`cd server/api && dotnet build`
-- [ ] Vite 启动：`npx vite --host 0.0.0.0 --port 5173`
+- [ ] 访问前端：`http://127.0.0.1:3100/`（由 C# API 内嵌托管）
 - [ ] （可选）Node.js 配置持久化：`cd server && node server.js`
 
 **调试指南：**
-- C# HAL Debug 面板：`http://127.0.0.1:3100/debug`（按钮/滑块测试所有功能，WS 遥测可视化）
-- 前端 Vite：`http://localhost:5173`
-- API 直接测试：`http://localhost:3100/api/health`（C# HAL 健康检查）
+- 前端页面：`http://127.0.0.1:3100/`（C# API 内嵌 SPA）
+- Debug 面板：`http://127.0.0.1:3100/debug`（按钮/滑块测试所有功能，WS 遥测可视化）
+- API 测试：`http://localhost:3100/api/health`（健康检查）
 - WebSocket 遥测：浏览器 DevTools → Network → WS → `ws://127.0.0.1:3100/ws`
 
 ## 快速启动
 
 ```powershell
-# 终端 1 - C# HAL API (必须管理员，唯一必需)
+# 终端 1 - C# HAL API (唯一必需，管理员)
 cd server/api
 dotnet run --urls http://0.0.0.0:3100
 
-# 终端 2 - Vite 前端
-npx vite --host 0.0.0.0 --port 5173
-
-# 终端 3 - (可选) Node.js 配置持久化
+# 终端 2 - (可选) Node.js 配置持久化
 cd server && node server.js
 ```
+
+前端页面由 `run.ps1` 自动构建并嵌入 C# API（`wwwroot/`），访问 `http://127.0.0.1:3100/` 即可。
+
+> 注：Vite dev server (`:5173`) 已废弃，前端修改后运行 `run.ps1` 或 `npm run build` 即可刷新。
 
 ## 技术栈
 | 层级 | 技术 | 许可证 |
@@ -72,9 +73,8 @@ cd server && node server.js
 ## 系统架构
 
 ```
-浏览器 → Vite Dev Server (:5173) → Vite Proxy
-  └── C# HAL API (:3100) — 遥测 + 硬件控制 + WebSocket + SMU + Debug 页面
-       └── Node.js (:3099) — (可选) UI 配置 JSON 持久化
+浏览器 → C# HAL API (:3100) — 遥测 + 硬件控制 + WebSocket + SMU + Debug 页面 + 前端 SPA
+  └── Node.js (:3099) — (可选) UI 配置 JSON 持久化
 ```
 
 详见：[整体架构](dev-architecture.md) | [后端架构](dev-backend.md) | [前端架构](dev-frontend.md)
