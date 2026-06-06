@@ -394,21 +394,24 @@ app.MapPost("/api/gpu/set", (GpuController gpu, GpuSetRequest req) =>
     {
         switch (req.Action)
         {
-            // 区间锁定: --lock-gpu-clocks=min,max
+            // 上限限制: --lock-gpu-clocks=0,value (仅传 value 时自动补 min=0)
             case "lock":
             case "lock-clocks":
-                gpu.SetLockGpuClocks(req.Min ?? 0, req.Max ?? 0);
+                if (req.Min.HasValue || req.Max.HasValue)
+                    gpu.SetLockGpuClocks(req.Min ?? 0, req.Max ?? 0);
+                else
+                    gpu.SetMaxGpuClock(req.Value ?? 0);
                 break;
-            // 上限限制: --lock-gpu-clocks=0,max (不给 min, 设 0 = 无下限)
+            // 精确锁定: --lock-gpu-clocks=min,min (单值锁频)
+            case "lock-exact":
+                gpu.SetExactGpuClock(req.Value ?? 0);
+                break;
+            // 上限限制 (显式): --lock-gpu-clocks=0,max
             case "limit":
             case "limit-max":
                 gpu.SetMaxGpuClock(req.Max ?? 0);
                 break;
-            // 精确锁定: --lock-gpu-clocks=val
-            case "lock-exact":
-                gpu.SetExactGpuClock(req.Value ?? 0);
-                break;
-            // 重置核心
+            // 重置核心频率
             case "reset":
             case "reset-clocks":
                 gpu.ResetGpuClocks();
@@ -422,7 +425,7 @@ app.MapPost("/api/gpu/set", (GpuController gpu, GpuSetRequest req) =>
             case "limit-memory":
                 gpu.SetMaxMemoryClock(req.Max ?? 0);
                 break;
-            // 重置显存
+            // 重置显存频率
             case "reset-memory":
             case "reset-memory-clocks":
                 gpu.ResetMemoryClocks();
