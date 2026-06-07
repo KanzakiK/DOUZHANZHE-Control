@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
     "postbuild": "powershell -Command \"Copy-Item -Path 'dist/*' -Destination 'server/api/bin/run/wwwroot' -Recurse -Force\""
