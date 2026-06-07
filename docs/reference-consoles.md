@@ -15,7 +15,7 @@
 | 章节 | 内容 |
 |:-----|:-----|
 | §1 | 斗战者控制台 — WMI 枚举、风扇写入路径、功能详情 |
-| §2 | 蛟龙控制台 — WinRing0 驱动改造版、功能详情 |
+| §2 | 蛟龙控制台 — WinRing0 驱动改造版、功能详情、KaronOC.dll 逆向分析 |
 | §3 | BellatorFanControl — WMI MiInterface 协议、风扇曲线算法 |
 | §4 | 运行时依赖关系 |
 | §5 | 功能对比 + BLDFnHotkeyUtility 反编译 |
@@ -187,6 +187,41 @@
 - **驱动**：WinRing0 (WinRing0_1_2_0.sys)
 - **定位**：第三方改造版，.NET 未混淆，仅作开发参考
 
+### KaronOC.dll 逆向分析 (2026-06-07)
+
+> **文件**：`D:\Program Files\JiaoLong7.3\KaronOC.dll`（60256 bytes, x64 原生 C++ DLL）
+> **另有**：`KaronOC32.dll`（x86 版本，功能相同）
+> **PDB 路径**：`D:\work\Git\NvOCVerify\x64\Release\KaronOC.pdb`（蛟龙作者的 NVAPI 超频验证项目）
+
+#### 导出函数
+| 函数名 | 签名 | 说明 |
+|:-------|:-----|:------|
+| `ChangePstatesLevel0Settings` | `int(int coreOffsetMhz, int memOffsetMhz)` | GPU P0 超频写入（Cdecl, rcx=core, edx=mem） |
+| `GetPstatesLevel0Settings` | `int(IntPtr gpuHandle, IntPtr outputBuf)` | GPU P0 状态读取 |
+
+#### 内部 NVAPI 调用链
+1. 使用 `nvapi_Direct_GetMethod` 替代标准 NVAPI 初始化流程
+2. 通过 `nvapi_QueryInterface` + 函数 ID 获取 NVAPI 内部函数指针
+3. 核心频率 MHz → kHz 转换：`imul ebp, ebp, 0x3e8`（乘以 1000）
+
+| NVAPI 函数 | 函数 ID | KaronOC 结构体版本 | 结构体大小 |
+|:-----------|:--------|:-----------------|:----------|
+| `GPU_GetPStates20` | `0x6FF81213` | V3 | 7416 bytes |
+| `GPU_SetPStates20` | `0x0F4DAE6B` | V2 | 7416 bytes |
+
+#### 与我们直调 NVAPI 的差异
+| 对比项 | 我们直调 NVAPI | KaronOC.dll |
+|:-------|:--------------|:------------|
+| 初始化方式 | `nvapi_Initialize()` 标准流程 | `nvapi_Direct_GetMethod` 直接获取 |
+| SetPStates20 结构体 | V1 / 7316 bytes | V2 / 7416 bytes |
+| RTX 5060 Laptop GPU 结果 | **返回 -104 (NOT_SUPPORTED)** | **返回 0 (SUCCESS)** |
+| 超频实测 | ❌ 不可用 | ✅ core +150MHz / mem +300MHz 验证通过 |
+
+#### 对我们的价值
+- **已集成**：`NvapiGpuController.cs` 优先加载 KaronOC.dll 作为超频引擎（`OcEngine = "karonoc"`）
+- **回退机制**：若 KaronOC 不可用，回退到直调 NVAPI SetPStates20（笔记本 GPU 通常失败）
+- **搜索路径**：`D:\Program Files\JiaoLong7.3\` → `C:\Program Files\JiaoLong7.3\` → `AppContext.BaseDirectory`
+- **宝龙达模具兼容**：斗战者笔记本与蛟龙控制台共享宝龙达 OEM 模具，KaronOC.dll 可直接使用
 
 
 ## 3. BellatorFanControl（第三方独立控制器）
@@ -251,6 +286,7 @@
 | WmiInterface.GPUMode | `System.Management` NuGet → WMI MiInterface(9) | ✅ WMI 直调 |
 | C# HAL SmuController | inpoutx64 (MIT) | ✅ 无外部依赖 |
 | FnLock / TPLock / 散热模式 / 键盘背光 | inpoutx64 (MIT) EC 直写 | ✅ 无外部依赖 |
+| NvapiGpuController (超频) | KaronOC.dll (蛟龙控制台 JiaoLong 7.3) | ✅ 本地 DLL P/Invoke |
 | ~~ryzenadj -> WinRing0x64.dll -> WinRing0.sys~~ | 已淘汰 | ❌ SmuController 替代 |
 
 ## 5. 功能对比

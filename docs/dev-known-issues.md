@@ -14,3 +14,5 @@
 | 模式切换 SMU 参数不下发 | ~~已修复~~ — 双发方案：EC 切换前后各写一次 SMU | 2026-06-07 |
 | 前端 3 个 CPU 控件只改 state 不下发 | ~~已修复~~ — 频率限制/关睿频/核心数追加 queueSmu 实时调用 | 2026-06-07 |
 | reload-fe.ps1 部署目标错误 | ~~已修复~~ — 目标改为 server/api/bin/run/wwwroot | 2026-06-07 |
+| NVAPI SetPStates20 在 RTX 5060 Laptop GPU 返回 -104 (NOT_SUPPORTED) | ~~已修复~~ — 通过蛟龙 KaronOC.dll 绕过，超频已验证可用 | 2026-06-07 |
+| NVAPI 功率控制在笔记本 GPU 全返回零 | 未修复 — 硬件/驱动限制，功率控制不可用 | 笔记本 GPU 通病 |

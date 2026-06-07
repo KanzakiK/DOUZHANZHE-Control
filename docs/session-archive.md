@@ -12,7 +12,32 @@
 ## 速查表
 
 | 日期 | 会话主题 |
-|:
+|:-----|:--------|
+| 2026-06-07 | [NVAPI GPU 控制 + 蛟龙 KaronOC 超频引擎集成](#2026-06-07-NVAPI-GPU-控制-蛟龙-KaronOC-超频引擎集成) |
+| 2026-06-07 | [SMU修复+WinRing0自动加载+模式切换双发+部署修复](#2026-06-07-SMU修复WinRing0自动加载模式切换双发部署修复) |
+| 2026-06-07 | [GSD 流程清理](#GSD-流程清理) |
+| 2026-06-07 | [风扇信息 UI 优化](#2026-06-07-风扇信息-UI-优化) |
+| 2026-06-07 | [MODE_PRESETS 精简合并 + 风扇官方值修正](#2026-06-07-MODE_PRESETS-精简合并-风扇官方值修正) |
+| 2026-06-07 | [开机自启 + Docs Node.js 清理](#2026-06-07-开机自启--Docs-Nodejs-过时引用清理) |
+| 2026-06-06 | [每模式独立参数记忆 localStorage + 恢复预设](#2026-06-06-每模式独立参数记忆-localStorage-恢复预设) |
+| 2026-06-06 | [恢复预设按钮 + 模式切换联动 + 滑块单发 SMU](#恢复预设按钮-模式切换联动-滑块单发-SMU) |
+| 2026-06-06 | [audit fix P0](#audit-fix-P0) |
+| 2026-06-06 | [docs 维护规则补全](#docs-维护规则补全) |
+| 2026-06-06 | [主记忆 §3/§4 追加近期摘要](#主记忆-34-追加近期摘要) |
+| 2026-06-06 | [Vite Dev Server 废弃 + 架构简化](#Vite-Dev-Server-废弃-架构简化) |
+| ... | [共 20 条](#完整列表) |
+
+---
+
+## 2026-06-07 (NVAPI GPU 控制 + 蛟龙 KaronOC 超频引擎集成)
+- **NVAPI P/Invoke 封装**: 直接调用 nvapi64.dll，GPU 状态读取 (时钟/温度/功率) 已验证
+- **KaronOC.dll 逆向分析**: 反汇编蛟龙 JiaoLong 7.3 的 KaronOC.dll，发现使用 V2/7416 字节 P-States 结构体
+- **NVAPI SetPStates20 限制**: RTX 5060 Laptop GPU 直调返回 -104 (NOT_SUPPORTED)
+- **KaronOC 超频集成**: 加载蛟龙 DLL 绕过限制，实测 core +150MHz / mem +300MHz 超频成功
+- **NvapiGpuController.cs**: 双层架构 (NVAPI 状态读取 + KaronOC 超频引擎)，含 5 个 API 端点
+- **Blackwell NVAPI 结构体实测**: P-States V1/7316, Clock V2/264, Thermal V1/88+40, Power V1/184+72
+- **文档同步**: dev-backend.md §8, dev-api.md NVAPI 章节, dev-known-issues.md, dev-task-board.md
+
 ## 2026-06-07 (SMU修复+WinRing0自动加载+模式切换双发+部署修复)
 - **CPU 调节实时下发修复**: PerformancePanel.jsx 频率限制滑块/关睿频/核心数 3 个控件追加 queueSmu 实时调用（原来只改 state 不下发）
 - **模式切换 SMU 双发**: App.jsx 模式按钮 EC 切换前后双发 SMU（1000ms 延时防固件覆盖），温度墙/功耗墙实时生效
@@ -22,25 +47,8 @@
 - **reload-fe.ps1 部署路径修复**: 部署目标从 server/api/wwwroot 改为 server/api/bin/run/wwwroot（服务器实际读取路径）
 - **前端构建缓存:** 清除 .vite-temp、node_modules/.vite 显式清理
 
------|:--------|
-| 2| 2026-06-07 | [GSD 流程清理](#GSD-流程清理) |
-026-06-07 | [风扇信息 UI 优化 — 删除 RPM / max 后缀](#2026-06-07-风扇信息-UI-优化) |
-| 2026-06-07 | [MODE_PRESETS 精简合并 + 风扇官方值修正](#2026-06-07-MODE_PRESETS-精简合并-风扇官方值修正) |
-| 2026-06-07 | [开机自启 + Docs Node.js 清理](#2026-06-07-开机自启--Docs-Nodejs-过时引用清理) |
-| 2026-06-06 | [每模式独立参数记忆 localStorage + 恢复预设](#2026-06-06-每模式独立参数记忆-localStorage-恢复预设) |
-| 2026-06-06 | [恢复预设按钮 + 模式切换联动 + 滑块单发 SMU](#恢复预设按钮-模式切换联动-滑块单发-SMU) |
-| 2026-06-06 | [audit fix P0](#audit-fix-P0) |
-| 2026-06-06 | [docs 维护规则补全 — dev-frontend.md](#docs-维护规则补全-dev-frontendmd) |
-| 2026-06-06 | [docs 维护规则补全 — dev-ec-map.md](#docs-维护规则补全-dev-ec-mapmd) |
-| 2026-06-06 | [docs 维护规则补全 — dev-backend.md](#docs-维护规则补全-dev-backendmd) |
-| 2026-06-06 | [docs 维护规则补全 — dev-api.md](#docs-维护规则补全-dev-apimd) |
-| 2026-06-06 | [主记忆 §3/§4 追加近期摘要](#主记忆-34-追加近期摘要) |
-| 2026-06-06 | [速查表滚动截断 + 同会话合并](#速查表滚动截断-同会话合并) |
-| 2026-06-06 | [`.ship` 流程改进 — 归档去重+GitHub 同步](#ship-流程改进-归档去重GitHub-同步) |
-| 2026-06-06 | [Vite Dev Server 废弃 + 架构简化](#Vite-Dev-Server-废弃-架构简化) |
-| ... | [共 20 条](#完整列表) |
-
 ---
+
 ## 2026-06-07 (MODE_PRESETS 精简合并 + 风扇官方值修正)
 - **精简**：MODE_PRESETS 去除 GPU 频率 5 字段（gpuCoreFreqMhz/gpuMemFreqMhz/gpuFreqLimitEnabled/gpuFreqLimitMhz/gpuFreqLocked），现为 11 字段
 - **修正**：风扇值按官方控制台斗战者 DLL 反编译数据修正（安静=2200/2000, 均衡=2900/6400, 野兽=3500/6900, 斗战=4300/8000）

@@ -200,3 +200,43 @@ eset-memory-clocks | 重置显存频率 | --reset-memory-clocks |
 ### GET /api/gpu/status
 GPU 时钟/功率状态。
 Return: { ok, coreClockMHz, memoryClockMHz, powerDrawW, baseCoreClockMHz, maxCoreClockMHz }
+
+---
+
+## NVAPI GPU 控制 API
+
+> NVAPI P/Invoke + 蛟龙 KaronOC.dll 封装。详见 dev-backend.md §8。
+
+### GET /api/nvapi/status
+GPU 状态 + NVAPI/KaronOC 能力信息。
+Return:
+```json
+{
+  "ok": true,
+  "gpuName": "NVIDIA GeForce RTX 5060 Laptop GPU",
+  "overclockSupported": true,
+  "ocEngine": "karonoc",
+  "coreMhz": 1485, "memMhz": 9001,
+  "coreOffsetMhz": 0, "memOffsetMhz": 0,
+  "thermalLimitC": 87, "thermalMinC": 0, "thermalMaxC": 87, "thermalDefaultC": 75,
+  "powerLimitMw": 0, "powerMinMw": 0, "powerMaxMw": 0, "powerDefaultMw": 0
+}
+```
+- `ocEngine`: `"karonoc"` (蛟龙) | `"nvapi"` (直调) | `"none"` (不可用)
+
+### POST /api/nvapi/overclock
+GPU 核心/显存超频。Body: `{ coreOffsetMhz: int, memOffsetMhz: int }`
+- 范围: core [-1000, 1000] MHz, mem [-1000, 3000] MHz
+- Return: `{ ok: bool, rc: int }` (rc=0 成功)
+
+### GET /api/nvapi/dump-pstates
+P-States 诊断输出（纯文本）。显示各 P-State 的时钟偏移和范围。
+
+### POST /api/nvapi/thermal-limit
+GPU 温度限制设置。Body: `{ tempC: float }`
+- Return: `{ ok: bool, rc: int }`
+
+### POST /api/nvapi/power-limit
+GPU 功率限制设置。Body: `{ powerW: int }`
+- 笔记本 GPU 通常不支持 (NVAPI 返回全零)
+- Return: `{ ok: bool, rc: int }`

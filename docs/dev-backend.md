@@ -30,6 +30,7 @@
 server/api/Program.cs                     # WebConsoleAPI — HTTP 端点
   ↓ 依赖注入                    ↓ 依赖注入
 server/hal/HardwareAbstractionLayer.cs    # 硬件映射层 — 语义化属性
+server/hal/NvapiGpuController.cs          # NVAPI + KaronOC GPU 控制
 server/api/WmiInterface.cs                # WMI ACPI MICommonInterface 直调
   ↓                                        ↓
 server/hal/DriverBridge.cs                # 驱动桥接层 — inpoutx64 P/Invoke
@@ -204,8 +205,9 @@ server/
 ├── hal/                          # C# HAL 类库
 │   ├── Douzhanzhe.HAL.csproj     # .NET 8 classlib (AllowUnsafeBlocks)
 │   ├── DriverBridge.cs           # inpoutx64 P/Invoke 桥接
-│   └── HardwareAbstractionLayer.cs  # EC 寄存器语义映射
-└── SmuController.cs              # inpoutx64 物理地址直写 SMU
+│   ├── HardwareAbstractionLayer.cs  # EC 寄存器语义映射
+│   ├── NvapiGpuController.cs        # NVAPI + KaronOC GPU 控制
+│   └── SmuController.cs             # ryzenadj.exe 子进程 SMU
 ├── api/                          # C# Web API
 │   ├── Douzhanzhe.API.csproj     # .NET 8 Web (refs Hal)
 │   ├── Program.cs                # Minimal API + WebSocket
@@ -308,6 +310,66 @@ POST /api/smu/set
 - 仅限 Windows（`Process.ProcessorAffinity` + WMI 平台限制）
 - 单处理器组支持（逻辑核心 ≤ 64）
 - `CpuAffinityManager.Reset()` 不会恢复已有进程的原始亲和性
+
+## 8. NvapiGpuController — NVAPI + KaronOC GPU 控制
+
+> GPU 状态读取 (NVAPI P/Invoke nvapi64.dll) + 超频 (蛟龙控制台 KaronOC.dll)。
+> 文件：`server/hal/NvapiGpuController.cs`
+
+### 双层架构
+
+| 层 | 引擎 | 用途 | 状态 |
+|----|------|------|------|
+| 状态读取 | NVAPI P/Invoke | 时钟频率、温度限制、功率读取、P-States 诊断 | ✅ 已验证 |
+| 超频写入 | KaronOC.dll (蛟龙) | GPU 核心/显存 P-State 偏移 (MHz) | ✅ 已验证 |
+| 超频回退 | NVAPI SetPStates20 | RTX 5060 Laptop GPU 返回 -104 (NOT_SUPPORTED) | ❌ 不可用 |
+
+### KaronOC.dll (蛟龙超频引擎)
+
+- **来源**：蛟龙控制台 JiaoLong 7.3 (`D:\Program Files\JiaoLong7.3\KaronOC.dll`)
+- **原理**：原生 C++ DLL，内部调用 NVAPI SetPStates20，使用 V2/7416 字节 P-States 结构体绕过笔记本 GPU 限制
+- **导出函数**：
+  - `ChangePstatesLevel0Settings(int coreOffsetMhz, int memOffsetMhz)` → int (0=成功)
+  - `GetPstatesLevel0Settings(void* gpuHandle, void* outputBuf)` → int
+- **PDB 来源**：`D:\work\Git\NvOCVerify` — 蛟龙作者的 NVAPI 超频验证项目
+
+### NVAPI 结构体实测数据 (Blackwell RTX 5060 Laptop GPU)
+
+| 结构体 | 版本号 | 大小 | 说明 |
+|---------|------|------|------|
+| P-States 2.0 (Get) | V3 | 7416 bytes | KaronOC 使用的尺寸 |
+| P-States 2.0 (Set) | V2 | 7416 bytes | KaronOC 使用的尺寸 |
+| P-States 2.0 (我们的) | V1 | 7316 bytes | 直调 NVAPI 可用 |
+| Clock Freq | V2 | 264 bytes | 时钟频率读取 |
+| Thermal Info | V1 | 88 bytes | 温度限制范围 |
+| Thermal Status | V1 | 40 bytes | 当前温度限制 (5 uint/entry) |
+| Power Info | V1 | 184 bytes | 笔记本 GPU 全零 |
+| Power Status | V1 | 72 bytes | 笔记本 GPU 全零 |
+
+### 调用链
+
+```
+POST /api/nvapi/overclock
+  → NvapiGpuController.SetP0Offset(coreMhz, memMhz)
+    → KaronOC.ChangePstatesLevel0Settings(core, mem)
+      → 内部 NVAPI Init + EnumGPUs + GetPStates20 + SetPStates20
+```
+
+### API 端点
+
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `/api/nvapi/status` | GET | GPU 状态 (时钟/温度限制/功率/OC支持/引擎) |
+| `/api/nvapi/overclock` | POST | GPU 超频 Body: `{ coreOffsetMhz, memOffsetMhz }` |
+| `/api/nvapi/dump-pstates` | GET | P-States 诊断输出 |
+| `/api/nvapi/thermal-limit` | POST | 温度限制设置 Body: `{ tempC }` |
+| `/api/nvapi/power-limit` | POST | 功率限制设置 Body: `{ powerW }` (笔记本 GPU 不支持) |
+
+### 已知限制
+- NVAPI SetPStates20 直调在 RTX 5060 Laptop GPU 返回 -104 (NOT_SUPPORTED)
+- NVAPI 功率控制在笔记本 GPU 全返回零
+- 超频依赖蛟龙 KaronOC.dll（需安装 JiaoLong 7.3 或将 DLL 复制到应用目录）
+- P-States 偏移范围: core [-1000, 1000] MHz, mem [-1000, 3000] MHz
 
 ## 5. AppBridge — ~~反射调用官方控制台 DLL~~ 🗑️ 已废弃 (2026-06-05)
 

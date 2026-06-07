@@ -232,7 +232,15 @@ public sealed class NvapiGpuController : IDisposable
             if (TryLoadKaronOC())
             {
                 OverclockSupported = TestKaronOCOverclock();
-                OcEngine = OverclockSupported ? "karonoc" : "none";
+                if (OverclockSupported)
+                {
+                    OcEngine = "karonoc";
+                }
+                else
+                {
+                    // 加载成功但测试失败 → 释放模块，避免死资源
+                    ReleaseKaronOC();
+                }
             }
 
             // 2) 回退: 直接 NVAPI SetPStates20
@@ -254,17 +262,24 @@ public sealed class NvapiGpuController : IDisposable
         foreach (var path in KaronOCPaths)
         {
             if (!File.Exists(path)) continue;
+            IntPtr mod = IntPtr.Zero;
             try
             {
-                _karonMod = NativeLibrary.Load(path);
-                var pSet = NativeLibrary.GetExport(_karonMod, "ChangePstatesLevel0Settings");
-                var pGet = NativeLibrary.GetExport(_karonMod, "GetPstatesLevel0Settings");
+                mod = NativeLibrary.Load(path);
+                var pSet = NativeLibrary.GetExport(mod, "ChangePstatesLevel0Settings");
+                var pGet = NativeLibrary.GetExport(mod, "GetPstatesLevel0Settings");
                 _karonSet = Marshal.GetDelegateForFunctionPointer<KaronChangePStates>(pSet);
                 _karonGet = Marshal.GetDelegateForFunctionPointer<KaronGetPStates>(pGet);
+                _karonMod = mod; // 全部成功后才保存句柄
                 Console.WriteLine($"[KaronOC] Loaded: {path}");
                 return true;
             }
-            catch (Exception ex) { Console.WriteLine($"[KaronOC] Load failed ({path}): {ex.Message}"); }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[KaronOC] Load failed ({path}): {ex.Message}");
+                if (mod != IntPtr.Zero) NativeLibrary.Free(mod);
+                _karonSet = null; _karonGet = null; // 清理残留委托
+            }
         }
         return false;
     }
@@ -469,13 +484,18 @@ public sealed class NvapiGpuController : IDisposable
         return sb.ToString();
     }
 
+    private void ReleaseKaronOC()
+    {
+        _karonSet = null; _karonGet = null;
+        if (_karonMod != IntPtr.Zero) { NativeLibrary.Free(_karonMod); _karonMod = IntPtr.Zero; }
+    }
+
+    private bool _disposed;
     public void Dispose()
     {
-        if (_karonMod != IntPtr.Zero)
-        {
-            NativeLibrary.Free(_karonMod);
-            _karonMod = IntPtr.Zero;
-        }
+        if (_disposed) return;
+        _disposed = true;
+        ReleaseKaronOC();
     }
 }
 
