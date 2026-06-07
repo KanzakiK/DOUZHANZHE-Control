@@ -13,7 +13,8 @@
 
 | 日期 | 会话主题 |
 |:-----|:--------|
-| 2| 2026-06-06 | [每模式独立参数记忆 localStorage + 恢复预设](#每模式独立参数记忆-localStorage-恢复预设) |
+| 2| 2026-06-07 | [开机自启 + Docs Node.js 清理](#2026-06-07-开机自启--Docs-Nodejs-过时引用清理) |
+| 2026-06-06 | [每模式独立参数记忆 localStorage + 恢复预设](#2026-06-06-每模式独立参数记忆-localStorage-恢复预设) |
 | 2026-06-06 | [恢复预设按钮 + 模式切换联动 + 滑块单发 SMU](#恢复预设按钮-模式切换联动-滑块单发-SMU) |
 | 2026-06-06 | [audit fix P0](#audit-fix-P0) |
 | 2026-06-06 | [docs 维护规则补全 — dev-frontend.md](#docs-维护规则补全-dev-frontendmd) |
@@ -28,7 +29,17 @@
 | 2026-06-06 | [移除自定义模式 + 网格修正](#移除自定义模式-网格修正) |
 | 2026-06-06 | [持久化修复 + 加载闪修复](#持久化修复-加载闪修复) |
 | 2026-06-06 | [电源计划按钮修复](#电源计划按钮修复) |
-| ... | [共 16 条](#完整列表) |
+| ... | [共 17 条](#完整列表) |
+
+---
+
+## 2026-06-07 (开机自启 + Docs Node.js 过时引用清理)
+- **新增**：后端 GET|POST /api/auto-start（TaskScheduler LogonTrigger + 最高权限）
+- **新增**：前端设置页 showAutoStart 开关，切换时 POST /api/auto-start 注册/删除开机启动任务
+- **修复**：前端 SettingsPanel 后端描述 "Node.js + Express" → "C# HAL (.NET 8 + Minimal API + WebSocket)"
+- **清理**：7 个 docs 文件（dev-release-plan/dev-architecture/dev-backend/dev-index/dev-frontend/dev-api/dev-task-board）全面清除 Node.js 过时引用 70+ 处
+- **修复**：csproj 引用 TaskScheduler NuGet v2.11.0
+- **验证**：`schtasks /query` 确认开机任务真实注册，状态 "就绪"
 
 ---
 

@@ -99,7 +99,7 @@ export default function SettingsPanel({ settings, setSettings, uxtuPayload, show
             <p><span className="font-semibold">开发者：</span>KanzakiK</p>
             <p><span className="font-semibold">开源协议：</span>GNU General Public License v3.0</p>
             <p><span className="font-semibold">前端：</span>React 19 + Vite 8 + Tailwind CSS 3</p>
-            <p><span className="font-semibold">后端：</span>Node.js + Express + WebSocket</p>
+            <p><span className="font-semibold">后端：</span>C# HAL (.NET 8 + Minimal API + WebSocket)</p>
             <p><span className="font-semibold">硬件访问：</span>inpoutx64 (EC 寄存器) + nvidia-smi</p>
             <p><span className="font-semibold">参考项目：</span>
               <a href="https://github.com/BartoszCichecki/LenovoLegionToolkit" target="_blank" rel="noopener noreferrer"

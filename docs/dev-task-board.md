@@ -23,7 +23,7 @@
 ### P0 — 发布硬门槛
 
 #### 后端（开发 → 打包顺序）
-- [ ] 开机自启动（后端注册服务）
+- [x] **开机自启**: 后端 GET|POST /api/auto-start（TaskScheduler LogonTrigger）+ 前端设置页开关 ✅
 - [ ] 安装程序 / 打包（Inno Setup 或 NSIS）
 
 
@@ -138,6 +138,9 @@
 
 ### 后端 — 废弃 Node.js (全部完成)
 - [x] **废弃 Node.js 后端**: 砍掉 server/server.js，全功能迁至 C#
+
+### 后端 — 开机自启
+- [x] **开机自启**: 后端 GET|POST /api/auto-start（TaskScheduler LogonTrigger + 最高权限）、前端设置页开关 ✅
 
 ### 前端 — 遥测与仪表盘
 - [x] CPU 占用率/温度/频率/核心数

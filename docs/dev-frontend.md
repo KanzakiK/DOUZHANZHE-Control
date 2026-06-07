@@ -122,6 +122,15 @@ SettingsPanel → toggleSetting()
 
 - C# HAL 支持：fn_lock, num_lock, caps_lock, kb_light, thermal_mode, gpu_mode, touchpad_lock, fn_lock
 
+### 3a. 开机自启
+
+```
+设置标签页 → SettingsPanel showAutoStart
+  useEffect → GET /api/auto-start 读取状态
+  SwitchRow toggle → POST /api/auto-start { enabled: bool }
+    → TaskScheduler LogonTrigger 注册/删除开机启动任务
+```
+
 ### 4. 仪表盘排序持久化
 
 ```
