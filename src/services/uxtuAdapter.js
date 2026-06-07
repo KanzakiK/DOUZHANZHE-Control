@@ -127,3 +127,47 @@ export async function applySmuSet(parameter, valueM) {
   if (!res.ok) throw new Error("SMU return " + res.status);
   return res.json();
 }
+
+// ── CPU 性能控制 (powercfg 电源计划 API) ──
+
+export async function fetchCpuPowerStatus() {
+  const res = await fetch("/api/cpu/status");
+  if (!res.ok) throw new Error("CPU status returned " + res.status);
+  return res.json();
+}
+
+export async function setCpuFreqLimit(mhz) {
+  const res = await fetch("/api/cpu/freq-limit", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mhz }),
+  });
+  if (!res.ok) throw new Error("CPU freq-limit returned " + res.status);
+  return res.json();
+}
+
+export async function setCpuTurbo(enabled) {
+  const res = await fetch("/api/cpu/turbo", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ enabled }),
+  });
+  if (!res.ok) throw new Error("CPU turbo returned " + res.status);
+  return res.json();
+}
+
+export async function setCpuCoreLimitPercent(percent) {
+  const res = await fetch("/api/cpu/core-limit", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ percent }),
+  });
+  if (!res.ok) throw new Error("CPU core-limit returned " + res.status);
+  return res.json();
+}
+
+export async function resetCpuPower() {
+  const res = await fetch("/api/cpu/reset", { method: "POST" });
+  if (!res.ok) throw new Error("CPU reset returned " + res.status);
+  return res.json();
+}

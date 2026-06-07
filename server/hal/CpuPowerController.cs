@@ -181,12 +181,25 @@ public sealed class CpuPowerController : IDisposable
     private string QueryPowerValue(string subGroup, string setting)
     {
         var output = RunPowerCfg("/query SCHEME_CURRENT " + subGroup + " " + setting);
-        // 解析输出，提取 DC 值
-        var match = Regex.Match(output, @"当前交流电源设置索引:\s*0x([0-9a-fA-F]+)");
-        if (match.Success && int.TryParse(match.Groups[1].Value, System.Globalization.NumberStyles.HexNumber, null, out var val))
-            return val.ToString();
-        // 回退: 尝试十进制格式
-        match = Regex.Match(output, @"当前交流电源设置索引:\s*(\d+)");
+        // powercfg /query 输出中，最后两行始终是:
+        //   "当前交流电源设置索引: 0xHHHH" (AC)
+        //   "当前直流电源设置索引: 0xHHHH" (DC)
+        // 中文标签在 UTF-8/GBK 编码不匹配时会乱码，但 0x 十六进制数值是纯 ASCII，不受影响。
+        // 因此用全局匹配取倒数第二个 0x 值作为 AC 设置。
+        var hexMatches = Regex.Matches(output, @"0x([0-9a-fA-F]+)");
+        if (hexMatches.Count >= 2)
+        {
+            var acHex = hexMatches[^2].Groups[1].Value;
+            if (int.TryParse(acHex, System.Globalization.NumberStyles.HexNumber, null, out var val))
+                return val.ToString();
+        }
+        else if (hexMatches.Count == 1)
+        {
+            if (int.TryParse(hexMatches[0].Groups[1].Value, System.Globalization.NumberStyles.HexNumber, null, out var val))
+                return val.ToString();
+        }
+        // 回退: 尝试十进制格式 (仅 ASCII 数字)
+        var match = Regex.Match(output, @"(\d+)\s*\r?\n[^\r\n]*(\d+)\s*$");
         if (match.Success) return match.Groups[1].Value;
         return "0";
     }

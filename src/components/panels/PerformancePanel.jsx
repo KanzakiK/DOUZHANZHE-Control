@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { MODE_PRESETS, applyUxtuLimits, applySmuSet, applyHardwareControl, powerPlanHALMap, applyGpuControl, fetchGpuStatus, fetchSmuInfo } from "../../services/uxtuAdapter";
+import { MODE_PRESETS, applyUxtuLimits, applySmuSet, applyHardwareControl, powerPlanHALMap, applyGpuControl, fetchGpuStatus, fetchSmuInfo, fetchCpuPowerStatus, setCpuFreqLimit, setCpuTurbo, setCpuCoreLimitPercent, resetCpuPower } from "../../services/uxtuAdapter";
 import Card from "../ui/Card";
 import SliderRow from "../ui/SliderRow";
 import { useToast } from "../ui/Toast";
@@ -16,7 +16,16 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
   const [applyMessage, setApplyMessage] = useState("");
   const [smuInfo, setSmuInfo] = useState(null);
   const [smuError, setSmuError] = useState(false);
+  const [cpuPowerStatus, setCpuPowerStatus] = useState(null);
   const smuTimer = useRef(null);
+  const cpuFreqTimer = useRef(null);
+  function queueCpuFreq(mhz) {
+    clearTimeout(cpuFreqTimer.current);
+    cpuFreqTimer.current = setTimeout(async () => {
+      try { await setCpuFreqLimit(mhz); }
+      catch (err) { console.error("CPU freq-limit failed:", err); }
+    }, 600);
+  }
 
   function queueSmu(parameter, valueM) {
     clearTimeout(smuTimer.current);
@@ -29,7 +38,11 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
   function queueCoreLimit(coreCount) {
     clearTimeout(coreTimer.current);
     coreTimer.current = setTimeout(async () => {
-      try { await applyUxtuLimits({ params: { cpuCoreLimit: coreCount } }); }
+      try {
+        // powercfg 路径: 核心数 → 百分比 (基于 16 物理核)
+        const percent = coreCount > 0 ? Math.round(coreCount / 16 * 100) : 100;
+        await setCpuCoreLimitPercent(percent);
+      }
       catch (err) { console.error("Core limit failed:", err); }
     }, 600);
   }
@@ -45,6 +58,24 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
         .catch(() => setSmuError(true));
     }, 3000);
     return () => clearTimeout(timer);
+  }, []);
+
+  // 加载 CPU 电源控制状态 (powercfg)
+  useEffect(() => {
+    fetchCpuPowerStatus()
+      .then((s) => {
+        if (s.ok) {
+          setCpuPowerStatus(s);
+          // 从实际系统状态同步到 UI
+          setUxtuParams((p) => ({
+            ...p,
+            cpuFreqLimitEnabled: s.freqLimitMhz > 0,
+            cpuFreqLimitMhz: s.freqLimitMhz > 0 ? s.freqLimitMhz : p.cpuFreqLimitMhz,
+            cpuTurboDisabled: !s.turboEnabled,
+          }));
+        }
+      })
+      .catch((err) => console.warn("CPU power status load failed:", err));
   }, []);
 
 
@@ -70,23 +101,42 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
     <>
       {showCpu && <Card title="CPU 调节" className="!p-3">
         <div className="space-y-3">
+          {cpuPowerStatus && cpuPowerStatus.ok !== false && (
+            <div className="text-xs flex items-center gap-2" style={{ color: "var(--muted)" }}>
+              <span>电源状态:</span>
+              <span>睿频 {cpuPowerStatus.turboEnabled ? "开" : "关"}</span>
+              <span>·</span>
+              <span>频率限制 {cpuPowerStatus.freqLimitMhz > 0 ? cpuPowerStatus.freqLimitMhz + " MHz" : "无"}</span>
+              <span>·</span>
+              <span>核心 {cpuPowerStatus.coreLimitPercent > 0 && cpuPowerStatus.coreLimitPercent < 100 ? cpuPowerStatus.coreLimitPercent + "%" : "100%"}</span>
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <input type="checkbox" checked={uxtuParams.cpuFreqLimitEnabled}
-              onChange={(e) => update("cpuFreqLimitEnabled")(e.target.checked)}
+              onChange={(e) => {
+                const on = e.target.checked;
+                update("cpuFreqLimitEnabled")(on);
+                queueCpuFreq(on ? uxtuParams.cpuFreqLimitMhz : 0);
+              }}
             disabled={paramsLocked}
               className="accent-cyan-400" />
-            <span className="text-xs">频率限制</span>
+            <span className="text-xs">频率限制 <span style={{ color: "var(--muted)" }}>(powercfg)</span></span>
           </div>
           {uxtuParams.cpuFreqLimitEnabled && (
             <SliderRow label="最大频率" value={uxtuParams.cpuFreqLimitMhz}
-              min={2000} max={5500} step={50} unit="MHz" onChange={(v) => { update("cpuFreqLimitMhz")(v); queueSmu("cpu_freq_limit", v); }} />
+              min={2000} max={5500} step={100} unit="MHz" onChange={(v) => { update("cpuFreqLimitMhz")(v); queueCpuFreq(v); }} />
           )}
           <div className="flex items-center gap-2">
             <input type="checkbox" checked={uxtuParams.cpuTurboDisabled}
-              onChange={(e) => { update("cpuTurboDisabled")(e.target.checked); queueSmu("turbo_disable", e.target.checked ? 1 : 0); }}
+              onChange={async (e) => {
+                const disabled = e.target.checked;
+                update("cpuTurboDisabled")(disabled);
+                try { await setCpuTurbo(!disabled); }
+                catch (err) { console.error("CPU turbo toggle failed:", err); }
+              }}
             disabled={paramsLocked}
               className="accent-cyan-400" />
-            <span className="text-xs">关闭睿频</span>
+            <span className="text-xs">关闭睿频 <span style={{ color: "var(--muted)" }}>(powercfg)</span></span>
           </div>
           <SliderRow label="温度墙" value={uxtuParams.cpuTempLimitC}
             min={60} max={100} unit="°C" onChange={(v) => { update("cpuTempLimitC")(v); queueSmu("temp_limit", v); }} disabled={paramsLocked} />
@@ -95,12 +145,29 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
               onChange={(e) => { const v = e.target.checked ? 8 : 0; update("cpuCoreLimit")(v); queueCoreLimit(v); }}
               disabled={paramsLocked}
               className="accent-cyan-400" />
-            <span className="text-xs">限制核心数</span>
+            <span className="text-xs">限制核心数 <span style={{ color: "var(--muted)" }}>(powercfg)</span></span>
           </div>
           {uxtuParams.cpuCoreLimit > 0 && (
             <SliderRow label="核心数" value={uxtuParams.cpuCoreLimit}
               min={2} max={14} step={2} unit="核" onChange={(v) => { update("cpuCoreLimit")(v); queueCoreLimit(v); }} disabled={paramsLocked} />
           )}
+          <div className="flex gap-2 pt-1">
+            <button onClick={async () => {
+              try {
+                await resetCpuPower();
+                update("cpuFreqLimitEnabled")(false);
+                update("cpuTurboDisabled")(false);
+                update("cpuCoreLimit")(0);
+                setCpuPowerStatus((s) => s ? { ...s, turboEnabled: true, freqLimitMhz: 0, coreLimitPercent: 100 } : s);
+                toast?.("CPU 限制已重置", "success");
+              } catch (err) {
+                toast?.("重置失败: " + err.message, "error");
+              }
+            }}
+              className="text-xs px-3 py-1.5 rounded-lg cursor-pointer"
+              style={{ border: "1px solid var(--warn)", color: "var(--warn)", background: "transparent" }}
+            >重置 CPU 限制</button>
+          </div>
           <div>
             <p className="text-xs mb-1" style={{ color: "var(--muted)" }}>电源管理</p>
             <div className="flex gap-1">
