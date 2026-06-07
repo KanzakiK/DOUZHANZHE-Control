@@ -34,10 +34,6 @@ export default function SystemInfoPanel() {
         <Section title="存储">
           <Row label="硬盘" value={i.diskTotalGB != null ? i.diskTotalGB + " GB" : "加载中..."} />
         </Section>
-        <Section title="开源">
-          <Row label="源码" value="github.com/KanzakiK/DOUZHANZHE-Control" />
-          <Row label="协议" value="GNU General Public License v3.0" />
-        </Section>
       </div>
     </Card>
   );
