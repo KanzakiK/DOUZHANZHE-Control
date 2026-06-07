@@ -2,7 +2,7 @@
 
 > **📋 更新规则**：
 > - 架构分层/数据流变更 → 更新系统分层图和数据流说明
-> - 新增/废弃服务（C#/Node.js） → 更新部署架构表
+> - 新增/废弃服务 → 更新部署架构表
 > - 同步更新主记忆 §1 文档地图中 `dev-architecture.md` 的描述
 
 [TOC]
@@ -11,72 +11,47 @@
 
 ```
                    浏览器 (React SPA)
-                   :5173 Vite Dev Server + Proxy
-                       |
-                   Vite Proxy 分流
-                  /                  \
-         C# HAL API               Node.js
-         :3100                     :3099
-         ┌─────────────────┐      JSON 持久化
-         │  WmiInterface   │      SMU (遗留)
-         │  (System.Manage)│      nvidia-smi
-         │  GPU/Fn/TP/恢复 │
-         │─────────────── │
-         │DriverBridge     │
-         │inpoutx64 EC直写 │
-         │风扇/背光/散热   │
-         │SmuController    │
-         └─────────────────┘
-         WebSocket
-                  \                  /
-                   Windows 内核 / 硬件
-```
-
-### 打包部署架构 (生产环境)
-
-```
-                   浏览器 (React SPA)
                    访问 127.0.0.1:3100
                            |
-                   C# HAL API (单一进程)
-                   :3100
-                   ┌─────────────────────────┐
-                   │  wwwroot/ (静态文件)     │
-                   │  UseStaticFiles()        │
-                   │  MapFallbackToFile()     │
-                   ├─────────────────────────┤
-                   │  WmiInterface            │
-                   │  (System.Management)     │
-                   │  GPU/Fn/TP/恢复固件      │
-                   ├─────────────────────────┤
-                   │  DriverBridge            │
-                   │  inpoutx64 EC 直写       │
-                   │  风扇/背光/散热/SMU      │
-                   ├─────────────────────────┤
-                   │  Node.js 遗留路由代理    │
-                   │  (vite build → /api/ →   │
-                   │   C# MapProxy → :3099)  │
-                   └─────────────────────────┘
+                 C# HAL API (单一进程)
+                 :3100
+                 ┌─────────────────────────┐
+                 │  wwwroot/ (静态文件)     │
+                 │  UseStaticFiles()        │
+                 │  MapFallbackToFile()     │
+                 ├─────────────────────────┤
+                 │  WmiInterface            │
+                 │  (System.Management)     │
+                 │  GPU/Fn/TP/恢复固件      │
+                 ├─────────────────────────┤
+                 │  DriverBridge            │
+                 │  inpoutx64 EC 直写       │
+                 │  风扇/背光/散热          │
+                 ├─────────────────────────┤
+                 │  SmuController           │
+                 │  (ryzenadj 子进程)        │
+                 ├─────────────────────────┤
+                 │  GpuController           │
+                 │  (nvidia-smi 子进程)      │
+                 └─────────────────────────┘
+                 WebSocket /ws
                            |
                     Windows 内核 / 硬件
 ```
 
-> **生产部署**：`npm start` 执行 `vite build` → 静态文件输出到 `wwwroot/` → C# 用 `UseStaticFiles()` + `MapFallbackToFile("index.html")` 自托管前端。C# 反向代理 `/api/*` 到 Node.js :3099 遗留端点。**单一端口 :3100**，Vite Dev Server 不复存在。
+> Node.js 辅助服务已退役，全功能迁至 C#。
 详见：
-- [后端架构](dev-backend.md) — C# HAL 四层 (DriverBridge/HAL/SmuController/API) + Node.js
+- [后端架构](dev-backend.md) — C# HAL 四层 (DriverBridge/HAL/SmuController/API)
 - [前端架构](dev-frontend.md) — 组件树、状态管理、响应式、仪表盘自定义、主题
 
 ## 数据流总图
 
 ### 遥测
 ```
-[硬件 EC 寄存器] -> inpoutx64 -> C# HAL (500ms poll)
+[硬件 EC 寄存器] -> inpoutx64 -> C# HAL (250ms poll)
   -> WebSocket /ws -> 前端 setTelemetry()
-  +-> Node.js (3s poll: nvidia-smi + ec_reader + WMI) -> Express GET /api/telemetry
 
-WebSocket 双通道：
-  C# /ws  ← 500ms 心跳（EC 直读：温度/风扇/系统开关状态）
-  Node.js 无 WS 通道，前端通过 REST GET /api/telemetry 获取全量遥测
+C# /ws 单一通道：250ms 推送全量遥测（温度/风扇/系统开关/CPU-GPU 信息）
 ```
 
 ### 控制
@@ -85,37 +60,30 @@ WebSocket 双通道：
                               +-> POST /api/fan/set-target (C# HAL EC 0x5F/0x5B)
                               +-> POST /api/fan/restore (C# HAL WmiInterface)
                               +-> POST /api/smu/set (C# SmuController)
+                              +-> POST /api/gpu/set (C# GpuController)
 
 全部硬件控制由 C# HAL 完成：
   • WmiInterface: GPUMode/FnLock/TPLock/PowerPlan
   • DriverBridge: 风扇0x5F/0x5B/背光0x9A/Fn锁/散热0xE4
   • SmuController: SetPowerLimit/SetTempLimit/Probe
-  • Node.js (可选): JSON 持久化 (custom-params/ui-state)
-```
+  • GpuController: nvidia-smi 子进程封装
+  • JSON 持久化: /api/custom-params, /api/ui-state (C#)
 ```
 
 ### 持久化
 ```
 localStorage (即时) <-> [前端状态]
   | 启动时加载
-服务端 JSON (Node.js: config/*.json) <- POST /api/* (退出编辑/1s去抖)
+C# JSON (config/*.json) <- POST /api/custom-params /api/ui-state (退出编辑/1s去抖)
 ```
 
 ## 服务部署
 
 | 服务 | 端口 | 技术 | 职责 |
 |------|------|------|------|
-| C# HAL API | :3100 | .NET 8 Minimal API | 遥测、EC 直写、WebSocket、SMU、Debug、配置持亅化 |
-| Vite | :5173 | React 19 | 前端开发服务器 |
+| C# HAL API | :3100 | .NET 8 Minimal API | 遥测、EC 直写、WebSocket、SMU、GPU、Debug、配置持久化 |
 
-## Vite 代理规则
-
-| 路径 | 目标 |
-|------|------|
-| /api/telemetry, /api/control, /api/health, /api/discover, /api/smu, /ws | C# :3100 |
-| /api/uxtu, /api/system, /api/ryzenadj, /api/fan, /api/custom-params, /api/ui-state, /api/default-config | Node :3099 |
-
-前端的 WebSocket 直连 ws://127.0.0.1:3100/ws (绕过 Vite 代理)。
+> Vite Dev Server (:5173) 和 Node.js (:3099) 均已退役。前端由 C# `wwwroot/` 自托管。
 
 ## 驱动依赖
 

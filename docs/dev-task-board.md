@@ -62,7 +62,6 @@
 - [ ] **前端 GPU 性能面板**: 核心频率滑块 + 显存频率滑块 + 一键恢复默认
 - [ ] **SMU 监视器**: 值被覆盖时自动重发（替代 `readjustService.ps1`）
 - [ ] **跨平台/非管理员降级模式**（无 inpoutx64 时以 WMI/软件方式运行）
-- [ ] **Node.js 全部端点迁移到 C#**，砍掉 Node.js 后端
 - [ ] **安静性能模式**: `POST /api/uxtu/apply` 扩展支持 `fanLargeRpmTarget`/`fanSmallRpmTarget`
 - [ ] **模式预设**: 新增"安静性能"模式（GPU满血 + 风扇低速）
 
@@ -90,8 +89,7 @@
 - [x] SmuController 子进程调用 ryzenadj.exe（程序集零外部依赖，运行时依赖 WinRing0 驱动）
 - [x] SMU 子进程集成修复: 路径候选 + run.ps1 自动复制 WinRing0/ryzenadj + 移除 Redirect + 接受 0xC0000005 ✅
 - [x] WmiInterface.cs（`root\WMI`，32 字节协议，零依赖）
-- [x] C# 静态文件服务: `wwwroot/` + `UseStaticFiles()` + `MapFallbackToFile("index.html")`
-- [x] C# 反向代理 Node.js 遗留端点
+- [x] C# 自托管前端: `wwwroot/` + `UseStaticFiles()` + `MapFallbackToFile("index.html")`
 
 ### 后端 — 控制端点与遥测
 - [x] `POST /api/control`: kb_light, fn_lock, num_lock, caps_lock, touchpad_lock, power_plan, thermal_mode, igpu_only, gpu_mode
@@ -138,15 +136,15 @@
 - [x] **显存超频**: nvidia-smi `--lock-memory-clocks=min,max` (RTX5060 GDDR7 9001MHz 基线)
 - [x] **重置显存**: nvidia-smi `--reset-memory-clocks`
 
-### 后端 — 废弃 Node.js
-- [x] **废弃 Node.js 后端**: 砍掉 server/server.js + tools/Node.js 仅用文件 + server.js 依赖
+### 后端 — 废弃 Node.js (全部完成)
+- [x] **废弃 Node.js 后端**: 砍掉 server/server.js，全功能迁至 C#
 
 ### 前端 — 遥测与仪表盘
 - [x] CPU 占用率/温度/频率/核心数
 - [x] GPU 占用率/温度/频率/显存
 - [x] 内存占用/总量 + 硬盘占用/总量
 - [x] CPU/GPU 风扇转速数字显示
-- [x] WebSocket 对接硬件实时遥测（离线时 mock 回退）
+- [x] WebSocket 对接硬件实时遥测（C# 推送全量字段，离线时 mock 回退）
 - [x] 拖拽排序（@dnd-kit） + 卡片隐藏/显示 + 排序持久化
 - [x] 历史曲线图 Sparkline 渲染排查 ✅ NaN 兜底修复
 - [x] 隐藏风扇负载曲线: EC 竞态心电图，移除 `<Sparkline>` + `fanPctSeries`
@@ -178,7 +176,7 @@
 - [x] CHANGELOG.md + README.md
 
 ### 文档
-- [x] dev-api.md — C# HAL / Node.js 所有端点定义
+- [x] dev-api.md — C# HAL 所有端点定义
 - [x] dev-ec-map.md — EC 寄存器全表（已验证状态）
 - [x] dev-architecture.md — 系统分层 + 数据流
 - [x] dev-backend.md — 后端架构
@@ -217,7 +215,7 @@
 ### 架构迁移对账
 | 旧工具 | 功能 | 新架构位置 | 状态 |
 |--------|------|-----------|:----:|
-| `ec_reader.cs/.exe` | EC IO 读温度/风扇 | C# HAL `ReadEc()` + Node.js `ec_reader.exe` | ✅ |
+| `ec_reader.cs/.exe` | EC IO 读温度/风扇 | C# HAL `ReadEc()` | ✅ |
 | `ec_kb_map.exe` | 键盘背光 0x9A 写入 | C# HAL `KeyboardBrightness` | ✅ |
 | `ec_writer.cs/.exe` | EC IO 写风扇 0xB2/0xB3 | `HardwareAbstractionLayer` 已实现 (寄存器写入✅, 物理响应❌) | ✅ 🚧 |
 | `demo.bat` | ryzenadj SMU 参数下发 | C# `POST /api/smu/set` | ✅ |

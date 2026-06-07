@@ -28,6 +28,9 @@
     <PackageReference Include="System.Management" Version="8.0.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="TaskScheduler" Version="2.11.0" />
+  </ItemGroup>
 
   <Target Name="AutoCommitAfterBuild" AfterTargets="Build">
     <Exec Command="git add -A" WorkingDirectory="$(ProjectDir)..\.." />

@@ -41,12 +41,11 @@
 
 ## 二、启动方式
 
-三终端并行：
+单服务（管理员）：
 - **C# HAL API**: `server/api/run.ps1` → `http://127.0.0.1:3100`
-- **Node.js 后端**: `node server/server.js` → `http://localhost:3099`
-- **Vite 前端**: `npx vite` → `http://localhost:5173`
 
-> Release 1 目标：`npm start` 一键启动三个服务。
+前端页面由 `run.ps1` 执行 `npm run build` 后嵌入 `wwwroot/`，C# 自托管。访问 `http://127.0.0.1:3100` 即可。
+Node.js 辅助服务已退役，全功能迁至 C#。
 
 ---
 
@@ -57,7 +56,7 @@
 | 项目 | 依赖 | 难度 |
 |:-----|:----|:----:|
 | 安装程序/打包（Inno Setup 或 NSIS） | 无 | ★★★ |
-| 开机自启动（双后端注册服务） | 打包后 | ★ |
+| 开机自启动（注册 Windows 任务计划） | 打包后 | ★ |
 | `npm start` 一键启动脚本 | 无 | ★ |
 
 ### P1 — 核心功能
@@ -69,11 +68,11 @@
 | ├ C# API: `POST /api/fan/set-target` | ✅ WMI Bellator | 小 |
 | └ C# Debug 页: 风扇目标转速滑块 | ✅ WMI Bellator | 中 |
 | **② 前端 SettingsPanel 补齐** | | |
-| ├ 散热模式下拉框 (`thermal_mode`) | ✅ WMI Bellator | 中 |
-| ├ 电源计划下拉框 (`power_plan`) | ✅ WMI Bellator | 中 |
-| ├ GPU 模式选择器 (AppBridge GPUMode 0/1/2) | 后端 ✅ | 中 |
-| ├ 集显模式开关 (`igpu_only`) | 后端 ✅ | 小 |
-| └ 触摸板锁路由修正 (Node.js → C# HAL) | ✅ WMI Bellator | 小 |
+| ├ 散热模式下拉框 (`thermal_mode`) | ✅ | 中 |
+| ├ 电源计划下拉框 (`power_plan`) | ✅ | 中 |
+| ├ GPU 模式选择器 (AppBridge GPUMode 0/1/2) | ✅ | 中 |
+| ├ 集显模式开关 (`igpu_only`) | ✅ | 小 |
+| └ 触摸板锁路由修正 | ✅ | 小 |
 | **③ 历史曲线图** | | |
 | └ 排查 Sparkline 组件渲染（代码存在，可能卡片被隐藏） | ✅ WMI Bellator | 小 |
 
@@ -95,8 +94,6 @@
 | Bug | 原因 |
 |:----|:-----|
 | `mockTelemetry.js cpuCores:32` | 已修复 ✅ |
-| SettingsPanel: `touchpadLock` → Node.js 废弃端点报错 | 用户可感知 |
-| SettingsPanel: `osdDisabled`(关闭OSD) → Node.js 死路由 | 用户可感知 |
 | 历史曲线图 Sparkline 显示问题 | 核心功能缺失感 |
 
 ---
@@ -126,39 +123,32 @@ Release 1 版本号：**v1.0.0**
 ---
 
 *文档创建日期：2026-06-05*
-*最后更新：2026-06-05*
+*最后更新：2026-06-07 (Node.js 过期引用已清理)
 
 ## 七、部署架构
 
-### 开发态
+### 开发态 / 生产态（统一）
 
 ```
-Vite :5173 (代理) → C# :3100 + Node :3099
+C# :3100 (单一端口，管理员)
+  ├── 自有 API（遥测/控制/SMU/GPU/风扇）
+  ├── WebSocket 实时推送
+  ├── wwwroot/ 静态文件（vite build 输出）
+  └── /debug Debug 面板
 ```
 
-### 生产态 (Release 1)
+- 前端 `npm run build` → `dist/` → 由 `run.ps1` 复制到 `server/api/bin/run/wwwroot/`
+- C# `UseStaticFiles()` + `MapFallbackToFile("index.html")` 自托管
+- 用户只需打开 `http://localhost:3100`
+- Node.js 辅助服务已退役
 
-```
-C# :3100 (单一端口)
-  ├── 自有 API
-  ├── 静态文件 (vite build -> wwwroot/)
-  └── 反向代理 Node (剩余端点)
-```
-
-- 前端打包后丢到 C# wwwroot/
-- C# UseStaticFiles() + MapFallbackToFile("index.html")
-- Node.js 端点通过 C# 反向代理 (YARP / HttpClient) 转发
-- 最终用户只需打开 http://localhost:3100
-
-### 迁移路线
+### 迁移路线（已全部完成）
 
 | Step | 操作 | 状态 |
 |:-----|:---------|:----------|
-| 1 | vite.config.js 改 build 输出目录到 wwwroot/ | ⏳ 待实现 |
-| 2 | Program.cs 加 UseStaticFiles + MapFallbackToFile | ⏳ 待实现 |
-| 3 | C# 反向代理 Node.js | ⏳ 待实现 |
-| 4 | npm start 改为 vite build + dotnet run + node server | ⏳ 待实现 |
-| 5 | (可选) Node.js 迁移到 C#, 砍掉 Node | ⏳ Release 2 |
+| 1 | vite.config.js 改 build 输出目录到 wwwroot/ | ✅ 已完成 |
+| 2 | Program.cs 加 UseStaticFiles + MapFallbackToFile | ✅ 已完成 |
+| 3 | 砍掉 Node.js，全功能迁至 C# | ✅ 已完成 |
 
 ---
 > 项目主记忆：[douzhanzhe-progress.md](.github/copilot-instructions.md) | 操作守则：[.github/copilot-instructions.md](.github/copilot-instructions.md)

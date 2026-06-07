@@ -4,6 +4,7 @@ using System.Net.WebSockets;
 using System.Text.Json.Serialization;
 using System.IO;
 using System.Text.Json;
+using Microsoft.Win32.TaskScheduler;
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton<HardwareAbstractionLayer>();
 builder.Services.AddSingleton<SmuController>();
@@ -578,6 +579,48 @@ app.MapPost("/api/default-config", (HttpContext ctx) =>
         var body = JsonSerializer.Deserialize<DefaultConfig>(reader.ReadToEndAsync().Result, readOpts);
         JsonWrite("dashboard-default.json", body ?? new DefaultConfig());
         return Results.Json(new { ok = true });
+    }
+    catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }); }
+});
+// ---- Auto-start (Windows Task Scheduler) ----
+app.MapGet("/api/auto-start", () =>
+{
+    try
+    {
+        using var ts = new TaskService();
+        var exists = ts.RootFolder.AllTasks.Any(t => t.Name == "DouzhanzheControl");
+        return Results.Json(new { enabled = exists });
+    }
+    catch { return Results.Json(new { enabled = false }); }
+});
+app.MapPost("/api/auto-start", (HttpContext ctx) =>
+{
+    try
+    {
+        using var reader = new StreamReader(ctx.Request.Body);
+        var body = JsonSerializer.Deserialize<Dictionary<string, object?>>(reader.ReadToEndAsync().Result);
+        if (body == null || !body.TryGetValue("enabled", out var enabledObj) || enabledObj is not bool enabled)
+            return Results.Json(new { ok = false, error = "需要 { enabled: bool }" });
+
+        using var ts = new TaskService();
+        if (enabled)
+        {
+            var td = ts.NewTask();
+            td.RegistrationInfo.Description = "Douzhanzhe Console 开机自启";
+            td.Principal.RunLevel = TaskRunLevel.Highest;
+            td.Settings.DisallowStartIfOnBatteries = false;
+            td.Settings.StopIfGoingOnBatteries = false;
+            td.Settings.DisallowStartOnRemoteAppSession = false;
+            td.Triggers.Add(new LogonTrigger());
+            td.Actions.Add(Environment.ProcessPath ?? "");
+            ts.RootFolder.RegisterTaskDefinition("DouzhanzheControl", td);
+        }
+        else
+        {
+            if (ts.RootFolder.AllTasks.Any(t => t.Name == "DouzhanzheControl"))
+                ts.RootFolder.DeleteTask("DouzhanzheControl");
+        }
+        return Results.Json(new { ok = true, enabled });
     }
     catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }); }
 });

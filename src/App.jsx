@@ -79,7 +79,7 @@ export default function App() {
           {activeTab === "system" && <SystemInfoPanel />}
           {activeTab === "settings" && (
             <SettingsPanel settings={settings} setSettings={setSettings} uxtuPayload={uxtuPayload}
-              showSwitches={true} showKeyboard={true} showSummary={true} showCredits={true} />
+              showSwitches={true} showKeyboard={true} showSummary={true} showCredits={true} showAutoStart={true} />
           )}
           {activeTab === "dashboard" && (
           <Card title="模式选择" className="console-dock !p-3"

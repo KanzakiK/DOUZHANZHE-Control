@@ -15,11 +15,11 @@
 
 | 文档 | 说明 |
 |------|------|
-| [整体架构](dev-architecture.md) | 系统总览：C# HAL 单后端 + Vite 代理 + 数据流 |
+| [整体架构](dev-architecture.md) | 系统总览：C# HAL 单后端 + static files + 数据流 |
 | [后端架构](dev-backend.md) | C# HAL 三层（DriverBridge/HAL/API） |
 | [前端架构](dev-frontend.md) | 组件树、状态管理、自适应、仪表盘自定义、主题 |
 | [EC 寄存器地图](dev-ec-map.md) | DSDT 反编译确认的完整 EC 寄存器表 |
-| [API 接口定义](dev-api.md) | C# HAL 和 Node.js 辅助服务的 API 端点 |
+| [API 接口定义](dev-api.md) | C# HAL API 端点 |
 | [任务看板](dev-task-board.md) | 已完成功能 / 待开发 / 待修 Bug |
 | [会话归档](session-archive.md) | 迭代日志历史记录 |
 | [官方控制台参考](reference-consoles.md) | 斗战者/蛟龙功能详情与依赖关系 |
@@ -44,7 +44,6 @@
 - [ ] `cd server/api && dotnet restore` — C# HAL 依赖恢复
 - [ ] C# HAL 编译：`cd server/api && dotnet build`
 - [ ] 访问前端：`http://127.0.0.1:3100/`（由 C# API 内嵌托管）
-- [ ] （可选）Node.js 配置持久化：`cd server && node server.js`
 
 **调试指南：**
 - 前端页面：`http://127.0.0.1:3100/`（C# API 内嵌 SPA）
@@ -58,9 +57,12 @@
 # 终端 1 - C# HAL API (唯一必需，管理员)
 cd server/api
 dotnet run --urls http://0.0.0.0:3100
+```
 
-# 终端 2 - (可选) Node.js 配置持久化
-cd server && node server.js
+或使用 `run.ps1`（自动构建前端 + 复制依赖 + 启动）：
+```powershell
+cd server/api
+.\run.ps1
 ```
 
 前端页面由 `run.ps1` 自动构建并嵌入 C# API（`wwwroot/`），访问 `http://127.0.0.1:3100/` 即可。
@@ -71,16 +73,14 @@ cd server && node server.js
 | 层级 | 技术 | 许可证 |
 |------|------|--------|
 | 前端 | React 19 + Vite 8 + Tailwind CSS 3 + dnd-kit | MIT |
-| C# HAL | .NET 8 + Minimal API + WMI + inpoutx64 | MIT |
+| C# 后端 | .NET 8 + Minimal API + WMI + inpoutx64 | MIT |
 | SMU | RyzenAdj (SmuController 子进程) | LGPL-3.0 |
-| 配置持久化 | Node.js Express 5 (可选辅助) | MIT |
 | 驱动 | inpoutx64 (MIT) | MIT |
 
 ## 系统架构
 
 ```
-浏览器 → C# HAL API (:3100) — 遥测 + 硬件控制 + WebSocket + SMU + Debug 页面 + 前端 SPA
-  └── Node.js (:3099) — (可选) UI 配置 JSON 持久化
+浏览器 → C# HAL API (:3100) — 遥测 + 硬件控制 + WebSocket + SMU + Debug + 前端 SPA (wwwroot/)
 ```
 
 详见：[整体架构](dev-architecture.md) | [后端架构](dev-backend.md) | [前端架构](dev-frontend.md)
@@ -105,9 +105,7 @@ cd server && node server.js
 | `server/hal/SmuController.cs` | RyzenAdj 子进程封装 |
 | `server/api/Program.cs` | Minimal API 端点 + WebSocket + Debug 页面 |
 | `server/api/TelemetryBackgroundService.cs` | 后台遥测心跳推送 |
-| `server/server.js` | Node.js 配置持久化（可选辅助服务）|
 | `server/tools/ec_kb_map.exe` | 键盘背光控制独立工具 |
-| `vite.config.js` | Vite 代理配置（分流 :3100 和 :3099）|
 
 ### 前端
 | 文件 | 说明 |

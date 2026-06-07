@@ -124,42 +124,6 @@ EC 寄存器地址映射为语义化 C# 属性。
 
 ---
 
-## Node.js 辅助服务 (server/server.js) — 仅配置持久化
-
-### 技术栈
-- Express 5 + `ws` WebSocket 库
-- `systeminformation` — CPU/内存/硬盘占用
-- `child_process` — RyzenAdj / nvidia-smi / ec_reader / ec_kb_map / PowerShell WMI
-- 管理员权限自动检测 (`net session`)
-
-### 遥测采集流程
-
-```
-gatherTelemetry() — Promise.all 并行:
-├── si.currentLoad() — CPU 占用率
-├── si.mem() — 内存占用
-├── si.fsSize() — 硬盘占用
-├── readGpuData() — nvidia-smi (温度/占用/频率/显存)
-├── readFanSpeed() — ec_reader.exe (风扇 RPM, 串行带 200ms 间隔, EMA 滤波)
-├── readCpuFreq() — WMI PercentProcessorPerformance
-├── readCpuTemp() — ec_reader.exe temp (EC 0x70)
-└── readMemoryFreq() — WMI MemoryClock → Win32_PhysicalMemory
-```
-
-**风扇 EMA 滤波**：
-- 超过 40% 跳变用 0.15 系数，否则用 0.35
-- CPU/GPU 风扇独立滤波
-
-### API 端点
-
-> 完整端点定义、参数、返回值见 [dev-api.md#Nodejs-API](dev-api.md)。
-
-### SMU 控制
-
-由 C# `SmuController` 通过 RyzenAdj 子进程完成。见 `server/hal/SmuController.cs`。
-
-> 历史：Node.js 版 (`child_process`) 已废弃，全功能迁移至 C# HAL（路径修复 + Redirect 移除 + 0xC0000005 退出码适配）。
-
 > **主线方案**：`POST /api/smu/set` → `SmuController` → ryzenadj.exe 子进程 + WinRing0 驱动。Dragon Range SMU 地址 MSG=0x03B10530, REP=0x03B1057C, ARG_BASE=0x03B109C4（参考 RyzenAdj nb_smu_ops.c）。已验证 25W 功率墙写入将 CPU 频率从 3.6GHz 降至 0.5GHz。C# 子进程方案已修复（路径调整 + 移除输出重定向；ryzenadj v0.19.0 已知 exit 时无害崩溃 0xC0000005，不影响实际写入）。
 
 通过 RyzenAdj (`server/tools/ryzenadj.exe`) 下发 AMD SMU 参数。
@@ -244,15 +208,14 @@ server/
 │   ├── libryzenadj.dll           # ~~SMU 库~~ ❌ 已从跟踪中删除，由 SmuController 替代
 │   ├── ec_reader.cs / .exe       # EC 寄存器读取
 │   └── ec_kb_map.exe             # 键盘背光控制
-├── package.json
-└── server.js                     # Express 后端
+└── package.json
 ```
 
 ---
 
 ## 启动方式
 
-> 启动命令见 [dev-index.md#快速启动](dev-index.md)。三终端并行：C# HAL + Node.js + Vite。
+> 启动命令见 [dev-index.md#快速启动](dev-index.md)。C# HAL API 单服务即可运行。
 >
 > C# HAL 必须以管理员权限运行（inpoutx64 驱动要求）。
 

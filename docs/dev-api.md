@@ -1,7 +1,7 @@
 # API 接口定义
 
 > **📋 更新规则**：
-> - 新增端点按协议分组（C# HAL / Node.js），在对应章节末尾追加
+> - 新增端点在 C# HAL 章节末尾追加
 > - 每个端点用 `###` 标题，格式：`METHOD /path` → Body/Query → 说明
 > - 废弃端点在标题加 ~~删除线~~，保留定义供历史参考
 > - 同步更新主记忆 §1 文档地图中 `dev-api.md` 的描述（如适用）
@@ -117,6 +117,17 @@ touchpadLock, igpuOnly, timestamp
 ### GET /debug
 内嵌 HTML Debug 面板（按钮/滑块测试所有功能，WS 遥测可视化）。
 
+### GET /api/auto-start
+查询开机自启状态。
+- Return: `{ enabled: bool }`
+
+### POST /api/auto-start
+设置开机自启（Windows Task Scheduler LogonTrigger）。
+- Body: `{ enabled: bool }`
+- `enabled = true` → 创建最高权限开机启动任务
+- `enabled = false` → 删除开机启动任务
+- Return: `{ ok: bool, enabled: bool }`
+
 ---
 
 
@@ -133,7 +144,7 @@ SMU 参数下发（转发到 SmuController）。兼容两种格式：
 `
 
 ### GET | POST /api/custom-params
-自定义参数 JSON 持久化（共享 Node.js 遗留的 config/ 目录）。
+自定义参数 JSON 持久化（config/ 目录）。
 
 ### GET | POST /api/ui-state
 仪表盘状态持久化（卡片排序 + 隐藏状态）。
