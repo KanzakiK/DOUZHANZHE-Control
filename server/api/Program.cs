@@ -128,9 +128,9 @@ app.MapGet("/api/system/info", (HardwareAbstractionLayer hal) =>
         cpuFreq = Math.Round((double)hal.CpuFreq, 1),
         gpuDiscrete = hal.GpuDiscreteName,
         gpuIntegrated = hal.GpuIntegratedName,
-        memoryTotal = hal.MemoryTotalGB,
+        memoryTotalGB = hal.MemoryTotalGB,
         memoryFreq = hal.MemoryFreq,
-        diskTotal = hal.DiskTotalGB,
+        diskTotalGB = hal.DiskTotalGB,
     });
 });
 app.MapGet("/api/health", (HardwareAbstractionLayer hal) =>
