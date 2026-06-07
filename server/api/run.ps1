@@ -33,6 +33,8 @@ if (Test-Path $inpoutx64) { Copy-Item $inpoutx64 $runDir -Force }
 Write-Host "Building frontend (vite)..." -Foreground Yellow
 $projRoot = Resolve-Path "$root\..\.."
 Push-Location $projRoot
+# 清除 Vite 8 深缓存，确保源文件变更被感知
+Remove-Item -Recurse -Force ".vite-temp" -ErrorAction SilentlyContinue
 npm run build 2>&1 | Out-Null
 if ($LASTEXITCODE -ne 0) { Write-Host "Frontend build failed!" -Foreground Red; Pop-Location; exit 1 }
 $distDir = Join-Path $projRoot "dist"

@@ -28,7 +28,7 @@
 | 2026-06-06 | [速查表滚动截断 + 同会话合并](#速查表滚动截断-同会话合并) |
 | 2026-06-06 | [`.ship` 流程改进 — 归档去重+GitHub 同步](#ship-流程改进-归档去重GitHub-同步) |
 | 2026-06-06 | [Vite Dev Server 废弃 + 架构简化](#Vite-Dev-Server-废弃-架构简化) |
-| ... | [共 19 条](#完整列表) |
+| ... | [共 20 条](#完整列表) |
 
 ---
 ## 2026-06-07 (MODE_PRESETS 精简合并 + 风扇官方值修正)
@@ -38,6 +38,15 @@
 - **恢复预设增强**：恢复预设按钮追加 nvidia-smi reset-clocks + reset-memory-clocks 硬件级 GPU 频率重置
 - **custom 预设**：custom 模式预设改为 office（均衡）副本（55W/70W/75W/80°C/85°C）
 - **验证**：前端构建 0 错误，页面正常渲染，设置页技术信息已修正
+---
+
+## 2026-06-07 (构建流程根治 — A2+B1+B3+C1+C2 前端流程优化)
+- **A2**: run.ps1 新增预删 `.vite-temp`（Vite 8 Rolldown 缓存锁定问题）
+- **B1**: package.json postbuild 目标修正为 `server/api/bin/run/wwwroot`
+- **B3**: 新增 `server/tools/reload-fe.ps1` 前端热更新脚本
+- **C1+C2**: copilot-instructions.md §3 新增「前端修改流程」块 + 施工现场清单 + 编号重排(§4→§8)
+- **验证**: 全 4 改动文件字节级对账 CLEAN, 构建+部署流程实测通过
+
 ---
 
 ## 2026-06-07 (GSD 流程清理)

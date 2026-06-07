@@ -6,7 +6,7 @@
   "scripts": {
     "build": "vite build",
     "lint": "eslint .",
-    "postbuild": "powershell -Command \"Copy-Item -Path 'dist/*' -Destination 'server/api/wwwroot' -Recurse -Force\""
+    "postbuild": "powershell -Command \"Copy-Item -Path 'dist/*' -Destination 'server/api/bin/run/wwwroot' -Recurse -Force\""
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
