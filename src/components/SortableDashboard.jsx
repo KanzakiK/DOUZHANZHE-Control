@@ -31,7 +31,6 @@ const CARD_MAP = {
   "gpu-adjust": { label: "GPU 调节" },
   "system-switches": { label: "系统开关" },
   "keyboard-light": { label: "键盘灯亮度" },
-  "current-strategy": { label: "当前策略" },
   "gpu-mode": { label: "GPU 模式" },
   "about": { label: "关于" },
 };
@@ -157,8 +156,6 @@ export default function SortableDashboard({
         return <PerformancePanel showCpu={false} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} uxtuPayload={uxtuPayload}/>;
       case "keyboard-light":
         return <SettingsPanel settings={settings} setSettings={setSettings} uxtuPayload={uxtuPayload} showSwitches={false} showKeyboard={true} showSummary={false} showSmu={false} showAbout={false}/>;
-      case "current-strategy":
-        return <SettingsPanel settings={settings} setSettings={setSettings} uxtuPayload={uxtuPayload} showSwitches={false} showKeyboard={false} showSummary={true} showSmu={false} showAbout={false}/>;
       case "system-switches":
         return <SettingsPanel settings={settings} setSettings={setSettings} uxtuPayload={uxtuPayload} showSwitches={true} showKeyboard={false} showSummary={false} showSmu={false} showAbout={false}/>;
       case "gpu-mode": {

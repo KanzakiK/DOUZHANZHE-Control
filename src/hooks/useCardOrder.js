@@ -11,7 +11,6 @@ const DEFAULT_ORDER = [
   "gpu-adjust",
   "mem-disk",
   "fan-info",
-  "current-strategy",
   "keyboard-light",
   "gpu-mode",
   "about",
