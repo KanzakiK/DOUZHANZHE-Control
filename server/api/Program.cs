@@ -11,6 +11,7 @@ builder.Services.AddSingleton<HardwareAbstractionLayer>();
 builder.Services.AddSingleton<SmuController>();
 builder.Services.AddSingleton<GpuController>();
 builder.Services.AddSingleton<NvapiGpuController>();
+builder.Services.AddSingleton<CpuPowerController>();
 builder.Services.AddSingleton<WmiInterface>();
 builder.Services.AddHostedService<TelemetryBackgroundService>();
 builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
@@ -504,6 +505,77 @@ app.MapPost("/api/nvapi/thermal-limit", (NvapiGpuController nv, NvapiThermalLimi
     return Results.Json(new { ok = rc == 0, rc });
 });
 
+// ---- CPU 性能控制 (powercfg 电源计划 API) ----
+app.MapGet("/api/cpu/status", (CpuPowerController cpu) =>
+{
+    try
+    {
+        var s = cpu.GetStatus();
+        return Results.Json(new {
+            ok = s.Available,
+            turboEnabled = s.TurboEnabled,
+            coreLimitPercent = s.CoreLimitPercent,
+            freqLimitMhz = s.FreqLimitMhz
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new { ok = false, error = ex.Message });
+    }
+});
+
+app.MapPost("/api/cpu/freq-limit", async (CpuPowerController cpu, CpuFreqLimitRequest req) =>
+{
+    try
+    {
+        await cpu.SetFreqLimitAsync(req.Mhz);
+        return Results.Json(new { ok = true });
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new { ok = false, error = ex.Message });
+    }
+});
+
+app.MapPost("/api/cpu/turbo", async (CpuPowerController cpu, CpuTurboRequest req) =>
+{
+    try
+    {
+        await cpu.SetTurboAsync(req.Enabled);
+        return Results.Json(new { ok = true });
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new { ok = false, error = ex.Message });
+    }
+});
+
+app.MapPost("/api/cpu/core-limit", async (CpuPowerController cpu, CpuCoreLimitRequest req) =>
+{
+    try
+    {
+        await cpu.SetCoreLimitAsync(req.Percent);
+        return Results.Json(new { ok = true });
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new { ok = false, error = ex.Message });
+    }
+});
+
+app.MapPost("/api/cpu/reset", async (CpuPowerController cpu) =>
+{
+    try
+    {
+        await cpu.ResetAllAsync();
+        return Results.Json(new { ok = true });
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new { ok = false, error = ex.Message });
+    }
+});
+
 // ---- Node.js 废弃迁移端点 ----
 app.MapPost("/api/uxtu/apply", (HttpContext ctx, SmuController smu) =>
 {
@@ -795,6 +867,16 @@ public record NvapiPowerLimitRequest(
 );
 public record NvapiThermalLimitRequest(
     [property: JsonPropertyName("tempC")] float TempC
+);
+// ---- CPU 性能控制请求模型 ----
+public record CpuFreqLimitRequest(
+    [property: JsonPropertyName("mhz")] int Mhz  // 0 = 取消限制
+);
+public record CpuTurboRequest(
+    [property: JsonPropertyName("enabled")] bool Enabled
+);
+public record CpuCoreLimitRequest(
+    [property: JsonPropertyName("percent")] int Percent  // 0-100
 );
 // ---- Node.js 迁移端点请求/响应模型 ----
 public record UxtuApplyRequest(

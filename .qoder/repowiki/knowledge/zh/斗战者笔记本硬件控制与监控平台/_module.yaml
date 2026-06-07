@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: docs
+title: 斗战者笔记本硬件控制与监控平台
+scope:
+    - docs/
+source_files: []
+depends_on: []
+related_to: []

@@ -53,6 +53,11 @@
 - [x] **模式切换滑块联动**: 切换模式时 `uxtuParams` 跟随 `MODE_PRESETS` 更新，滑块/开关同步跳转- [x] **GPU 核心频率超频**: KaronOC.dll (蛟龙引擎) P-State 偏移超频，已验证 core +150MHz / mem +300MHz
 - [x] **GPU 超频引擎集成**: NVAPI P/Invoke + KaronOC.dll 双层架构，状态读取 + 超频写入
 - [ ] **GPU 功耗墙**: ❌ nvidia-smi `--power-limit` 驱动限制不可用，需另寻路径
+- [ ] **CPU 性能控制**: 基于蛟龙控制台逆向发现，使用 Windows powercfg 实现 CPU 频率限制/关睿频/核心数限制（无需 SMU 驱动）
+  - 参考: `docs/reference-consoles.md` §2 CPU 控制技术逆向
+  - 后端新增 `CpuPowerController.cs`：封装 `Process.Start("powercfg", args)` 调用
+  - 新增 API: `POST /api/cpu/freq-limit`, `POST /api/cpu/turbo`, `POST /api/cpu/core-limit`
+  - 前端新增: CPU 频率限制滑块 / 关睿频开关 / 核心数百分比滑块
 - [ ] **五模式全量配置覆盖**: 安静/均衡/野兽/斗战/自定义各保存一套完整配置（风扇转速×2、CPU功耗墙/温度墙、GPU功耗墙/频率偏移），后端新增 GET|POST /api/mode-config 持久化接口
 - [x] **每模式独立参数记忆**: localStorage 按模式名隔离 key（`douzhanzhe_params_`+模式名），切换模式时恢复该模式上次调的值，点"恢复预设"才重置
 - [ ] **遥测扩展**: CPU/GPU 功率
@@ -60,7 +65,14 @@
   - CPU (ryzenadj `-i` 解析 SMU)
   - CPU 功率负载估算回退
 - [ ] **Debug 页 GPU 控制区**: 频率锁/超频/重置 + 当前频率/功耗显示
-- [ ] **前端 GPU 性能面板**: 核心频率滑块 + 显存频率滑块 + 一键恢复默认
+- [ ] **前端 GPU 性能面板 (NVAPI 偏移模式)**: 将 nvidia-smi 绝对频率方案替换为 KaronOC P-State 偏移方案
+  - [ ] **核心频率滑块**: 绝对值(1000-3090 MHz) → 偏移量(-1000~+1000 MHz) → `POST /api/nvapi/overclock`
+  - [ ] **显存频率滑块**: 档位(0-3) → 偏移量(-1000~+3000 MHz) → `POST /api/nvapi/overclock`
+  - [ ] **删除**: 核心频率限制复选框 + 最大频率滑块 + 锁定核心频率复选框（P-State 偏移本身即上限调节，无需锁频）
+  - [ ] **重置 GPU 按钮**: `nvidia-smi reset-clocks` → `POST /api/nvapi/overclock {coreOffsetMhz:0, memOffsetMhz:0}`
+  - [ ] **新增 GPU 温度限制滑块**: `POST /api/nvapi/thermal-limit`（后端已验证可用）
+  - [ ] **GPU 功耗墙**: 暂不可用（笔记本 GPU NVAPI 返回全零），预留 UI 位置
+  - [ ] **不受影响**: CPU 全部控件 / 风扇控制 / 系统开关 / 遥测曲线 / GPU 模式切换 — 均走独立通道，无需改动
 - [ ] **SMU 监视器**: 值被覆盖时自动重发（替代 `readjustService.ps1`）
 - [ ] **跨平台/非管理员降级模式**（无 inpoutx64 时以 WMI/软件方式运行）
 - [ ] **Node.js 全部端点迁移到 C#**，砍掉 Node.js 后端

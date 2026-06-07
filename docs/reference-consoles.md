@@ -15,7 +15,7 @@
 | 章节 | 内容 |
 |:-----|:-----|
 | §1 | 斗战者控制台 — WMI 枚举、风扇写入路径、功能详情 |
-| §2 | 蛟龙控制台 — WinRing0 驱动改造版、功能详情、KaronOC.dll 逆向分析 |
+| §2 | 蛟龙控制台 — WinRing0 驱动改造版、功能详情、KaronOC.dll 逆向、CPU 控制逆向 |
 | §3 | BellatorFanControl — WMI MiInterface 协议、风扇曲线算法 |
 | §4 | 运行时依赖关系 |
 | §5 | 功能对比 + BLDFnHotkeyUtility 反编译 |
@@ -224,6 +224,145 @@
 - **宝龙达模具兼容**：斗战者笔记本与蛟龙控制台共享宝龙达 OEM 模具，KaronOC.dll 可直接使用
 
 
+### CPU 控制技术逆向 (2026-06-07)
+
+> **方法**：MetadataLoadContext 安全反射 + IL 字节码反编译（`_enum_dll_proj`）
+> **目标**：`第三方蛟龙游戏控制中心.dll`（22MB，.NET 8 WPF 程序集）
+> **核心发现**：频率/睿频/核心数走 Windows 电源管理 API；功耗/温度/电压走 ryzenadj→SMU
+
+#### 底层通道概览
+
+| 控件 | 底层技术 | 实现类 | 命令格式 |
+|:-----|:---------|:------|:--------|
+| 频率限制 | Windows powercfg | `NVIDIA.NvTuning.SetShowCPUMHz` | `powercfg /setacvalueindex ...` |
+| 关闭睿频 | Windows powercfg | `NVIDIA.NvTuning.SetTuro` | `powercfg /setacvalueindex ...` |
+| 核心数限制 | Windows powercfg (3项) | `NVIDIA.NvTuning.SetCpuCore` | `powercfg /setacvalueindex ...` |
+| 功耗策略 | Windows powercfg | `NVIDIA.NvTuning.SetCPUPerformanceStrategy` | `powercfg /setacvalueindex ...` |
+| PL1 功耗墙 | ryzenadj | `MainWindow.CPU_Power_Consumption` | `--slow-limit={W}` |
+| PL2 功耗墙 | ryzenadj | `MainWindow.CPU_Power_PL_Consumption` | `--fast-limit={W}` |
+| 温度墙 | ryzenadj | `MainWindow.Temperature_Wall` | `--tctl-temp=... --cHTC-temp=... --apu-skin-temp=...` |
+| 电压偏移 | ryzenadj | `MainWindow.CPUVoltage` | `--set-coall={mV}` |
+
+#### 频率限制 — `SetShowCPUMHz(mhz, flag)`
+
+**SubGroup GUID**：`54533251-82be-4824-96c1-47b60b740d00`（Windows 处理器电源设置）  
+**Setting GUID**：`75b0ae3f-bce0-45a7-8c89-c9611c25e100`（处理器频率限制，OEM 扩展）  
+**范围**：1500 ~ 5400 MHz
+
+**IL 反编译还原的完整执行流程**：
+```
+1. powercfg /overlaysetactive overlay_scheme_none          ← 关闭覆盖方案
+2. await Task.Delay(100)                                    ← 等待方案切换
+3. PowerGetActiveScheme(out schemeGuid)                     ← 获取当前方案
+4. powercfg /setacvalueindex {schemeGuid} SubGroup Setting {mhz}   ← 设置 AC 频率上限
+5. await Task.Delay(100)
+6. powercfg /setdcvalueindex {schemeGuid} SubGroup Setting {mhz}   ← 设置 DC 频率上限
+7. powercfg /setacvalueindex {schemeGuid} SubGroup Setting 0        ← 清除 AC 频率（归零）
+8. await Task.Delay(100)
+9. powercfg /setdcvalueindex {schemeGuid} SubGroup Setting 0        ← 清除 DC 频率（归零）
+10. PowerSetActiveScheme(IntPtr.Zero, schemeGuid)           ← 重新激活方案
+```
+
+> ⚠️ IL 中发现先设置 `{mhz}` 后归零 `0` 的路径均无条件执行（无分支跳过），推测 flag 参数控制 MessageBox 显示逻辑，实际频率生效依赖 Windows 电源管理内部状态。
+
+#### 关闭/启用睿频 — `SetTuro(flag)`
+
+**Setting GUID**：`be337238-0d82-4146-a960-4f3749d470c7`（Processor performance boost mode）
+
+| 操作 | AC/DC 值 | IL 流程 |
+|:-----|:-------|:--------|
+| 禁用睿频 (flag=false) | `0` | overlaysetactive → setacvalueindex=0 → setdcvalueindex=0 → PowerSetActiveScheme |
+| 启用睿频 (flag=true) | `2` | overlaysetactive → setacvalueindex=2 → setdcvalueindex=2 → PowerSetActiveScheme |
+
+> 标准 Windows 电源设置，值 0=禁用，2=激进模式（值 1=启用但未在代码中使用）
+
+#### 核心数控制 — `SetCpuCore(corePercent)`
+
+同时设置 **3 个电源参数**（均使用 corePercent 值）：
+
+| Setting GUID | Windows 含义 | IL 中的用途 |
+|:-------------|:-----------|:----------|
+| `8baa4a8a-14c6-4451-8e8b-14bdbd197537` | Processor power throttling max | 处理器功耗上限 % |
+| `0cc5b647-c1df-4637-891a-dec35c318583` | Processor maximum state | 处理器最大状态 % |
+| `ea062031-0e34-4ff1-9b6d-eb1059334028` | Processor hardware threading | 处理器硬件线程数 |
+
+每个参数都同时设置 AC + DC：
+```
+powercfg /setacvalueindex {scheme} SubGroup {GUID} {corePercent}
+powercfg /setdcvalueindex {scheme} SubGroup {GUID} {corePercent}
+```
+
+**恢复** `RecCpuCore()`：3 个参数全部设为 `100`（无限制）
+
+#### 功耗策略 — `SetCPUPerformanceStrategy(power)`
+
+**Setting GUID**：`36687f9e-e3a5-4dbf-b1dc-15eb381c6863`（Processor idle demotion）  
+**IL 命令**：
+```
+powercfg /setacvalueindex {scheme} SubGroup 36687f9e... {power}
+powercfg /setdcvalueindex {scheme} SubGroup 36687f9e... {power}
+```
+
+#### 功耗墙 — ryzenadj 命令链
+
+| UI 控件 | ryzenadj 命令 | 值范围 | 执行路径 |
+|:-------|:------------|:-----|:--------|
+| PL1 (SPL) Checked | `--slow-limit={W}` | 10-105W | → `RyzenAdj_To_UXTU.Translate()` → SMU 直写 |
+| PL1 Unchecked | `--slow-limit={stored}` | — | 恢复存储值 |
+| PL2 (FPPT) Checked | `--fast-limit={W}` | 10-120W | → `RyzenAdj_To_UXTU.Translate()` → SMU 直写 |
+| PL2 Unchecked | `--fast-limit={stored}` | — | 恢复存储值 |
+
+#### 温度墙 — ryzenadj 命令链
+
+| UI 控件 | ryzenadj 命令 | 执行路径 |
+|:-------|:------------|:--------|
+| 设置温度墙 | `--tctl-temp={v} --cHTC-temp={v} --apu-skin-temp={v}` | → Translate → SMU |
+| 恢复默认 | `--tctl-temp=99 --cHTC-temp=99 --apu-skin-temp=99` | → Translate → SMU |
+
+#### 电压偏移 — ryzenadj 命令
+
+| UI 控件 | ryzenadj 命令 | 范围 | 限制 |
+|:-------|:------------|:---|:----|
+| CPU 降压 | `--set-coall={mV}` | -50 ~ 0 mV | **只允许降压**，代码硬编码限制 |
+
+#### 所有 powercfg 命令的通用前置步骤
+
+```csharp
+// 每次修改电源设置前必执行
+NvTuning.RunPowershellCommand("powercfg /overlaysetactive overlay_scheme_none");
+await Task.Delay(100);
+// 获取当前活动电源方案 GUID
+PowerGetActiveScheme(out IntPtr schemePtr);
+var schemeGuid = Marshal.PtrToStructure(schemePtr);
+LocalFree(schemePtr);
+// 设置 AC + DC
+RunPowershellCommand($"powercfg /setacvalueindex {schemeGuid} {subGroup} {setting} {value}");
+RunPowershellCommand($"powercfg /setdcvalueindex {schemeGuid} {subGroup} {setting} {value}");
+// 重新激活方案
+PowerSetActiveScheme(IntPtr.Zero, schemeGuid);
+```
+
+#### ryzenadj 命令翻译层
+
+所有 ryzenadj 字符串命令统一通过 `Universal_x86_Tuning_Utility.Scripts.RyzenAdj_To_UXTU.Translate(ryzenAdjString, isAutoReapply)` 转换：
+- 解析 ryzenadj 命令行参数
+- 映射到 UXTU 内部 SMU 命令 ID
+- 通过 `RyzenSmu.Smu` → `WinRing0` → SMU 寄存器直写
+
+#### 与我们的控制方案对比
+
+| 功能 | 蛟龙方案 | 斗战者可复用方案 |
+|:-----|:-------|:------------|
+| CPU 频率限制 | powercfg（Windows 电源 API） | ✅ 直接复用 powercfg，无需 SMU |
+| 关闭睿频 | powercfg be337238...=0 | ✅ 直接复用，标准 Windows 设置 |
+| 核心数限制 | powercfg 三参数同设 | ✅ 直接复用 |
+| PL1/PL2 功耗墙 | ryzenadj → SMU | ✅ 已有 SmuController，可直写 SMU |
+| 温度墙 | ryzenadj → SMU | ✅ 已有 SmuController |
+| 电压偏移 | ryzenadj → SMU | ✅ 已有 SmuController |
+
+> **结论**：CPU 频率/睿频/核心数控制无需 SMU 驱动，直接 `Process.Start("powercfg", args)` 即可实现。功耗/温度/电压已有 SmuController 直写能力，无需引入 WinRing0。
+
+
 ## 3. BellatorFanControl（第三方独立控制器）
 
 > **仓库**：https://github.com/Aveare/BellatorFanControl/
@@ -287,6 +426,8 @@
 | C# HAL SmuController | inpoutx64 (MIT) | ✅ 无外部依赖 |
 | FnLock / TPLock / 散热模式 / 键盘背光 | inpoutx64 (MIT) EC 直写 | ✅ 无外部依赖 |
 | NvapiGpuController (超频) | KaronOC.dll (蛟龙控制台 JiaoLong 7.3) | ✅ 本地 DLL P/Invoke |
+| CPU 频率限制/关睿频/核心数 | Windows powercfg 命令 | ✅ 无需驱动 |
+| CPU 功耗墙/温度墙/电压偏移 | SmuController → inpoutx64 SMU 直写 | ✅ 已有 |
 | ~~ryzenadj -> WinRing0x64.dll -> WinRing0.sys~~ | 已淘汰 | ❌ SmuController 替代 |
 
 ## 5. 功能对比

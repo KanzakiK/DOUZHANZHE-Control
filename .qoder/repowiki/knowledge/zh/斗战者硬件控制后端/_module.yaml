@@ -1,10 +1,9 @@
 schema_version: 1
 module_path: server
-title: 斗战者硬件控制与遥测服务
+title: 斗战者硬件控制后端
 scope:
     - server/
 source_files: []
 depends_on: []
 related_to:
-    - path: docs
     - path: frontend

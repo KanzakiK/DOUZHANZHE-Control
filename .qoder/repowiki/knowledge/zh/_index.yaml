@@ -2,7 +2,7 @@
 schema_version: 1
 locale: zh-CN
 branch: main
-exported_at: "2026-06-07T14:00:25Z"
+exported_at: "2026-06-07T14:29:04Z"
 modules:
     "":
         dir_name: 斗战者硬件控制台全栈架构
@@ -19,22 +19,22 @@ modules:
             - .qoder\repowiki\knowledge\zh\斗战者控制台开发文档体系\概述.md
             - .qoder\repowiki\knowledge\zh\斗战者控制台开发文档体系\特殊配置与命令.md
             - .qoder\repowiki\knowledge\zh\斗战者控制台开发文档体系\编码规范.md
+            - .qoder\repowiki\knowledge\zh\斗战者硬件控制与遥测服务\_module.yaml
+            - .qoder\repowiki\knowledge\zh\斗战者硬件控制与遥测服务\技术栈.md
+            - .qoder\repowiki\knowledge\zh\斗战者硬件控制与遥测服务\架构设计.md
+            - .qoder\repowiki\knowledge\zh\斗战者硬件控制与遥测服务\概述.md
+            - .qoder\repowiki\knowledge\zh\斗战者硬件控制与遥测服务\编码规范.md
+            - .qoder\repowiki\knowledge\zh\斗战者硬件控制台全栈架构\_module.yaml
+            - .qoder\repowiki\knowledge\zh\斗战者硬件控制台全栈架构\技术栈.md
+            - .qoder\repowiki\knowledge\zh\斗战者硬件控制台全栈架构\架构设计.md
+            - .qoder\repowiki\knowledge\zh\斗战者硬件控制台全栈架构\概述.md
+            - .qoder\repowiki\knowledge\zh\斗战者硬件控制台全栈架构\特殊配置与命令.md
+            - .qoder\repowiki\knowledge\zh\斗战者硬件控制台全栈架构\编码规范.md
             - .qoder\repowiki\knowledge\zh\斗战者硬件控制台前端\_module.yaml
             - .qoder\repowiki\knowledge\zh\斗战者硬件控制台前端\技术栈.md
             - .qoder\repowiki\knowledge\zh\斗战者硬件控制台前端\架构设计.md
             - .qoder\repowiki\knowledge\zh\斗战者硬件控制台前端\概述.md
             - .qoder\repowiki\knowledge\zh\斗战者硬件控制台前端\编码规范.md
-            - .qoder\repowiki\knowledge\zh\斗战者硬件控制平台\_module.yaml
-            - .qoder\repowiki\knowledge\zh\斗战者硬件控制平台\技术栈.md
-            - .qoder\repowiki\knowledge\zh\斗战者硬件控制平台\架构设计.md
-            - .qoder\repowiki\knowledge\zh\斗战者硬件控制平台\概述.md
-            - .qoder\repowiki\knowledge\zh\斗战者硬件控制平台\编码规范.md
-            - .qoder\repowiki\knowledge\zh\硬件控制与遥测服务后端\_module.yaml
-            - .qoder\repowiki\knowledge\zh\硬件控制与遥测服务后端\技术栈.md
-            - .qoder\repowiki\knowledge\zh\硬件控制与遥测服务后端\架构设计.md
-            - .qoder\repowiki\knowledge\zh\硬件控制与遥测服务后端\概述.md
-            - .qoder\repowiki\knowledge\zh\硬件控制与遥测服务后端\特殊配置与命令.md
-            - .qoder\repowiki\knowledge\zh\硬件控制与遥测服务后端\编码规范.md
             - .qoder\repowiki\zh\content\API参考文档\API参考文档.md
             - .qoder\repowiki\zh\content\API参考文档\GPU控制器API.md
             - .qoder\repowiki\zh\content\API参考文档\RESTful API\RESTful API.md
@@ -100,7 +100,8 @@ modules:
             - .qoder\repowiki\zh\content\后端服务\硬件抽象层\驱动桥接层.md
             - .qoder\repowiki\zh\content\后端服务\遥测后台服务.md
             - .qoder\repowiki\zh\content\后端服务\配置管理.md
-            - .qoder\repowiki\zh\content\开发者指南.md
+            - .qoder\repowiki\zh\content\开发者指南\反编译工具集.md
+            - .qoder\repowiki\zh\content\开发者指南\开发者指南.md
             - .qoder\repowiki\zh\content\快速开始.md
             - .qoder\repowiki\zh\content\扩展开发\API接口扩展.md
             - .qoder\repowiki\zh\content\扩展开发\UI组件扩展.md
@@ -1392,16 +1393,14 @@ modules:
         depends_on: []
         related_to: []
     docs:
-        dir_name: 斗战者控制台开发文档体系
-        title: 斗战者控制台开发文档体系
+        dir_name: 斗战者笔记本硬件控制与监控平台
+        title: 斗战者笔记本硬件控制与监控平台
         scope:
             - docs/
         source_files: []
         children: []
         depends_on: []
-        related_to:
-            - path: server
-            - path: frontend
+        related_to: []
     frontend:
         dir_name: 斗战者硬件控制台前端
         title: 斗战者硬件控制台前端
@@ -1411,16 +1410,14 @@ modules:
         children: []
         depends_on: []
         related_to:
-            - path: docs
             - path: server
     server:
-        dir_name: 斗战者硬件控制与遥测服务
-        title: 斗战者硬件控制与遥测服务
+        dir_name: 斗战者硬件控制后端
+        title: 斗战者硬件控制后端
         scope:
             - server/
         source_files: []
         children: []
         depends_on: []
         related_to:
-            - path: docs
             - path: frontend

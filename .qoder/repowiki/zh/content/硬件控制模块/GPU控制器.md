@@ -15,9 +15,9 @@
 
 ## 更新摘要
 **所做更改**
-- 新增KaronOC.dll双引擎超频支持章节，包括自动回退机制和动态库加载
-- 更新NVAPI GPU控制器Blackwell架构优化，包括结构体大小调整和时钟条目布局优化
-- 新增NVAPI超频控制端点和状态查询接口
+- 新增NvapiGpuController组件章节，详细介绍NVAPI + KaronOC.dll双层GPU控制架构
+- 更新NVAPI GPU控制器Blackwell架构优化章节，包括结构体大小调整和时钟条目布局优化
+- 新增NVAPI超频控制端点和状态查询接口章节
 - 更新GPU电源管理章节，增加双引擎超频控制选项
 
 ## 目录
@@ -35,7 +35,7 @@
 ## 简介
 本项目提供了一个跨平台的GPU控制器，支持多种GPU模式（集显、独显、混合）的切换、功耗与温度管理、风扇控制以及与WMI接口的协作。系统采用前后端分离架构：后端基于.NET 8的ASP.NET Core提供REST API与WebSocket遥测；前端基于React提供可视化界面与用户交互。硬件抽象层负责底层硬件访问（EC寄存器、SMU通信、PCI探测），并通过子进程调用nvidia-smi与ryzenadj实现GPU与CPU电源管理。
 
-**更新** 新增KaronOC.dll双引擎超频支持，提供绕过NVAPI限制的直接超频能力，并保持向后兼容的NVAPI回退机制。
+**更新** 新增NvapiGpuController组件，提供基于NVAPI的GPU控制能力，支持KaronOC.dll双引擎超频技术，实现绕过NVAPI限制的直接超频能力。
 
 ## 项目结构
 - 后端服务（server/api）
@@ -487,7 +487,7 @@ WMI --> WMI_IF["WMI MICommonInterface"]
 - [HardwareAbstractionLayer.cs:56-57](file://server/hal/HardwareAbstractionLayer.cs#L56-L57)
 
 ## 结论
-本GPU控制器通过清晰的分层架构实现了对多平台GPU与CPU电源管理的统一控制。后端以HAL为核心，向上提供稳定的API与WebSocket遥测，向下封装nvidia-smi、ryzenadj、nvapi64.dll与WMI等外部工具与固件接口。**更新** 新增的KaronOC.dll双引擎超频支持提供了更强大的GPU控制能力，通过自动回退机制确保系统稳定性。前端通过直观的UI与模式预设简化了用户的操作体验。系统具备良好的扩展性与容错能力，适合在多种笔记本与台式机平台上部署与使用。
+本GPU控制器通过清晰的分层架构实现了对多平台GPU与CPU电源管理的统一控制。后端以HAL为核心，向上提供稳定的API与WebSocket遥测，向下封装nvidia-smi、ryzenadj、nvapi64.dll与WMI等外部工具与固件接口。**更新** 新增的NvapiGpuController组件提供了基于NVAPI的GPU控制能力，通过KaronOC.dll双引擎超频架构实现了绕过NVAPI限制的直接超频功能，同时保持向后的NVAPI回退机制，确保系统稳定性。前端通过直观的UI与模式预设简化了用户的操作体验。系统具备良好的扩展性与容错能力，适合在多种笔记本与台式机平台上部署与使用。
 
 ## 附录
 - 常见应用场景
