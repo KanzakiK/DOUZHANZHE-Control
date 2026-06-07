@@ -30,15 +30,27 @@ src/
 │       ├── SwitchRow.jsx            # 开关行
 │       ├── Sparkline.jsx            # 迷你趋势线
 │       ├── SortableCard.jsx         # @dnd-kit 可拖拽卡片包装器
-│       └── Toast.jsx                # Toast 通知系统
-├── hooks/
-│   ├── useControlState.js           # 中央状态管理器
-│   └── useCardOrder.js              # 仪表盘排序/隐藏持久化
-├── services/
-│   └── uxtuAdapter.js               # API 客户端封装
-└── data/
-    ├── mockTelemetry.js             # 开发期 Mock 数据
-    └── themes.js                    # 主题配置数据
+│       └── Toast.jsx                # Toast 通知组件
+│   └── services/
+│       └── uxtuAdapter.js          # C# HAL API 全量封装
+│   └── hooks/
+│       ├── useCardOrder.js          # 卡片排序持久化
+│       └── useControlState.js       # 统一状态管理 + localStorage 记忆
+│   └── data/
+│       └── dashboard.json           # 排序/可见性持久化
+└── assets/
+
+## 🔧 构建注意事项
+
+### Rolldown/Tree-shaking 陷阱
+
+> **问题**：Vite 8 (Rolldown) 构建时，被 import 但**未在渲染树中调用**的组件会被 tree-shaker 安全移除，连带其所有依赖 export 也被移除。
+>
+> **典型场景**：`SortableDashboard.jsx` import 了 `TelemetryPanel`，但 `renderCard("fan-info")` 用的是内联代码而非 `<TelemetryPanel>`。结果 TelemetryPanel 整棵组件子树（含 `getFanRange`、`FAN_RANGES` 等导出）被 DCE 移除，而 `console.log()` 等模块顶层副作用不会被 tree-shake。
+>
+> **检查方法**：在可疑 export 旁加 `console.log("SIGNAL")` 构建后搜索产物，若找到信号弹但找不到目标函数 → DCE 问题。
+>
+> **修复**：确保被 import 的组件在渲染树中有调用点，或将需要的 export 直接 import 到使用方文件。
 ```
 
 ## 核心数据流

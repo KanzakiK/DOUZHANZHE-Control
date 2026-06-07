@@ -18,7 +18,7 @@ import Sparkline from "./ui/Sparkline";
 import SortableCard from "./ui/SortableCard";
 import PerformancePanel from "./panels/PerformancePanel";
 import SettingsPanel from "./panels/SettingsPanel";
-import TelemetryPanel from "./panels/TelemetryPanel";
+import { getFanRange } from "../services/uxtuAdapter";
 import { useCardOrder } from "./../hooks/useCardOrder";
 import { useToast } from "./ui/Toast";
 
