@@ -102,13 +102,13 @@ export default function SortableDashboard({
             <Card title="内存">
               <div className="space-y-3">
                 <Gauge label="占用" value={telemetry.memoryUsage}/>
-                <p className="text-sm" style={{ color: "var(--muted)" }}>总容量: {telemetry.memoryTotalGB} GB | 频率: {telemetry.memoryFreq} MT/s</p>
+                <p className="text-sm" style={{ color: "var(--muted)" }}>{telemetry.memoryTotalGB} GB | {telemetry.memoryFreq} MT/s</p>
               </div>
             </Card>
             <Card title="硬盘">
               <div className="space-y-3">
                 <Gauge label="占用" value={telemetry.diskUsage}/>
-                <p className="text-sm" style={{ color: "var(--muted)" }}>总容量: {telemetry.diskTotalGB} GB | 可用: {telemetry.diskFreeGB} GB</p>
+                <p className="text-sm" style={{ color: "var(--muted)" }}>{telemetry.diskFreeGB} GB / {telemetry.diskTotalGB} GB</p>
               </div>
             </Card>
           </div>
