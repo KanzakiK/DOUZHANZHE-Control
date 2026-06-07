@@ -480,6 +480,9 @@ app.MapGet("/api/nvapi/status", (NvapiGpuController nv) =>
     });
 });
 
+app.MapGet("/api/nvapi/dump-pstates", (NvapiGpuController nv) =>
+    Results.Text(nv.DumpPStates(), "text/plain"));
+
 app.MapPost("/api/nvapi/overclock", (NvapiGpuController nv, NvapiOverclockRequest req) =>
 {
     if (!nv.IsAvailable) return Results.Json(new { ok = false, error = "NVAPI not available" });
