@@ -85,7 +85,7 @@
 ### 安装与依赖
 - **安装目录**：`C:\Program Files (x86)\斗战者控制台\`
 - **关键 DLL**：`斗战者控制台.dll` → `BLD.WMIOperation.WMIMethodServices` (static 类)
-- **定位**：AppBridge 部署时自动复制 `斗战者控制台.dll` + `runtimes/`，用户无需完整安装。核心依赖仅 `GPUMode` 切换（FnLock/TPLock 已由 C# HAL EC 直写替代）
+- **定位**：仅作 WMI 协议参考（DLL 反编译枚举表）。项目自身通过 `WmiInterface.cs`（`System.Management` NuGet）直接调用 WMI MiInterface，无需部署斗战者控制台.dll。FnLock/TPLock 已由 C# HAL EC 直写替代，GPUMode 也已通过 WMI Method 9 直调。
 
 ### DLL 反编译：BLD.WMIOperation.WMIMethodServices
 | 枚举 | 值 | 用途 |
@@ -248,10 +248,9 @@
 
 | 组件 | 依赖 | 状态 |
 |:----|:----|:----:|
-| AppBridge -> 斗战者控制台.dll | 反射调用 GPUMode | ✅ 自动部署 |
-| AppBridge -> System.Management | NuGet 8.0.0 | ✅ 自管 |
+| WmiInterface.GPUMode | `System.Management` NuGet → WMI MiInterface(9) | ✅ WMI 直调 |
 | C# HAL SmuController | inpoutx64 (MIT) | ✅ 无外部依赖 |
-| FnLock / TPLock / 散热模式 | inpoutx64 (MIT) | ✅ 无外部依赖 |
+| FnLock / TPLock / 散热模式 / 键盘背光 | inpoutx64 (MIT) EC 直写 | ✅ 无外部依赖 |
 | ~~ryzenadj -> WinRing0x64.dll -> WinRing0.sys~~ | 已淘汰 | ❌ SmuController 替代 |
 
 ## 5. 功能对比
