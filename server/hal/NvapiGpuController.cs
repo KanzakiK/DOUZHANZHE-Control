@@ -4,6 +4,7 @@
 // 函数 ID 来自 NVFC (github.com/graphitemaster/NVFC)
 
 using System;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -164,18 +165,32 @@ public sealed class NvapiGpuController : IDisposable
     [UnmanagedFunctionPointer(CallingConvention.Winapi)] private unsafe delegate int NvApiThrSt(IntPtr g, NV_GPU_THERMAL_STATUS* s);
     [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate IntPtr NvApiQI(uint id);
 
+    // KaronOC.dll 委托 (蛟龙控制台超频引擎)
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] private delegate int KaronChangePStates(int coreOffsetMhz, int memOffsetMhz);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] private delegate int KaronGetPStates(IntPtr gpuHandle, IntPtr outputBuf);
+
     private NvApiQI? _qi;
     private NvApiVoid? _init; private NvApiEnumGPUs? _enum; private NvApiName? _name;
     private NvApiPStates? _getPs, _setPs; private NvApiClkFreq? _clk;
     private NvApiPwrInfo? _pwrI; private NvApiPwrSt? _pwrG, _pwrS;
     private NvApiThrInfo? _thrI; private NvApiThrSt? _thrG, _thrS;
+    private KaronChangePStates? _karonSet; private KaronGetPStates? _karonGet;
+    private IntPtr _karonMod;
 
     private IntPtr _gpu; private bool _ok;
     public bool IsAvailable => _ok;
     public string GpuName { get; private set; } = "";
     public bool OverclockSupported { get; private set; }
+    public string OcEngine { get; private set; } = "none"; // "karonoc" | "nvapi" | "none"
 
     private const int OK = 0, ERR = -1, NOT_SUPPORTED = -104;
+
+    // KaronOC.dll 搜索路径
+    private static readonly string[] KaronOCPaths = [
+        @"D:\Program Files\JiaoLong7.3\KaronOC.dll",
+        @"C:\Program Files\JiaoLong7.3\KaronOC.dll",
+        Path.Combine(AppContext.BaseDirectory, "KaronOC.dll"),
+    ];
 
     public bool Init()
     {
@@ -213,20 +228,57 @@ public sealed class NvapiGpuController : IDisposable
             var nb = new byte[64]; _name(_gpu, nb);
             GpuName = Encoding.ASCII.GetString(nb).TrimEnd('\0');
 
-            // 测试 SetPStates20 是否可用 (用 0 偏移)
-            OverclockSupported = TestOverclock();
+            // 1) 优先尝试 KaronOC.dll (蛟龙超频引擎, 绕过 NVAPI 限制)
+            if (TryLoadKaronOC())
+            {
+                OverclockSupported = TestKaronOCOverclock();
+                OcEngine = OverclockSupported ? "karonoc" : "none";
+            }
+
+            // 2) 回退: 直接 NVAPI SetPStates20
+            if (!OverclockSupported)
+            {
+                OverclockSupported = TestNvapiOverclock();
+                OcEngine = OverclockSupported ? "nvapi" : "none";
+            }
 
             _ok = true;
-            Console.WriteLine($"[NVAPI] OK: {GpuName} | OC={OverclockSupported}");
+            Console.WriteLine($"[NVAPI] OK: {GpuName} | OC={OverclockSupported} engine={OcEngine}");
             return true;
         }
         catch (Exception ex) { Console.WriteLine($"[NVAPI] {ex.Message}"); return false; }
     }
 
-    private unsafe bool TestOverclock()
+    private bool TryLoadKaronOC()
+    {
+        foreach (var path in KaronOCPaths)
+        {
+            if (!File.Exists(path)) continue;
+            try
+            {
+                _karonMod = NativeLibrary.Load(path);
+                var pSet = NativeLibrary.GetExport(_karonMod, "ChangePstatesLevel0Settings");
+                var pGet = NativeLibrary.GetExport(_karonMod, "GetPstatesLevel0Settings");
+                _karonSet = Marshal.GetDelegateForFunctionPointer<KaronChangePStates>(pSet);
+                _karonGet = Marshal.GetDelegateForFunctionPointer<KaronGetPStates>(pGet);
+                Console.WriteLine($"[KaronOC] Loaded: {path}");
+                return true;
+            }
+            catch (Exception ex) { Console.WriteLine($"[KaronOC] Load failed ({path}): {ex.Message}"); }
+        }
+        return false;
+    }
+
+    private bool TestKaronOCOverclock()
+    {
+        if (_karonSet == null) return false;
+        try { return _karonSet(0, 0) == OK; }
+        catch { return false; }
+    }
+
+    private unsafe bool TestNvapiOverclock()
     {
         var ps = new NV_GPU_PSTATES20 { version = NV_GPU_PSTATES20.MakeVersion() };
-        // 先读再写 0 偏移测试
         if (_getPs!(_gpu, &ps) != OK) return false;
         return _setPs!(_gpu, &ps) == OK;
     }
@@ -257,10 +309,21 @@ public sealed class NvapiGpuController : IDisposable
         return (core, mem, true);
     }
 
-    /// <summary>设置 P0 偏移 (MHz → kHz)</summary>
-    public unsafe int SetP0Offset(int coreMhz, int memMhz)
+    /// <summary>设置 P0 偏移 (MHz) — 优先使用 KaronOC, 回退 NVAPI</summary>
+    public int SetP0Offset(int coreMhz, int memMhz)
     {
         if (!_ok || !OverclockSupported) return NOT_SUPPORTED;
+
+        // KaronOC 引擎 (蛟龙超频)
+        if (_karonSet != null && OcEngine == "karonoc")
+            return _karonSet(coreMhz, memMhz);
+
+        // NVAPI 直接引擎 (回退)
+        return SetP0OffsetNvapi(coreMhz, memMhz);
+    }
+
+    private unsafe int SetP0OffsetNvapi(int coreMhz, int memMhz)
+    {
         var ps = new NV_GPU_PSTATES20 { version = NV_GPU_PSTATES20.MakeVersion() };
         if (_getPs!(_gpu, &ps) != OK) return ERR;
 
@@ -357,7 +420,7 @@ public sealed class NvapiGpuController : IDisposable
 
     public NvapiStatus GetStatus()
     {
-        var s = new NvapiStatus { Available = _ok, GpuName = GpuName, OverclockSupported = OverclockSupported };
+        var s = new NvapiStatus { Available = _ok, GpuName = GpuName, OverclockSupported = OverclockSupported, OcEngine = OcEngine };
         if (!_ok) return s;
 
         var clk = GetCurrentClocks();
@@ -406,13 +469,20 @@ public sealed class NvapiGpuController : IDisposable
         return sb.ToString();
     }
 
-    public void Dispose() { }
+    public void Dispose()
+    {
+        if (_karonMod != IntPtr.Zero)
+        {
+            NativeLibrary.Free(_karonMod);
+            _karonMod = IntPtr.Zero;
+        }
+    }
 }
 
 public struct NvapiStatus
 {
     public bool Available, OverclockSupported;
-    public string GpuName;
+    public string GpuName, OcEngine;
     public float CoreMhz, MemMhz;
     public int CoreOffsetMhz, MemOffsetMhz;
     public uint PowerLimitMw, PowerMinMw, PowerMaxMw, PowerDefaultMw;
