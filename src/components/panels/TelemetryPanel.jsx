@@ -50,7 +50,7 @@ export default function TelemetryPanel({ telemetry, setTelemetry, settings, setS
             <div className="space-y-1">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-sm">
-                  大风扇(CPU): <span className="font-bold">{telemetry.fanLargeRpm}</span> RPM / {telemetry.fanLargeMax}
+                  大风扇(CPU): <span className="font-bold">{telemetry.fanLargeRpm}</span> RPM
                 </p>
                 {telemetry.fanLargeRpm > 0 && (
                   <span
@@ -81,7 +81,7 @@ export default function TelemetryPanel({ telemetry, setTelemetry, settings, setS
             <div className="space-y-1">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-sm">
-                  小风扇(GPU): <span className="font-bold">{telemetry.fanSmallRpm}</span> RPM / {telemetry.fanSmallMax}
+                  小风扇(GPU): <span className="font-bold">{telemetry.fanSmallRpm}</span> RPM
                 </p>
                 {telemetry.fanSmallRpm > 0 && (
                   <span
