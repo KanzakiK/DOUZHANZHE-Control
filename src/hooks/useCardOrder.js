@@ -13,6 +13,7 @@ const DEFAULT_ORDER = [
   "fan-info",
   "current-strategy",
   "keyboard-light",
+  "gpu-mode",
   "about",
   "system-switches",
 ];
@@ -31,7 +32,13 @@ function loadOrder() {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // 合入 DEFAULT_ORDER 中有但已保存排序中缺失的新卡片（追加到末尾）
+        const existing = new Set(parsed);
+        const missing = DEFAULT_ORDER.filter((id) => !existing.has(id));
+        if (missing.length > 0) return [...parsed, ...missing];
+        return parsed;
+      }
     }
   } catch {}
   return DEFAULT_ORDER;
@@ -50,7 +57,9 @@ export function useCardOrder(onSyncResult) {
       .then((r) => r.json())
       .then((data) => {
         if (data && Array.isArray(data.cardOrder) && data.cardOrder.length > 0) {
-          setOrder(data.cardOrder);
+          const existing = new Set(data.cardOrder);
+          const missing = DEFAULT_ORDER.filter((id) => !existing.has(id));
+          setOrder(missing.length > 0 ? [...data.cardOrder, ...missing] : data.cardOrder);
           setHiddenCards(new Set(data.hiddenCards || []));
         }
       })

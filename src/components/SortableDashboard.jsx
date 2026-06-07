@@ -18,7 +18,7 @@ import Sparkline from "./ui/Sparkline";
 import SortableCard from "./ui/SortableCard";
 import PerformancePanel from "./panels/PerformancePanel";
 import SettingsPanel from "./panels/SettingsPanel";
-import { getFanRange } from "../services/uxtuAdapter";
+import { getFanRange, applyHardwareControl } from "../services/uxtuAdapter";
 import { useCardOrder } from "./../hooks/useCardOrder";
 import { useToast } from "./ui/Toast";
 
@@ -32,6 +32,7 @@ const CARD_MAP = {
   "system-switches": { label: "系统开关" },
   "keyboard-light": { label: "键盘灯亮度" },
   "current-strategy": { label: "当前策略" },
+  "gpu-mode": { label: "GPU 模式" },
   "about": { label: "关于" },
 };
 
@@ -160,6 +161,32 @@ export default function SortableDashboard({
         return <SettingsPanel settings={settings} setSettings={setSettings} uxtuPayload={uxtuPayload} showSwitches={false} showKeyboard={false} showSummary={true} showSmu={false} showAbout={false}/>;
       case "system-switches":
         return <SettingsPanel settings={settings} setSettings={setSettings} uxtuPayload={uxtuPayload} showSwitches={true} showKeyboard={false} showSummary={false} showSmu={false} showAbout={false}/>;
+      case "gpu-mode": {
+        const gpuModes = [
+          { id: 0, label: "混合模式" },
+          { id: 1, label: "集显模式" },
+          { id: 2, label: "独显模式" },
+        ];
+        const currentGpuMode = telemetry.gpuMode !== undefined ? parseInt(telemetry.gpuMode) : -1;
+        return (
+          <Card title="GPU 模式" className="!p-3">
+            <div className="grid grid-cols-3 gap-2">
+              {gpuModes.map((m) => (
+                <button key={m.id} onClick={() => {
+                  applyHardwareControl("gpu_mode", m.id).then(() => {
+                    toast?.("GPU 模式切换将在重启后生效，请重启电脑", "info");
+                  }).catch(() => {
+                    toast?.("GPU 模式设置失败", "error");
+                  });
+                }}
+                  className="text-xs md:text-sm rounded-lg px-2 py-3 transition-all"
+                  style={{ border: "1px solid var(--border)", background: currentGpuMode === m.id ? "var(--primary-2)" : "var(--card-2)", color: currentGpuMode === m.id ? "#ffffff" : "var(--text)", boxShadow: currentGpuMode === m.id ? "0 0 24px rgba(167, 139, 250, 0.35)" : "none" }}
+                >{m.label}</button>
+              ))}
+            </div>
+          </Card>
+        );
+      }
       case "about":
         return <SettingsPanel settings={settings} setSettings={setSettings} uxtuPayload={uxtuPayload} showSwitches={false} showKeyboard={false} showSummary={false} showSmu={false} showAbout={true}/>;
       default:

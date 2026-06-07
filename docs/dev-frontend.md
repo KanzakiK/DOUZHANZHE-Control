@@ -122,6 +122,21 @@ PerformancePanel → update() → setUxtuParams()
 - 模式切换时滑块跟随预设值跳转
 - "恢复预设"按钮在模式选择 Card 右上角，恢复当前模式的完整出厂值
 
+### 4a. GPU 模式切换卡片
+
+```
+SortableDashboard "gpu-mode" case
+  → 3 个按钮：混合模式(0) / 集显模式(1) / 独显模式(2)
+  → 选中高亮：当前 gpuMode 遥测值匹配的按钮
+  → onClick → applyHardwareControl("gpu_mode", id)
+  → Toast "GPU 模式切换将在重启后生效，请重启电脑"
+```
+
+- 遥测 `telemetry.gpuMode` 由 `/api/telemetry` 端点返回（WMI MiInterface Method 9 Get）
+- 后端 POST `/api/control { target: "gpu_mode", value: 0|1|2 }` 调用 `wmi.SetGpuMode()`
+- 切换后需重启电脑才能生效（WMI 硬件限制）
+- 卡片在 `useCardOrder.js` 的 `DEFAULT_ORDER` 中注册为 `"gpu-mode"`，服务端排序自动合并缺失卡片
+
 ### 3. 硬件控制
 
 ```
