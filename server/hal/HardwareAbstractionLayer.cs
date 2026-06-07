@@ -675,7 +675,9 @@ public sealed class HardwareAbstractionLayer : IDisposable
             var parts = p.StandardOutput.ReadToEnd().Trim().Split(',');
             if (parts.Length >= 4)
             {
-                byte.TryParse(parts[0].Trim(), out _sgGpuUsage);
+                // GPU 占用：防归零—已有非零值时不接受 0（nvidia-smi 偶发返回 N/A 或 0）
+                if (byte.TryParse(parts[0].Trim(), out var parsedUsage) && (parsedUsage > 0 || _sgGpuUsage == 0))
+                    _sgGpuUsage = parsedUsage;
                 if (float.TryParse(parts[1].Trim(), out var f)) _sgGpuFreq = f / 1000f;
                 if (float.TryParse(parts[2].Trim(), out var t)) _sgGpuVram = (uint)Math.Round(t / 1024.0);
                 if (float.TryParse(parts[3].Trim(), out var u)) _sgGpuVramUsed = (float)(u / 1024.0);
