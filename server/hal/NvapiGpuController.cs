@@ -315,30 +315,46 @@ public sealed class NvapiGpuController : IDisposable
     public unsafe string DumpPStates()
     {
         if (!_initialized) return "NVAPI not init";
-        var ps = new NV_GPU_PSTATES20_V2 { version = NV_GPU_PSTATES20_V2.MakeVersion() };
-        int rc = _getPStates20!(_gpuHandle, &ps);
-        if (rc != NVAPI_OK) return $"GetPStates20 rc={rc}";
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine($"version=0x{ps.version:X8} sizeof={sizeof(NV_GPU_PSTATES20_V2)} flags={ps.flags}");
-        sb.AppendLine($"state_count={ps.state_count} clock_count={ps.clock_count} voltage_count={ps.voltage_count}");
-        for (int i = 0; i < ps.state_count && i < 4; i++)
+
+        // 尝试多个版本
+        uint[] versions = {
+            (2u << 16) | (uint)sizeof(NV_GPU_PSTATES20_V2),  // V2
+            (3u << 16) | (uint)sizeof(NV_GPU_PSTATES20_V2),  // V3
+            (1u << 16) | (uint)sizeof(NV_GPU_PSTATES20_V2),  // V1
+        };
+
+        foreach (var ver in versions)
         {
-            var sp = NV_GPU_PSTATES20_V2.StatePtr(&ps, i);
-            sb.Append($"  P{NV_GPU_PSTATES20_V2.StateNum(sp)}: flags={*(uint*)(sp+4)}");
-            for (int j = 0; j < ps.clock_count && j < 8; j++)
+            var ps = new NV_GPU_PSTATES20_V2();
+            // 手动写 version 字段（在 offset 0）
+            byte* psPtr = (byte*)&ps;
+            *(uint*)psPtr = ver;
+            int rc = _getPStates20!(_gpuHandle, &ps);
+            sb.AppendLine($"ver=0x{ver:X8} sizeof={sizeof(NV_GPU_PSTATES20_V2)} => rc={rc}");
+            if (rc == NVAPI_OK)
             {
-                var cp = NV_GPU_PSTATES20_V2.ClockPtr(sp, j);
-                var dom = NV_GPU_PSTATES20_V2.ClockDomain(cp);
-                var typ = *(uint*)(cp + 4);
-                var flg = *(uint*)(cp + 8);
-                var dval = *(int*)(cp + 12);
-                var dmin = *(int*)(cp + 16);
-                var dmax = *(int*)(cp + 20);
-                var minS = *(uint*)(cp + 24);
-                var maxF = *(uint*)(cp + 28);
-                sb.Append($"\n    clk[{j}]: dom={dom} type={typ} flags=0x{flg:X} delta={dval}/{dmin}/{dmax} minS={minS} maxF={maxF}");
+                sb.AppendLine($"  state_count={ps.state_count} clock_count={ps.clock_count} voltage_count={ps.voltage_count}");
+                for (int i = 0; i < ps.state_count && i < 4; i++)
+                {
+                    var sp = NV_GPU_PSTATES20_V2.StatePtr(&ps, i);
+                    sb.Append($"  P{NV_GPU_PSTATES20_V2.StateNum(sp)}: flags={*(uint*)(sp+4)}");
+                    for (int j = 0; j < ps.clock_count && j < 8; j++)
+                    {
+                        var cp = NV_GPU_PSTATES20_V2.ClockPtr(sp, j);
+                        var dom = NV_GPU_PSTATES20_V2.ClockDomain(cp);
+                        var typ = *(uint*)(cp + 4);
+                        var dval = *(int*)(cp + 12);
+                        var dmin = *(int*)(cp + 16);
+                        var dmax = *(int*)(cp + 20);
+                        var minS = *(uint*)(cp + 24);
+                        var maxF = *(uint*)(cp + 28);
+                        sb.Append($"\n    clk[{j}]: dom={dom} type={typ} delta={dval}/{dmin}/{dmax} minS={minS} maxF={maxF}");
+                    }
+                    sb.AppendLine();
+                }
+                break; // success, stop trying
             }
-            sb.AppendLine();
         }
         return sb.ToString();
     }
