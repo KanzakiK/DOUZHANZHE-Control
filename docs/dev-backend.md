@@ -27,9 +27,10 @@
 
 ```
 server/api/Program.cs                     # WebConsoleAPI — HTTP 端点
-  ↓ 依赖注入
+  ↓ 依赖注入                    ↓ 依赖注入
 server/hal/HardwareAbstractionLayer.cs    # 硬件映射层 — 语义化属性
-  ↓
+server/api/WmiInterface.cs                # WMI ACPI MICommonInterface 直调
+  ↓                                        ↓
 server/hal/DriverBridge.cs                # 驱动桥接层 — inpoutx64 P/Invoke
   ↓
 inpoutx64.sys + inpoutx64.dll             # 内核驱动 (MIT)
@@ -149,8 +150,8 @@ EC 寄存器地址映射为语义化 C# 属性。
 |------|------|------|
 | 独显直连 (dGpuDirect) | LLT (LENOVO_OTHER_METHOD) | ❌ 废弃 |
 | 强冷模式 (fanBoost) | LLT (LENOVO_FAN_METHOD) | ❌ 废弃 |
-| Fn 锁 (fnLock) | LLT (LENOVO_OTHER_METHOD) | ✅ C# HAL EC 直写可用 |
-| 触摸板锁 (touchpadLock) | LLT (LENOVO_OTHER_METHOD) | ❌ 废弃 |
+| Fn 锁 (fnLock) | LLT (LENOVO_OTHER_METHOD) | ✅ C# HAL EC 直写可用，已迁移至 WMI Method 11 |
+| 触摸板锁 (touchpadLock) | LLT (LENOVO_OTHER_METHOD) | ✅ WMI Method 12 直调（替代 PowerShell PnP） |
 | 风扇全速 | LLT (LENOVO_FAN_METHOD) | ❌ 废弃 |
 | WMI 类探测 | LLT (6 个 LENOVO_* 类) | ❌ 废弃 |
 | 键盘背光 (kbBrightnessLevel) | ec_kb_map.exe | ✅ 保留 |
@@ -161,14 +162,23 @@ EC 寄存器地址映射为语义化 C# 属性。
 
 > 2026-06-04 通过扫描 `ROOT/WMI` 命名空间确认。
 
-**结论：宝龙达 OEM 模具不通过 WMI 暴露任何硬件控制接口。**
+`ROOT/WMI` 命名空间中存在 `MICommonInterface`（实例 `ACPI\PNP0C14\MIFS_0`），可通过 `MiInterface` 方法调用 ACPI WMI 命令。参考斗战者控制台.dll 反编译和 BellatorFanControl 源码，已验证可用的方法：
 
-- `LENOVO_*` 命名空间 (Legion 专用): 全部不存在
-- `ASUS*` / `Clevo*` / `MSI*` / `GIGABYTE*` 等其他 OEM 类: 全部不存在
-- `AMD_ACPI` — 存在，但仅有只读方法 (`QueryVersion`, `Init`, `GetObjectID`)
-- 电池类 (`BatteryCycleCount`, `BatteryStatus` 等) — 存在，但为只读事件类
+| 方法 | 编号 | 已验证 |
+|:-----|:----:|:------:|
+| SystemPerMode | 8 | ✅ |
+| GPUMode | 9 | ✅ |
+| FnLock | 11 | ✅ |
+| TPLock | 12 | ✅ |
+| CPUGPUSYSFanSpeed | 13 | ✅ 读取, Set空壳 |
+| MaxFanSpeedSwitch | 20 | ✅ Bellator协议 |
+| MaxFanSpeed | 21 | ✅ Bellator协议 |
+| CPUThermometer | 22 | ✅ |
+| CPUPower | 23 | ✅ |
 
-**所有硬件控制必须走 EC 物理内存直写路线** (`DriverBridge` `ReadPhys`/`WritePhys` 或 `ReadEc`/`WriteEc`)，已验证通过的寄存器映射见 [C# HAL 层](#2-hardwareabstractionlayer-serverhalhardwareabstractionlayercs)。
+详见 `WmiInterface.cs` 封装。项目**不依赖**斗战者控制台.dll，直调 WMI MiInterface。
+
+**Legion 专用类 (`LENOVO_*` 命名空间) 在本机（宝龙达模具）全部不可用。**
 
 **标准 Win32 WMI 读取可用：**
 

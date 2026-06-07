@@ -22,7 +22,7 @@
 |------|----------|------|------|------|------|----------|
 | 0x10 | FE800410 | EVMR/EVMN | 8+8 | 只读 | 事件 | ❌ |
 | 0x18-1F | FE800418 | TSR1-7 | 8×7 | 只读 | 温度传感器 | ❌ |
-| 0x20 | FE800420 | LSTE(bit0)/FNHK(bit3)/CRHK(bit5)/OCFL(bit6) | bits | 读写 | Fn 锁/快捷键 | ✅ WriteBit (SetPhysLong) |
+| 0x20 | FE800420 | LSTE(bit0)/FNHK(bit3)/CRHK(bit5)/OCFL(bit6) | bits | 读写 | Fn 锁/快捷键 | ✅ 已迁移至 WMI MiInterface Method 11 (SetFnLock) |
 | 0x22 | FE800422 | LCPU/GSTS | 8+8 | 只读 | CPU状态 | ❌ |
 | 0x25 | FE800425 | TOCP/CALK/NULK/FNRC/ALTQ | bits | 只读 | 大写/数字/Fn**状态指示**（键盘控制器单向通知，写入需 SendKeys） | ✅ 已通过 Win32 keybd_event (SendKeys) 实现，CapsLock/NumLock 切换 + OSD 正常 |
 | 0x28 | FE800428 | SMPR | 8 | 读写 | SMU 命令 | ❌ |

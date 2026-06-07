@@ -7,7 +7,7 @@
 > - 同步更新主记忆 §2 对应字段（Last synced / Infrastructure / 近期工作）
 > 核心原则：
 > 1. 所有驱动依赖仅 `inpoutx64` (MIT 自管)，不依赖任何外部控制台的 `.sys`。
-> 2. `斗战者控制台.dll` 部署时自动复制（仅 GPUMode 切换必需），不要求用户完整安装。
+> 2. GPUMode 通过 `WmiInterface.cs` 直调 WMI MiInterface Method 9，**无需斗战者控制台.dll**。
 > 3. WinRing0 依赖链 (`ryzenadj.exe` -> `WinRing0x64.dll` -> `WinRing0_1_2_0.sys`) 已被 SmuController 全面替代，已淘汰。
 
 ---
@@ -25,8 +25,8 @@
 | **键盘背光调节** | ✅ | ✅ | ✅ 必含 |
 | **存储信息**（内存/硬盘占用率+总量） | ✅ | ✅ | ✅ 必含 |
 | **4 种性能模式**（斗战/野兽/均衡/安静） | ✅ | ✅ Debug 页已实现 | ✅ 必含 |
-| **独显直连** | ✅ | ✅ AppBridge GPUMode 2 已验证 | ✅ 必含 |
-| **集显模式** | ✅ | ✅ AppBridge GPUMode 1 已验证 | ✅ 必含 |
+| **独显直连** | ✅ | ✅ WmiInterface Method 9 GPUMode 2 已验证 | ✅ 必含 |
+| **集显模式** | ✅ | ✅ WmiInterface Method 9 GPUMode 1 已验证 | ✅ 必含 |
 | **Fn 锁** | ✅ | ✅ | ✅ 必含 |
 | **NumLock / CapsLock** | ✅ | ✅ | ✅ 必含 |
 | **触摸板锁** | ✅ | ✅ | ✅ 必含 |
@@ -35,7 +35,7 @@
 | **屏幕校色入口** | ✅ | ✅ WMI Bellator 不适用（依赖硬件） | ✅ WMI Bellator 放弃 |
 | **SMU 功耗墙/温度墙** | ✅ WMI Bellator 官方没有 | ✅ SmuController 已验证 | ➕ 独有特色 |
 | **电源计划切换**（平衡/高性能/节能） | ✅ WMI Bellator 官方没有 | ✅ powrprof.dll | ➕ 独有特色 |
-| **GPU 模式切换**（混合/集显/独显） | ✅ WMI Bellator 官方无显式切换 | ✅ AppBridge 已验证 | ➕ 独有特色 |
+| **GPU 模式切换**（混合/集显/独显） | ✅ WMI Bellator 官方无显式切换 | ✅ WmiInterface Method 9 已验证 | ➕ 独有特色 |
 
 ---
 
