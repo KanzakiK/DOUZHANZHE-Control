@@ -114,12 +114,13 @@ export default function SortableDashboard({
           </div>
         );
       case "fan-info":
+        const fanRange = getFanRange(settings?.mode || "silent");
         return (
           <Card title="风扇信息">
             <div className="space-y-3">
               <div className="space-y-1">
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm">大风扇(CPU): <span className="font-bold">{telemetry.fanLargeRpm}</span> RPM / {telemetry.fanLargeMax}</p>
+                  <p className="text-sm">大风扇(CPU): <span className="font-bold">{telemetry.fanLargeRpm}</span> RPM</p>
                   {telemetry.fanLargeRpm > 0 && (
                     <span className="inline-flex items-center justify-center w-6 h-6"
                       style={{ animation: `spin ${Math.max(0.5, 3 - telemetry.fanLargeRpm / Math.max(1, telemetry.fanLargeMax) * 2.5)}s linear infinite` }}
@@ -127,13 +128,13 @@ export default function SortableDashboard({
                   )}
                 </div>
                 <SliderRow label="大风扇目标转速" value={fanLargeRpmTarget}
-                  min={0} max={telemetry.fanLargeMax} step={100} unit="RPM"
+                  min={fanRange.largeMin} max={fanRange.largeMax} step={100} unit="RPM"
                   onChange={(v) => setFanLargeRpmTarget(v)}/>
                 <Gauge label="大风扇负载" value={Math.round((telemetry.fanLargeRpm / Math.max(1, telemetry.fanLargeMax)) * 100)}/>
               </div>
               <div className="space-y-1">
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm">小风扇(GPU): <span className="font-bold">{telemetry.fanSmallRpm}</span> RPM / {telemetry.fanSmallMax}</p>
+                  <p className="text-sm">小风扇(GPU): <span className="font-bold">{telemetry.fanSmallRpm}</span> RPM</p>
                   {telemetry.fanSmallRpm > 0 && (
                     <span className="inline-flex items-center justify-center w-6 h-6"
                       style={{ animation: `spin ${Math.max(0.5, 3 - telemetry.fanSmallRpm / Math.max(1, telemetry.fanSmallMax) * 2.5)}s linear infinite` }}
@@ -141,7 +142,7 @@ export default function SortableDashboard({
                   )}
                 </div>
                 <SliderRow label="小风扇目标转速" value={fanSmallRpmTarget}
-                  min={0} max={telemetry.fanSmallMax} step={100} unit="RPM"
+                  min={fanRange.smallMin} max={fanRange.smallMax} step={100} unit="RPM"
                   onChange={(v) => setFanSmallRpmTarget(v)}/>
                 <Gauge label="小风扇负载" value={Math.round((telemetry.fanSmallRpm / Math.max(1, telemetry.fanSmallMax)) * 100)}/>
               </div>

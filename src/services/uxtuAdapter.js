@@ -96,12 +96,13 @@ export async function fetchGpuStatus() {
 
 
 // 散热模式风扇区间（硬件限制：大扇 0-4400, 小扇 0-8200，受散热模式约束）
+// 数值来源：docs/reference-consoles.md 官方预设表（大扇下限/上限/预设，小扇下限/上限/预设）
 const FAN_RANGES = {
-  silent: { largeMin: 1900, largeMax: 2200, smallMin: 1900, smallMax: 2000 },
-  office: { largeMin: 2600, largeMax: 2900, smallMin: 2800, smallMax: 6400 },
-  gaming: { largeMin: 4000, largeMax: 4400, smallMin: 4200, smallMax: 8000 },
-  beast:  { largeMin: 3200, largeMax: 3500, smallMin: 3800, smallMax: 6900 },
-  custom: { largeMin: 2600, largeMax: 2900, smallMin: 2800, smallMax: 6400 },
+  silent: { largeMin: 1900, largeMax: 2900, smallMin: 1700, smallMax: 6400 },
+  office: { largeMin: 2600, largeMax: 3500, smallMin: 5900, smallMax: 6900 },
+  gaming: { largeMin: 4000, largeMax: 4400, smallMin: 7500, smallMax: 8200 },
+  beast:  { largeMin: 3200, largeMax: 3800, smallMin: 6400, smallMax: 7200 },
+  custom: { largeMin: 2600, largeMax: 3500, smallMin: 5900, smallMax: 6900 },
 };
 
 // 完整模式预设：CPU + GPU 功耗 + 风扇 (11 字段)
