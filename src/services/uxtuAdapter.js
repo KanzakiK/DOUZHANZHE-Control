@@ -95,13 +95,13 @@ export async function fetchGpuStatus() {
 }
 
 
-// 完整模式预设：CPU + GPU + 风扇 (13 字段)
+// 完整模式预设：CPU + GPU 功耗 + 风扇 (11 字段)
 export const MODE_PRESETS = {
-  silent: { cpuTempLimitC: 75, cpuLongPptW: 35, cpuShortPptW: 45, cpuVoltageOffset: 0, cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 3000, cpuTurboDisabled: false, gpuPptLimitW: 60, gpuTempLimitC: 75, gpuCoreFreqMhz: 2700, gpuMemFreqMhz: 1, gpuFreqLimitEnabled: false, gpuFreqLimitMhz: 1800, gpuFreqLocked: false, fanLargeRpmTarget: 1320, fanSmallRpmTarget: 2460 },
-  office: { cpuTempLimitC: 80, cpuLongPptW: 55, cpuShortPptW: 70, cpuVoltageOffset: 0, cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 4500, cpuTurboDisabled: false, gpuPptLimitW: 75, gpuTempLimitC: 85, gpuCoreFreqMhz: 2700, gpuMemFreqMhz: 1, gpuFreqLimitEnabled: false, gpuFreqLimitMhz: 2200, gpuFreqLocked: false, fanLargeRpmTarget: 2200, fanSmallRpmTarget: 4100 },
-  gaming: { cpuTempLimitC: 95, cpuLongPptW: 120, cpuShortPptW: 140, cpuVoltageOffset: 0, cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 5500, cpuTurboDisabled: false, gpuPptLimitW: 115, gpuTempLimitC: 95, gpuCoreFreqMhz: 2700, gpuMemFreqMhz: 1, gpuFreqLimitEnabled: false, gpuFreqLimitMhz: 3000, gpuFreqLocked: false, fanLargeRpmTarget: 4400, fanSmallRpmTarget: 8200 },
-  beast:  { cpuTempLimitC: 88, cpuLongPptW: 85, cpuShortPptW: 100, cpuVoltageOffset: 0, cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 5000, cpuTurboDisabled: false, gpuPptLimitW: 100, gpuTempLimitC: 90, gpuCoreFreqMhz: 2700, gpuMemFreqMhz: 1, gpuFreqLimitEnabled: false, gpuFreqLimitMhz: 2600, gpuFreqLocked: false, fanLargeRpmTarget: 3300, fanSmallRpmTarget: 6150 },
-  custom: { cpuTempLimitC: 90, cpuLongPptW: 65, cpuShortPptW: 85, cpuVoltageOffset: 0, cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 4500, cpuTurboDisabled: false, gpuPptLimitW: 115, gpuTempLimitC: 87, gpuCoreFreqMhz: 2700, gpuMemFreqMhz: 1, gpuFreqLimitEnabled: false, gpuFreqLimitMhz: 2600, gpuFreqLocked: false, fanLargeRpmTarget: 2200, fanSmallRpmTarget: 4100 },
+  silent: { cpuTempLimitC: 75, cpuLongPptW: 35, cpuShortPptW: 45, cpuVoltageOffset: 0, cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 3000, cpuTurboDisabled: false, gpuPptLimitW: 60, gpuTempLimitC: 75, fanLargeRpmTarget: 2200, fanSmallRpmTarget: 2000 },
+  office: { cpuTempLimitC: 80, cpuLongPptW: 55, cpuShortPptW: 70, cpuVoltageOffset: 0, cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 4500, cpuTurboDisabled: false, gpuPptLimitW: 75, gpuTempLimitC: 85, fanLargeRpmTarget: 2900, fanSmallRpmTarget: 6400 },
+  gaming: { cpuTempLimitC: 95, cpuLongPptW: 120, cpuShortPptW: 140, cpuVoltageOffset: 0, cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 5500, cpuTurboDisabled: false, gpuPptLimitW: 115, gpuTempLimitC: 95, fanLargeRpmTarget: 4300, fanSmallRpmTarget: 8000 },
+  beast:  { cpuTempLimitC: 88, cpuLongPptW: 85, cpuShortPptW: 100, cpuVoltageOffset: 0, cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 5000, cpuTurboDisabled: false, gpuPptLimitW: 100, gpuTempLimitC: 90, fanLargeRpmTarget: 3500, fanSmallRpmTarget: 6900 },
+  custom: { cpuTempLimitC: 80, cpuLongPptW: 55, cpuShortPptW: 70, cpuVoltageOffset: 0, cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 4500, cpuTurboDisabled: false, gpuPptLimitW: 75, gpuTempLimitC: 85, fanLargeRpmTarget: 2900, fanSmallRpmTarget: 6400 },
 };
 
 export async function applySmuSet(parameter, valueM) {

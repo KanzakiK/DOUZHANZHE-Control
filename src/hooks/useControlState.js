@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { mockTelemetry } from "../data/mockTelemetry";
-import { createTelemetrySocket } from "../services/uxtuAdapter";
+import { createTelemetrySocket, MODE_PRESETS } from "../services/uxtuAdapter";
 
 const LS_THEME = "douzhanzhe_theme";
 const LS_SETTINGS = "douzhanzhe_settings";
@@ -21,79 +21,7 @@ function saveToLS(key, value) {
   } catch { /* quota exceeded etc */ }
 }
 
-// 性能模式预设值映射
-const MODE_PRESETS = {
-  silent: {
-    cpuTempLimitC: 75,
-    cpuLongPptW: 35,
-    cpuShortPptW: 45,
-    gpuPptLimitW: 60,
-    gpuTempLimitC: 75,
-    gpuCoreFreqMhz: 2700,
-    gpuMemFreqMhz: 1,
-    gpuFreqLimitEnabled: false,
-    gpuFreqLimitMhz: 1800,
-    gpuFreqLocked: false,
-    fanLargeRpmTarget: 1320,
-    fanSmallRpmTarget: 2460,
-  },
-  office: {
-    cpuTempLimitC: 80,
-    cpuLongPptW: 55,
-    cpuShortPptW: 70,
-    gpuPptLimitW: 75,
-    gpuTempLimitC: 85,
-    gpuCoreFreqMhz: 2700,
-    gpuMemFreqMhz: 1,
-    gpuFreqLimitEnabled: false,
-    gpuFreqLimitMhz: 2200,
-    gpuFreqLocked: false,
-    fanLargeRpmTarget: 2200,
-    fanSmallRpmTarget: 4100,
-  },
-  gaming: {
-    cpuTempLimitC: 95,
-    cpuLongPptW: 120,
-    cpuShortPptW: 140,
-    gpuPptLimitW: 115,
-    gpuTempLimitC: 95,
-    gpuCoreFreqMhz: 2700,
-    gpuMemFreqMhz: 1,
-    gpuFreqLimitEnabled: false,
-    gpuFreqLimitMhz: 3000,
-    gpuFreqLocked: false,
-    fanLargeRpmTarget: 4400,
-    fanSmallRpmTarget: 8200,
-  },
-  beast: {
-    cpuTempLimitC: 88,
-    cpuLongPptW: 85,
-    cpuShortPptW: 100,
-    gpuPptLimitW: 100,
-    gpuTempLimitC: 90,
-    gpuCoreFreqMhz: 2700,
-    gpuMemFreqMhz: 1,
-    gpuFreqLimitEnabled: false,
-    gpuFreqLimitMhz: 2600,
-    gpuFreqLocked: false,
-    fanLargeRpmTarget: 3300,
-    fanSmallRpmTarget: 6150,
-  },
-  custom: {
-    cpuTempLimitC: 90,
-    cpuLongPptW: 65,
-    cpuShortPptW: 85,
-    gpuPptLimitW: 115,
-    gpuTempLimitC: 87,
-    gpuCoreFreqMhz: 2700,
-    gpuMemFreqMhz: 1,
-    gpuFreqLimitEnabled: false,
-    gpuFreqLimitMhz: 2600,
-    gpuFreqLocked: false,
-    fanLargeRpmTarget: 2200,
-    fanSmallRpmTarget: 4100,
-  },
-};
+
 
 export function useControlState(onSaveResult) {
   const onSaveRef = useRef(onSaveResult);

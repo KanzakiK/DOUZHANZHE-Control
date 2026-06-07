@@ -8,7 +8,7 @@ import Gauge from "./components/ui/Gauge";
 import SortableDashboard from "./components/SortableDashboard";
 import { ToastProvider, useToast } from "./components/ui/Toast";
 import { useControlState } from "./hooks/useControlState";
-import { MODE_PRESETS, applyUxtuLimits, applyHardwareControl, thermalModeMap } from "./services/uxtuAdapter";
+import { MODE_PRESETS, applyUxtuLimits, applyHardwareControl, applyGpuControl, thermalModeMap } from "./services/uxtuAdapter";
 import { useCallback, useState, useEffect, useRef } from "react";
 
 const NAV_ITEMS = ["主页", "系统", "设置"];
@@ -91,6 +91,10 @@ export default function App() {
               setUxtuParams(merged);
               setFanLargeRpmTarget(preset.fanLargeRpmTarget ?? 2200);
               setFanSmallRpmTarget(preset.fanSmallRpmTarget ?? 4100);
+              // 重置 GPU 频率到驱动默认值（预设表不含 GPU 频率）
+              applyGpuControl("reset-clocks").catch(() => {});
+              applyGpuControl("reset-memory-clocks").catch(() => {});
+              setUxtuParams(prev => ({ ...prev, gpuFreqLimitEnabled: false, gpuFreqLocked: false }));
               applyUxtuLimits({ chipset: uxtuPayload.chipset, profile: uxtuPayload.profile, params: merged }).then(r => {
                 toast?.(r.message || "已恢复预设值", "success");
               }).catch(err => {
