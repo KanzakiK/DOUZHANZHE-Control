@@ -582,6 +582,41 @@ app.MapPost("/api/default-config", (HttpContext ctx) =>
     }
     catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }); }
 });
+
+// ---- Auto-start options (minimized preference) ----
+var autoStartOptsPath = Path.Combine(AppContext.BaseDirectory, "config", "auto-start-opts.json");
+Directory.CreateDirectory(Path.GetDirectoryName(autoStartOptsPath)!);
+
+app.MapGet("/api/auto-start-opts", () =>
+{
+    try
+    {
+        if (File.Exists(autoStartOptsPath))
+        {
+            var json = File.ReadAllText(autoStartOptsPath);
+            var opts = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json);
+            var minimized = opts != null && opts.TryGetValue("minimized", out var v) && v.ValueKind == JsonValueKind.True && v.GetBoolean();
+            return Results.Json(new { minimized });
+        }
+        return Results.Json(new { minimized = false });
+    }
+    catch { return Results.Json(new { minimized = false }); }
+});
+app.MapPost("/api/auto-start-opts", (HttpContext ctx) =>
+{
+    try
+    {
+        using var reader = new StreamReader(ctx.Request.Body);
+        var body = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(reader.ReadToEndAsync().Result);
+        if (body == null || !body.TryGetValue("minimized", out var v) || v.ValueKind != JsonValueKind.True && v.ValueKind != JsonValueKind.False)
+            return Results.Json(new { ok = false, error = "需要 { minimized: bool }" });
+        var minimized = v.GetBoolean();
+        File.WriteAllText(autoStartOptsPath, JsonSerializer.Serialize(new { minimized }));
+        return Results.Json(new { ok = true, minimized });
+    }
+    catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }); }
+});
+
 // ---- Auto-start (Windows Task Scheduler) ----
 app.MapGet("/api/auto-start", () =>
 {
@@ -606,6 +641,30 @@ app.MapPost("/api/auto-start", (HttpContext ctx) =>
         using var ts = new TaskService();
         if (enabled)
         {
+            // 定位 Shell.exe：同目录下查找，或 dev 路径回退
+            var apiDir = Path.GetDirectoryName(Environment.ProcessPath) ?? ".";
+            var shellExe = new[] { "Douzhanzhe.Shell.exe" }
+                .Select(f => Path.Combine(apiDir, f))
+                .FirstOrDefault(File.Exists);
+            if (shellExe == null)
+            {
+                // 开发环境路径回退
+                shellExe = Path.GetFullPath(Path.Combine(apiDir, "..", "..", "..", "..", "shell", "Douzhanzhe.Shell", "bin", "Debug", "net8.0-windows", "Douzhanzhe.Shell.exe"));
+            }
+
+            // 读取最小化偏好
+            var minimized = false;
+            if (File.Exists(autoStartOptsPath))
+            {
+                try
+                {
+                    var json = File.ReadAllText(autoStartOptsPath);
+                    var opts = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json);
+                    minimized = opts != null && opts.TryGetValue("minimized", out var mv) && mv.ValueKind == JsonValueKind.True && mv.GetBoolean();
+                }
+                catch { }
+            }
+
             var td = ts.NewTask();
             td.RegistrationInfo.Description = "Douzhanzhe Console 开机自启";
             td.Principal.RunLevel = TaskRunLevel.Highest;
@@ -613,7 +672,7 @@ app.MapPost("/api/auto-start", (HttpContext ctx) =>
             td.Settings.StopIfGoingOnBatteries = false;
             td.Settings.DisallowStartOnRemoteAppSession = false;
             td.Triggers.Add(new LogonTrigger());
-            td.Actions.Add(Environment.ProcessPath ?? "");
+            td.Actions.Add(shellExe, minimized ? "--minimized" : "");
             ts.RootFolder.RegisterTaskDefinition("DouzhanzheControl", td);
         }
         else

@@ -8,12 +8,17 @@ import { useState, useEffect } from "react";
 export default function SettingsPanel({ settings, setSettings, uxtuPayload, showSwitches = true, showKeyboard = true, showSummary = true, showSmu = true, showAbout = true, showAutoStart = false }) {
   const toast = useToast();
   const [autoStart, setAutoStart] = useState(null);
+  const [autoStartMinimized, setAutoStartMinimized] = useState(false);
   useEffect(() => {
     if (!showAutoStart) return;
     fetch("/api/auto-start")
       .then(r => r.json())
       .then(d => setAutoStart(d.enabled))
       .catch(() => setAutoStart(false));
+    fetch("/api/auto-start-opts")
+      .then(r => r.json())
+      .then(d => setAutoStartMinimized(d.minimized === true))
+      .catch(() => {});
   }, [showAutoStart]);
   const toggleAutoStart = (v) => {
     fetch("/api/auto-start", {
@@ -24,6 +29,19 @@ export default function SettingsPanel({ settings, setSettings, uxtuPayload, show
       .then(r => r.json())
       .then(d => {
         if (d.ok) { setAutoStart(v); toast?.(v ? "开机自启已开启" : "开机自启已关闭", "success"); }
+        else toast?.(d.error || "设置失败", "error");
+      })
+      .catch(() => toast?.("请求失败", "error"));
+  };
+  const toggleAutoStartMinimized = (v) => {
+    fetch("/api/auto-start-opts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ minimized: v })
+    })
+      .then(r => r.json())
+      .then(d => {
+        if (d.ok) { setAutoStartMinimized(v); toast?.(v ? "开机自启最小化已开启" : "开机自启最小化已关闭", "success"); }
         else toast?.(d.error || "设置失败", "error");
       })
       .catch(() => toast?.("请求失败", "error"));
@@ -70,6 +88,7 @@ export default function SettingsPanel({ settings, setSettings, uxtuPayload, show
         <Card title="开机自启" className="!p-3">
           <div className="space-y-1">
             <SwitchRow label="开机自动启动" checked={autoStart === true} onChange={toggleAutoStart} />
+            <SwitchRow label="开机自启最小化" checked={autoStartMinimized} onChange={toggleAutoStartMinimized} />
           </div>
         </Card>
       )}

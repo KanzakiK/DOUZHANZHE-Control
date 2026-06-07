@@ -60,6 +60,14 @@ public partial class Form1 : Form
 
     private async void Form1_Load(object? sender, EventArgs e)
     {
+        // 检查 --minimized 参数：开机自启时隐藏到托盘不显示窗口
+        var args = Environment.GetCommandLineArgs();
+        if (args.Any(a => a.Equals("--minimized", StringComparison.OrdinalIgnoreCase)))
+        {
+            WindowState = FormWindowState.Minimized;
+            Hide();
+        }
+
         // 先初始化 WebView2
         await _webView.EnsureCoreWebView2Async();
 
