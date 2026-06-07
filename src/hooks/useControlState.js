@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { mockTelemetry } from "../data/mockTelemetry";
-import { createTelemetrySocket, MODE_PRESETS } from "../services/uxtuAdapter";
+import { createTelemetrySocket, MODE_PRESETS, applyUxtuLimits } from "../services/uxtuAdapter";
 
 const LS_THEME = "douzhanzhe_theme";
 const LS_SETTINGS = "douzhanzhe_settings";
@@ -226,6 +226,8 @@ export function useControlState(onSaveResult) {
       setUxtuParams((prev) => ({ ...prev, ...rest }));
       if (fl !== undefined) setFanLargeRpmTarget(fl);
       if (fs !== undefined) setFanSmallRpmTarget(fs);
+      // 模式切换时自动下发用户保存的自定义参数到 SMU
+      applyUxtuLimits({ chipset: "Ryzen 9 8940HX", profile: currentMode, params: rest }).catch(e => console.error("[SMU] 模式切换下发失败:", e));
     } else {
       const preset = MODE_PRESETS[currentMode];
       if (!preset) return;
@@ -244,6 +246,8 @@ export function useControlState(onSaveResult) {
       }));
       setFanLargeRpmTarget(preset.fanLargeRpmTarget);
       setFanSmallRpmTarget(preset.fanSmallRpmTarget);
+      // 模式切换时自动下发 MODE_PRESETS 预设到 SMU
+      applyUxtuLimits({ chipset: "Ryzen 9 8940HX", profile: currentMode, params: preset }).catch(e => console.error("[SMU] 模式切换预设下发失败:", e));
     }
   }, [settings.mode]);
 

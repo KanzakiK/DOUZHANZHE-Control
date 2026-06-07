@@ -79,7 +79,10 @@ PerformancePanel → update() → setUxtuParams()
 ```
 
 - 滑块微调 **单参数下发**：`queueSmu(parameter, valueM)` 600ms 去抖 → `POST /api/smu/set`
-- 模式切换 **全量下发**：`applyUxtuLimits()` → `POST /api/uxtu/apply`
+- 模式切换 **双发全量下发**：App.jsx 模式按钮 `onClick` 执行双发方案
+  - 第一发：EC `applyHardwareControl("thermal_mode")` 切换前预写 SMU
+  - 第二发：EC 切换后 1000ms 延时重写 SMU（防固件刷预设覆盖）
+- 恢复预设 **单次全量下发**：`applyUxtuLimits()` → `POST /api/uxtu/apply`
 - 非自定义模式（silent/office/gaming/beast）滑块不锁定
 
 ### 3. 每模式独立参数记忆 (localStorage)

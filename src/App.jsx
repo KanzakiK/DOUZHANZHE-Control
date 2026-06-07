@@ -111,7 +111,13 @@ export default function App() {
               {MODE_ITEMS.map((mode) => (
                 <button key={mode.id} onClick={() => {
                 setSettings((prev) => ({ ...prev, mode: mode.id }));
-                const tv = thermalModeMap[mode.id]; if (tv !== null && tv !== undefined) applyHardwareControl("thermal_mode", tv).catch(() => {});
+                const tv = thermalModeMap[mode.id];
+                // 双发方案：EC 切换前后都写 SMU，避免固件刷预设覆盖我们的值
+                const buildParams = (mid) => { try { var s = JSON.parse(localStorage.getItem("douzhanzhe_params_" + mid) || "null"); return s || MODE_PRESETS[mid] || {}; } catch { return MODE_PRESETS[mid] || {}; } };
+                var p = buildParams(mode.id);
+                applyUxtuLimits({ chipset: "Ryzen 9 8940HX", profile: mode.id, params: p }).catch(function(e){});
+                if (tv !== null && tv !== undefined) applyHardwareControl("thermal_mode", tv).catch(function(e){});
+                setTimeout(function() { applyUxtuLimits({ chipset: "Ryzen 9 8940HX", profile: mode.id, params: buildParams(mode.id) }).then(function(r){console.log("[SMU] mode switch write:", r)}).catch(function(e){console.warn("[SMU] mode switch failed:", e)}); }, 1000);
               }}
                   className="text-xs md:text-sm rounded-lg px-2 py-3 transition-all"
                   style={{ border: "1px solid var(--border)", background: settings.mode === mode.id ? "var(--primary-2)" : "var(--card-2)", color: settings.mode === mode.id ? "#ffffff" : "var(--text)", boxShadow: settings.mode === mode.id ? "0 0 24px rgba(167, 139, 250, 0.35)" : "none" }}

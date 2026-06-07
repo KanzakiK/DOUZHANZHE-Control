@@ -12,7 +12,17 @@
 ## 速查表
 
 | 日期 | 会话主题 |
-|:-----|:--------|
+|:
+## 2026-06-07 (SMU修复+WinRing0自动加载+模式切换双发+部署修复)
+- **CPU 调节实时下发修复**: PerformancePanel.jsx 频率限制滑块/关睿频/核心数 3 个控件追加 queueSmu 实时调用（原来只改 state 不下发）
+- **模式切换 SMU 双发**: App.jsx 模式按钮 EC 切换前后双发 SMU（1000ms 延时防固件覆盖），温度墙/功耗墙实时生效
+- **useControlState SMU 下发**: 模式切换 effect 两个分支（用户保存值 + MODE_PRESETS）都追加 applyUxtuLimits
+- **WinRing0 自动加载 (run.ps1)**: Start-Process -Verb RunAs 提权创建+启动内核驱动
+- **WinRing0 自动加载 (Program.cs)**: 启动时自动检测驱动状态，未加载则 sc.exe 创建+启动
+- **reload-fe.ps1 部署路径修复**: 部署目标从 server/api/wwwroot 改为 server/api/bin/run/wwwroot（服务器实际读取路径）
+- **前端构建缓存:** 清除 .vite-temp、node_modules/.vite 显式清理
+
+-----|:--------|
 | 2| 2026-06-07 | [GSD 流程清理](#GSD-流程清理) |
 026-06-07 | [风扇信息 UI 优化 — 删除 RPM / max 后缀](#2026-06-07-风扇信息-UI-优化) |
 | 2026-06-07 | [MODE_PRESETS 精简合并 + 风扇官方值修正](#2026-06-07-MODE_PRESETS-精简合并-风扇官方值修正) |

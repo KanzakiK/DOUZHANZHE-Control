@@ -127,6 +127,8 @@ EC 寄存器地址映射为语义化 C# 属性。
 ---
 
 > **主线方案**：`POST /api/smu/set` → `SmuController` → ryzenadj.exe 子进程 + WinRing0 驱动。Dragon Range SMU 地址 MSG=0x03B10530, REP=0x03B1057C, ARG_BASE=0x03B109C4（参考 RyzenAdj nb_smu_ops.c）。已验证 25W 功率墙写入将 CPU 频率从 3.6GHz 降至 0.5GHz。C# 子进程方案已修复（路径调整 + 移除输出重定向；ryzenadj v0.19.0 已知 exit 时无害崩溃 0xC0000005，不影响实际写入）。
+>
+> **WinRing0 驱动自动加载**：run.ps1 启动时通过 `Start-Process -Verb RunAs` 提权创建+启动 WinRing0 内核驱动（绕过杀毒拦截）；Program.cs 启动时自动检测驱动状态，未加载则通过 `sc.exe create/start` 自动安装。双重保障确保 SMU 可用。
 
 通过 RyzenAdj (`server/tools/ryzenadj.exe`) 下发 AMD SMU 参数。
 

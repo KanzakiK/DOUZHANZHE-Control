@@ -2,6 +2,10 @@
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $projRoot = Resolve-Path "$root\..\.."
 $apiDir = Join-Path $projRoot "server\api"
+# Detect if running from bin/run (launched by run.ps1) or bin/build
+$runDir = Join-Path $apiDir "bin\run"
+$wwwTarget = $runDir
+if (!(Test-Path (Join-Path $runDir "Douzhanzhe.API.dll"))) { $wwwTarget = $apiDir }
 
 # 1. 清除 Vite 深缓存 + 构建
 Push-Location $projRoot
@@ -12,7 +16,7 @@ if ($LASTEXITCODE -ne 0) { Write-Host "Build failed!" -Foreground Red; Pop-Locat
 
 # 2. 部署到 C# 项目 wwwroot（dotnet run 从此目录提供静态文件）
 $distDir = Join-Path $projRoot "dist"
-$wwwrootDir = Join-Path $apiDir "wwwroot"
+$wwwrootDir = Join-Path $wwwTarget "wwwroot"
 if (Test-Path $wwwrootDir) { Remove-Item "$wwwrootDir\*" -Recurse -Force }
 Copy-Item "$distDir\*" $wwwrootDir -Recurse -Force
 Write-Host "✅ Frontend deployed to $wwwrootDir" -Foreground Green

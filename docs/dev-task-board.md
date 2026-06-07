@@ -73,7 +73,11 @@
 - [ ] **恢复预设按钮**: 一键将当前模式的所有 CPU/GPU/风扇滑块重置为 MODE_PRESETS 出厂默认值（恢复后联动写入一次，确保用户实时看到效果）
 
 ### 其他
-- [ ] ~~`tools/`: 移除 WinRing0x64.dll + 废弃 ryzenadj.exe~~ ✅ WinRing0x64.dll/.sys 已清除；❌ ryzenadj.exe 仍为 SmuController 运行时依赖，暂无替代方案
+- [x] **模式切换 SMU 双发**: 模式按钮点击时 EC 切换前后双发 SMU（防固件覆盖），温度墙/功耗墙实时生效
+- [x] **CPU 调节实时下发修复**: 频率限制、关睿频、核心数滑块追加 queueSmu 实时调用（不再只改 state）
+- [x] **WinRing0 自动加载**: run.ps1 (Start-Process -Verb RunAs) + Program.cs 启动时自动提权加载驱动
+- [x] **reload-fe.ps1 部署路径修复**: 部署目标从 server/api/wwwroot 改为 server/api/bin/run/wwwroot（服务器实际读取路径）
+- [x] ~~`tools/`: 移除 WinRing0x64.dll + 废弃 ryzenadj.exe~~ ✅ WinRing0x64.dll/.sys 已清除；❌ ryzenadj.exe 仍为 SmuController 运行时依赖，暂无替代方案
 
 ---
 
