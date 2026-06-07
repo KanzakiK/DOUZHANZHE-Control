@@ -10,6 +10,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton<HardwareAbstractionLayer>();
 builder.Services.AddSingleton<SmuController>();
 builder.Services.AddSingleton<GpuController>();
+builder.Services.AddSingleton<NvapiGpuController>();
 builder.Services.AddSingleton<WmiInterface>();
 builder.Services.AddHostedService<TelemetryBackgroundService>();
 builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
@@ -459,7 +460,48 @@ app.MapGet("/api/gpu/status", (GpuController gpu) =>
         return Results.Json(new { ok = false, error = ex.Message });
     }
 });
-// ---- Node\.js 废弃迁移端点 ----
+
+// ---- NVAPI GPU 控制 (超频/降频/功率/温度) ----
+var nvapi = app.Services.GetRequiredService<NvapiGpuController>();
+if (!nvapi.Init())
+    Console.WriteLine("[NVAPI] 未初始化，超频/功率/温度控制不可用");
+
+app.MapGet("/api/nvapi/status", (NvapiGpuController nv) =>
+{
+    var s = nv.GetStatus();
+    return Results.Json(new {
+        ok = s.Available, gpuName = s.GpuName,
+        coreMhz = s.CoreMhz, memMhz = s.MemMhz,
+        coreOffsetMhz = s.CoreOffsetMhz, memOffsetMhz = s.MemOffsetMhz,
+        powerLimitMw = s.PowerLimitMw, powerMinMw = s.PowerMinMw,
+        powerMaxMw = s.PowerMaxMw, powerDefaultMw = s.PowerDefaultMw,
+        thermalLimitC = s.ThermalLimitC, thermalMinC = s.ThermalMinC,
+        thermalMaxC = s.ThermalMaxC, thermalDefaultC = s.ThermalDefaultC
+    });
+});
+
+app.MapPost("/api/nvapi/overclock", (NvapiGpuController nv, NvapiOverclockRequest req) =>
+{
+    if (!nv.IsAvailable) return Results.Json(new { ok = false, error = "NVAPI not available" });
+    var rc = nv.SetP0Offset(req.CoreOffsetMhz, req.MemOffsetMhz);
+    return Results.Json(new { ok = rc == 0, rc });
+});
+
+app.MapPost("/api/nvapi/power-limit", (NvapiGpuController nv, NvapiPowerLimitRequest req) =>
+{
+    if (!nv.IsAvailable) return Results.Json(new { ok = false, error = "NVAPI not available" });
+    var rc = nv.SetPowerLimit((uint)(req.PowerW * 1000)); // W → mW
+    return Results.Json(new { ok = rc == 0, rc });
+});
+
+app.MapPost("/api/nvapi/thermal-limit", (NvapiGpuController nv, NvapiThermalLimitRequest req) =>
+{
+    if (!nv.IsAvailable) return Results.Json(new { ok = false, error = "NVAPI not available" });
+    var rc = nv.SetThermalLimit(req.TempC);
+    return Results.Json(new { ok = rc == 0, rc });
+});
+
+// ---- Node.js 废弃迁移端点 ----
 app.MapPost("/api/uxtu/apply", (HttpContext ctx, SmuController smu) =>
 {
     try
@@ -739,6 +781,17 @@ record SmuSetRequest(string Parameter, int ValueM);
 public record FanSetRequest(
     [property: System.Text.Json.Serialization.JsonPropertyName("largeRpm")] int? LargeRpm,
     [property: System.Text.Json.Serialization.JsonPropertyName("smallRpm")] int? SmallRpm
+);
+// ---- NVAPI 请求模型 ----
+public record NvapiOverclockRequest(
+    [property: JsonPropertyName("coreOffsetMhz")] int CoreOffsetMhz,
+    [property: JsonPropertyName("memOffsetMhz")] int MemOffsetMhz
+);
+public record NvapiPowerLimitRequest(
+    [property: JsonPropertyName("powerW")] int PowerW
+);
+public record NvapiThermalLimitRequest(
+    [property: JsonPropertyName("tempC")] float TempC
 );
 // ---- Node.js 迁移端点请求/响应模型 ----
 public record UxtuApplyRequest(
