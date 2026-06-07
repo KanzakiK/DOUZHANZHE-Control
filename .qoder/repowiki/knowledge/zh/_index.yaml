@@ -1,0 +1,1265 @@
+# 知识卡导出索引文件
+schema_version: 1
+locale: zh-CN
+branch: main
+exported_at: "2026-06-07T13:21:40Z"
+modules:
+    "":
+        dir_name: 斗战者硬件控制平台
+        title: 斗战者硬件控制平台
+        scope:
+            - .gitignore
+            - .gitattributes
+            - .instructions.md
+            - package.json
+            - package-lock.json
+            - vite.config.js
+            - tailwind.config.js
+            - postcss.config.js
+            - eslint.config.js
+            - index.html
+            - _enum_dll_proj/
+            - .github\copilot-instructions.md
+            - .vscode\launch.json
+            - CHANGELOG.md
+            - README.md
+            - _enum_dll_proj\EnumDll.csproj
+            - _enum_dll_proj\Program.cs
+            - _lab\.gitkeep
+            - _test_ec\Program.cs
+            - _test_ec\TestEc.csproj
+            - _test_ec\inpoutx64.dll
+            - _tmp_acpi.py
+            - _tmp_bios_scan.py
+            - _tmp_build_log.txt
+            - _tmp_build_log2.txt
+            - _tmp_dl_iasl.py
+            - _tmp_edit4.py
+            - _tmp_explore.py
+            - _tmp_find_setup.py
+            - _tmp_ls.py
+            - _tmp_scan2.py
+            - _tmp_scan_ppt.py
+            - _tmp_script.py
+            - _verify_write.py
+            - body_clean.json
+            - docs\dev-api.md
+            - docs\dev-architecture.md
+            - docs\dev-backend.md
+            - docs\dev-ec-map.md
+            - docs\dev-frontend.md
+            - docs\dev-index.md
+            - docs\dev-known-issues.md
+            - docs\dev-release-plan.md
+            - docs\dev-task-board.md
+            - docs\reference-consoles.md
+            - docs\session-archive.md
+            - douzhanzhe-console.code-workspace
+            - llt-reference\.gitattributes
+            - llt-reference\.github\FUNDING.yml
+            - llt-reference\.github\ISSUE_TEMPLATE\1_feature_request.yml
+            - llt-reference\.github\ISSUE_TEMPLATE\2_bug_report.yml
+            - llt-reference\.github\ISSUE_TEMPLATE\3_compatibility_request.yml
+            - llt-reference\.github\ISSUE_TEMPLATE\config.yml
+            - llt-reference\.github\pull_request_template.md
+            - llt-reference\.github\workflows\build.yml
+            - llt-reference\.github\workflows\release.yml
+            - llt-reference\.gitignore
+            - llt-reference\CONTRIBUTING.md
+            - llt-reference\CONTRIBUTING_ja-JP.md
+            - llt-reference\CONTRIBUTING_zh-hans.md
+            - llt-reference\InnoDependencies\Arabic.isl
+            - llt-reference\InnoDependencies\ChineseSimplified.isl
+            - llt-reference\InnoDependencies\ChineseTraditional.isl
+            - llt-reference\InnoDependencies\Greek.isl
+            - llt-reference\InnoDependencies\Latvian.isl
+            - llt-reference\InnoDependencies\Romanian.isl
+            - llt-reference\InnoDependencies\Vietnamese.isl
+            - llt-reference\InnoDependencies\install_dotnet.iss
+            - llt-reference\LICENSE
+            - llt-reference\LenovoLegionToolkit.CLI.Lib\Constants.cs
+            - llt-reference\LenovoLegionToolkit.CLI.Lib\Extensions\PipeStreamExtensions.cs
+            - llt-reference\LenovoLegionToolkit.CLI.Lib\IpcConnectException.cs
+            - llt-reference\LenovoLegionToolkit.CLI.Lib\IpcException.cs
+            - llt-reference\LenovoLegionToolkit.CLI.Lib\IpcRequest.cs
+            - llt-reference\LenovoLegionToolkit.CLI.Lib\IpcResponse.cs
+            - llt-reference\LenovoLegionToolkit.CLI.Lib\LenovoLegionToolkit.CLI.Lib.csproj
+            - llt-reference\LenovoLegionToolkit.CLI\Flags.cs
+            - llt-reference\LenovoLegionToolkit.CLI\IpcClient.cs
+            - llt-reference\LenovoLegionToolkit.CLI\LenovoLegionToolkit.CLI.csproj
+            - llt-reference\LenovoLegionToolkit.CLI\Program.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\AutomationContext.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\AutomationEnvironment.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\AutomationProcessor.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Enums.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\GlobalSuppressions.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\IAutomationEvent.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\IoCModule.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\LenovoLegionToolkit.Lib.Automation.csproj
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\LenovoLegionToolkit.Lib.Automation.csproj.DotSettings
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Pipeline\AutomationPipeline.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Pipeline\Triggers\ACAdapterConnectedAutomationPipelineTrigger.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Pipeline\Triggers\ACAdapterDisconnectedAutomationPipelineTrigger.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Pipeline\Triggers\AndAutomationPipelineTrigger.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Pipeline\Triggers\DeviceConnectedAutomationPipelineTrigger.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Pipeline\Triggers\DeviceDisconnectedAutomationPipelineTrigger.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Pipeline\Triggers\DisplayOffAutomationPipelineTrigger.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Pipeline\Triggers\DisplayOnAutomationPipelineTrigger.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Pipeline\Triggers\ExternalDisplayConnectedAutomationPipelineTrigger.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Pipeline\Triggers\ExternalDisplayDisconnectedAutomationPipelineTrigger.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Pipeline\Triggers\GamesAreRunningAutomationPipelineTrigger.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Pipeline\Triggers\GamesStopAutomationPipelineTrigger.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Pipeline\Triggers\GodModePresetChangedAutomationPipelineTrigger.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Pipeline\Triggers\HDROffAutomationPipelineTrigger.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Pipeline\Triggers\HDROnAutomationPipelineTrigger.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Pipeline\Triggers\IAutomationPipelineTrigger.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Pipeline\Triggers\LidClosedAutomationPipelineTrigger.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Pipeline\Triggers\LidOpenedAutomationPipelineTrigger.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Pipeline\Triggers\LowWattageACAdapterConnectedAutomationPipelineTrigger.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Pipeline\Triggers\OnResumeAutomationPipelineTrigger.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Pipeline\Triggers\OnStartupAutomationPipelineTrigger.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Pipeline\Triggers\PeriodicAutomationPipelineTrigger.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Pipeline\Triggers\PowerModeAutomationPipelineTrigger.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Pipeline\Triggers\ProcessesAreRunningAutomationPipelineTrigger.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Pipeline\Triggers\ProcessesStopRunningAutomationPipelineTrigger.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Pipeline\Triggers\SessionLockAutomationPipelineTrigger.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Pipeline\Triggers\SessionUnlockAutomationPipelineTrigger.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Pipeline\Triggers\TimeAutomationPipelineTrigger.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Pipeline\Triggers\UserInactivityAutomationPipelineTrigger.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Pipeline\Triggers\WiFiConnectedAutomationPipelineTrigger.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Pipeline\Triggers\WiFiDisconnectedAutomationPipelineTrigger.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Resources\Resource.Designer.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Resources\Resource.ar.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Resources\Resource.bg.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Resources\Resource.bs.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Resources\Resource.ca.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Resources\Resource.cs.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Resources\Resource.de.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Resources\Resource.el.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Resources\Resource.es.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Resources\Resource.fr.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Resources\Resource.hu.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Resources\Resource.it.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Resources\Resource.ja.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Resources\Resource.ko.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Resources\Resource.lv.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Resources\Resource.nl-nl.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Resources\Resource.pl.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Resources\Resource.pt-br.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Resources\Resource.pt.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Resources\Resource.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Resources\Resource.ro.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Resources\Resource.ru.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Resources\Resource.sk.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Resources\Resource.tr.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Resources\Resource.uk.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Resources\Resource.uz-latn-uz.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Resources\Resource.vi.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Resources\Resource.zh-hans.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Resources\Resource.zh-hant.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Steps\AbstractFeatureAutomationStep.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Steps\AlwaysOnUsbAutomationStep.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Steps\BatteryAutomationStep.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Steps\BatteryNightChargeAutomationStep.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Steps\DeactivateGPUAutomationStep.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Steps\DelayAutomationStep.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Steps\DisplayBrightnessAutomationStep.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Steps\DpiScaleAutomationStep.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Steps\FlipToStartAutomationStep.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Steps\FnLockAutomationStep.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Steps\GodModePresetAutomationStep.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Steps\HDRAutomationStep.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Steps\HybridModeAutomationStep.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Steps\IAutomationStep.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Steps\InstantBootAutomationStep.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Steps\MacroAutomationStep.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Steps\MicrophoneAutomationStep.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Steps\NotificationAutomationStep.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Steps\OneLevelWhiteKeyboardBacklightAutomationStep.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Steps\OverDriveAutomationStep.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Steps\OverclockDiscreteGPUAutomationStep.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Steps\PanelLogoBacklightAutomationStep.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Steps\PlaySoundAutomationStep.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Steps\PortsBacklightAutomationStep.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Steps\PowerModeAutomationStep.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Steps\QuickActionAutomationStep.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Steps\RGBKeyboardBacklightAutomationStep.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Steps\RefreshRateAutomationStep.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Steps\ResolutionAutomationStep.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Steps\RunAutomationStep.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Steps\SpeakerAutomationStep.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Steps\SpectrumKeyboardBacklightBrightnessAutomationStep.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Steps\SpectrumKeyboardBacklightImportProfileAutomationStep.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Steps\SpectrumKeyboardBacklightProfileAutomationStep.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Steps\TouchpadLockAutomationStep.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Steps\TurnOffMonitorsAutomationStep.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Steps\TurnOffWiFiAutomationStep.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Steps\TurnOnWiFiAutomationStep.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Steps\WhiteKeyboardBacklightAutomationStep.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Steps\WinKeyAutomationStep.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Structs.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Automation\Utils\AutomationSettings.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Macro\Enums.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Macro\IoCModule.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Macro\LenovoLegionToolkit.Lib.Macro.csproj
+            - llt-reference\LenovoLegionToolkit.Lib.Macro\MacroController.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Macro\Resources\Resource.Designer.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Macro\Resources\Resource.ar.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Macro\Resources\Resource.bg.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Macro\Resources\Resource.bs.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Macro\Resources\Resource.cs.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Macro\Resources\Resource.de.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Macro\Resources\Resource.el.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Macro\Resources\Resource.es.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Macro\Resources\Resource.fr.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Macro\Resources\Resource.hu.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Macro\Resources\Resource.it.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Macro\Resources\Resource.ja.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Macro\Resources\Resource.ko.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Macro\Resources\Resource.lv.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Macro\Resources\Resource.nl-nl.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Macro\Resources\Resource.pl.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Macro\Resources\Resource.pt-br.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Macro\Resources\Resource.pt.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Macro\Resources\Resource.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Macro\Resources\Resource.ro.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Macro\Resources\Resource.ru.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Macro\Resources\Resource.sk.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Macro\Resources\Resource.tr.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Macro\Resources\Resource.uk.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Macro\Resources\Resource.uz-latn-uz.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Macro\Resources\Resource.vi.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Macro\Resources\Resource.zh-hans.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Macro\Resources\Resource.zh-hant.resx
+            - llt-reference\LenovoLegionToolkit.Lib.Macro\Structs.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Macro\Utils\MacroPlayer.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Macro\Utils\MacroRecorder.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Macro\Utils\MacroSettings.cs
+            - llt-reference\LenovoLegionToolkit.Lib.Macro\Utils\TypeConverters\MacroIdentifierTypeConverter.cs
+            - llt-reference\LenovoLegionToolkit.Lib\AutoListeners\AbstractAutoListener.cs
+            - llt-reference\LenovoLegionToolkit.Lib\AutoListeners\GameAutoListener.cs
+            - llt-reference\LenovoLegionToolkit.Lib\AutoListeners\IAutoListener.cs
+            - llt-reference\LenovoLegionToolkit.Lib\AutoListeners\InstanceStartedEventAutoAutoListener.cs
+            - llt-reference\LenovoLegionToolkit.Lib\AutoListeners\InstanceStoppedEventAutoAutoListener.cs
+            - llt-reference\LenovoLegionToolkit.Lib\AutoListeners\ProcessAutoListener.cs
+            - llt-reference\LenovoLegionToolkit.Lib\AutoListeners\TimeAutoListener.cs
+            - llt-reference\LenovoLegionToolkit.Lib\AutoListeners\UserInactivityAutoListener.cs
+            - llt-reference\LenovoLegionToolkit.Lib\AutoListeners\WiFiAutoListener.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Controllers\AIController.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Controllers\DisplayBrightnessController.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Controllers\GPUController.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Controllers\GPUOverclockController.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Controllers\GodMode\AbstractGodModeController.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Controllers\GodMode\GodModeController.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Controllers\GodMode\GodModeControllerV1.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Controllers\GodMode\GodModeControllerV2.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Controllers\GodMode\IGodModeController.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Controllers\RGBKeyboardBacklightController.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Controllers\Sensors\AbstractSensorsController.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Controllers\Sensors\ISensorsController.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Controllers\Sensors\SensorsController.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Controllers\Sensors\SensorsControllerV1.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Controllers\Sensors\SensorsControllerV2.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Controllers\Sensors\SensorsControllerV3.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Controllers\SmartFnLockController.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Controllers\SpectrumKeyboardBacklightController.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Controllers\WindowsPowerModeController.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Controllers\WindowsPowerPlanController.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Enums.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Extensions\AssemblyExtensions.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Extensions\ContainerBuilderExtensions.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Extensions\DateTimeExtensions.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Extensions\DictionaryExtensions.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Extensions\DisplayExtensions.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Extensions\DisplayPossibleSettingExtensions.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Extensions\DisplaySettingExtensions.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Extensions\EnumExtensions.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Extensions\EnumerableExtensions.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Extensions\HttpClientExtensions.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Extensions\IntExtensions.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Extensions\ListExtensions.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Extensions\LogoInfoFormatExtensions.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Extensions\ManagementObjectSearcherExtensions.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Extensions\MathExtensions.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Extensions\OSExtensions.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Extensions\PInvokeExtensions.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Extensions\PhyscialGPUExtensions.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Extensions\ProcessExtensions.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Extensions\PropertyDataCollectionExtensions.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Extensions\RGBKeyboardBacklightPresetExtensions.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Extensions\RegistrationBuilderExtensions.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Extensions\ServiceControllerExtension.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Extensions\SpectrumKeyboardBacklightEffectTypeExtensions.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Extensions\StreamExtensions.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Extensions\StringExtensions.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Extensions\TaskExtensions.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Extensions\TimeExtensions.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Extensions\UintExtensions.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Extensions\VersionExtensions.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\AbstractCapabilityFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\AbstractCompositeFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\AbstractDriverFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\AbstractLenovoLightingFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\AbstractUEFIFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\AbstractWmiFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\AlwaysOnUsbFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\BatteryFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\BatteryNightChargeFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\DpiScaleFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\FlipToStart\FlipToStartCapabilityFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\FlipToStart\FlipToStartFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\FlipToStart\FlipToStartUEFIFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\FnLockFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\HDRFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\Hybrid\GSyncFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\Hybrid\HybridModeFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\Hybrid\IGPUModeCapabilityFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\Hybrid\IGPUModeChangeException.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\Hybrid\IGPUModeFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\Hybrid\IGPUModeFeatureFlagsFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\Hybrid\IGPUModeGamezoneFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\Hybrid\Notify\AbstractDGPUNotify.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\Hybrid\Notify\DGPUCapabilityNotify.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\Hybrid\Notify\DGPUFeatureFlagsNotify.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\Hybrid\Notify\DGPUGamezoneNotify.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\Hybrid\Notify\DGPUNotify.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\Hybrid\Notify\IDGPUNotify.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\IFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\InstantBoot\InstantBootCapabilityFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\InstantBoot\InstantBootFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\InstantBoot\InstantBootFeatureFlagsFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\MicrophoneFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\OneLevelWhiteKeyboardBacklightFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\OverDrive\OverDriveCapabilityFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\OverDrive\OverDriveFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\OverDrive\OverDriveGameZoneFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\PanelLogo\PanelLogoBacklightFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\PanelLogo\PanelLogoLenovoLightingBacklightFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\PanelLogo\PanelLogoSpectrumBacklightFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\PortsBacklightFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\PowerModeFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\RefreshRateFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\ResolutionFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\SpeakerFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\TouchpadLockFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\WhiteKeyboardBacklight\WhiteKeyboardBacklightFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\WhiteKeyboardBacklight\WhiteKeyboardDriverBacklightFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\WhiteKeyboardBacklight\WhiteKeyboardLenovoLightingBacklightFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Features\WinKeyFeature.cs
+            - llt-reference\LenovoLegionToolkit.Lib\GameDetection\EffectiveGameModeDetector.cs
+            - llt-reference\LenovoLegionToolkit.Lib\GameDetection\GameConfigStoreDetector.cs
+            - llt-reference\LenovoLegionToolkit.Lib\GlobalSuppressions.cs
+            - llt-reference\LenovoLegionToolkit.Lib\HttpClientFactory.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Integrations\HWiNFOIntegration.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Interfaces.cs
+            - llt-reference\LenovoLegionToolkit.Lib\IoCContainer.cs
+            - llt-reference\LenovoLegionToolkit.Lib\IoCModule.cs
+            - llt-reference\LenovoLegionToolkit.Lib\LenovoLegionToolkit.Lib.csproj
+            - llt-reference\LenovoLegionToolkit.Lib\LenovoLegionToolkit.Lib.csproj.DotSettings
+            - llt-reference\LenovoLegionToolkit.Lib\Listeners\AbstractEventLogListener.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Listeners\AbstractWMIListener.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Listeners\DisplayBrightnessListener.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Listeners\DisplayConfigurationListener.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Listeners\DriverKeyListener.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Listeners\IListener.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Listeners\INotifyingListener.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Listeners\LightingChangeListener.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Listeners\NativeWindowsMessageListener.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Listeners\PowerModeListener.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Listeners\PowerStateListener.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Listeners\RGBKeyboardBacklightListener.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Listeners\SessionLockUnlockListener.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Listeners\SpecialKeyListener.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Listeners\SystemThemeListener.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Listeners\ThermalModeListener.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Listeners\WinKeyListener.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Messaging\Messages\FeatureStateMessage.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Messaging\Messages\IMessage.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Messaging\Messages\NotificationMessage.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Messaging\Messages\RGBKeyboardBacklightChangedMessage.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Messaging\Messages\SpectrumBacklightChangedMessage.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Messaging\MessagingCenter.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Native.cs
+            - llt-reference\LenovoLegionToolkit.Lib\NativeMethods.json
+            - llt-reference\LenovoLegionToolkit.Lib\NativeMethods.txt
+            - llt-reference\LenovoLegionToolkit.Lib\PackageDownloader\AbstractPackageDownloader.cs
+            - llt-reference\LenovoLegionToolkit.Lib\PackageDownloader\Detectors\Rules\AndPackageRule.cs
+            - llt-reference\LenovoLegionToolkit.Lib\PackageDownloader\Detectors\Rules\BiosPackageRule.cs
+            - llt-reference\LenovoLegionToolkit.Lib\PackageDownloader\Detectors\Rules\CpuAddressWidthPackageRule.cs
+            - llt-reference\LenovoLegionToolkit.Lib\PackageDownloader\Detectors\Rules\DriverPackageRule.cs
+            - llt-reference\LenovoLegionToolkit.Lib\PackageDownloader\Detectors\Rules\ExternalDetectionRule.cs
+            - llt-reference\LenovoLegionToolkit.Lib\PackageDownloader\Detectors\Rules\IPackageRule.cs
+            - llt-reference\LenovoLegionToolkit.Lib\PackageDownloader\Detectors\Rules\NotPackageRule.cs
+            - llt-reference\LenovoLegionToolkit.Lib\PackageDownloader\Detectors\Rules\OrPackageRule.cs
+            - llt-reference\LenovoLegionToolkit.Lib\PackageDownloader\Detectors\Rules\OsPackageRule.cs
+            - llt-reference\LenovoLegionToolkit.Lib\PackageDownloader\Detectors\Rules\PnPIdPackageRule.cs
+            - llt-reference\LenovoLegionToolkit.Lib\PackageDownloader\Detectors\Rules\RegistryKeyPackageRule.cs
+            - llt-reference\LenovoLegionToolkit.Lib\PackageDownloader\Detectors\Rules\RegistryKeyValuePackageRule.cs
+            - llt-reference\LenovoLegionToolkit.Lib\PackageDownloader\Detectors\Rules\WindowsBuildVersionPackageRule.cs
+            - llt-reference\LenovoLegionToolkit.Lib\PackageDownloader\Detectors\VantagePackageUpdateDetector.cs
+            - llt-reference\LenovoLegionToolkit.Lib\PackageDownloader\IPackageDownloader.cs
+            - llt-reference\LenovoLegionToolkit.Lib\PackageDownloader\PCSupportPackageDownloader.cs
+            - llt-reference\LenovoLegionToolkit.Lib\PackageDownloader\PackageDownloaderFactory.cs
+            - llt-reference\LenovoLegionToolkit.Lib\PackageDownloader\UpdateCatalogNotFoundException.cs
+            - llt-reference\LenovoLegionToolkit.Lib\PackageDownloader\VantagePackageDownloader.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Resources\Resource.Designer.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Resources\Resource.ar.resx
+            - llt-reference\LenovoLegionToolkit.Lib\Resources\Resource.bg.resx
+            - llt-reference\LenovoLegionToolkit.Lib\Resources\Resource.bs.resx
+            - llt-reference\LenovoLegionToolkit.Lib\Resources\Resource.ca.resx
+            - llt-reference\LenovoLegionToolkit.Lib\Resources\Resource.cs.resx
+            - llt-reference\LenovoLegionToolkit.Lib\Resources\Resource.de.resx
+            - llt-reference\LenovoLegionToolkit.Lib\Resources\Resource.el.resx
+            - llt-reference\LenovoLegionToolkit.Lib\Resources\Resource.es.resx
+            - llt-reference\LenovoLegionToolkit.Lib\Resources\Resource.fr.resx
+            - llt-reference\LenovoLegionToolkit.Lib\Resources\Resource.hu.resx
+            - llt-reference\LenovoLegionToolkit.Lib\Resources\Resource.it.resx
+            - llt-reference\LenovoLegionToolkit.Lib\Resources\Resource.ja.resx
+            - llt-reference\LenovoLegionToolkit.Lib\Resources\Resource.ko.resx
+            - llt-reference\LenovoLegionToolkit.Lib\Resources\Resource.lv.resx
+            - llt-reference\LenovoLegionToolkit.Lib\Resources\Resource.nl-nl.resx
+            - llt-reference\LenovoLegionToolkit.Lib\Resources\Resource.pl.resx
+            - llt-reference\LenovoLegionToolkit.Lib\Resources\Resource.pt-br.resx
+            - llt-reference\LenovoLegionToolkit.Lib\Resources\Resource.pt.resx
+            - llt-reference\LenovoLegionToolkit.Lib\Resources\Resource.resx
+            - llt-reference\LenovoLegionToolkit.Lib\Resources\Resource.ro.resx
+            - llt-reference\LenovoLegionToolkit.Lib\Resources\Resource.ru.resx
+            - llt-reference\LenovoLegionToolkit.Lib\Resources\Resource.sk.resx
+            - llt-reference\LenovoLegionToolkit.Lib\Resources\Resource.tr.resx
+            - llt-reference\LenovoLegionToolkit.Lib\Resources\Resource.uk.resx
+            - llt-reference\LenovoLegionToolkit.Lib\Resources\Resource.uz-latn-uz.resx
+            - llt-reference\LenovoLegionToolkit.Lib\Resources\Resource.vi.resx
+            - llt-reference\LenovoLegionToolkit.Lib\Resources\Resource.zh-hans.resx
+            - llt-reference\LenovoLegionToolkit.Lib\Resources\Resource.zh-hant.resx
+            - llt-reference\LenovoLegionToolkit.Lib\Services\BatteryDischargeRateMonitorService.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Settings\AbstractSettings.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Settings\ApplicationSettings.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Settings\BalanceModeSettings.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Settings\GPUOverclockSettings.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Settings\GodModeSettings.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Settings\IntegrationsSettings.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Settings\PackageDownloaderSettings.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Settings\RGBKeyboardSettings.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Settings\SpectrumKeyboardSettings.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Settings\SunriseSunsetSettings.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Settings\UpdateCheckSettings.cs
+            - llt-reference\LenovoLegionToolkit.Lib\SoftwareDisabler\AbstractSoftwareDisabler.cs
+            - llt-reference\LenovoLegionToolkit.Lib\SoftwareDisabler\FnKeysDisabler.cs
+            - llt-reference\LenovoLegionToolkit.Lib\SoftwareDisabler\LegionZoneDisabler.cs
+            - llt-reference\LenovoLegionToolkit.Lib\SoftwareDisabler\VantageDisabler.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Structs.cs
+            - llt-reference\LenovoLegionToolkit.Lib\System\AirplaneMode.cs
+            - llt-reference\LenovoLegionToolkit.Lib\System\Autorun.cs
+            - llt-reference\LenovoLegionToolkit.Lib\System\Battery.cs
+            - llt-reference\LenovoLegionToolkit.Lib\System\BootLogo.cs
+            - llt-reference\LenovoLegionToolkit.Lib\System\CMD.cs
+            - llt-reference\LenovoLegionToolkit.Lib\System\Devices.cs
+            - llt-reference\LenovoLegionToolkit.Lib\System\Displays.cs
+            - llt-reference\LenovoLegionToolkit.Lib\System\Drivers.cs
+            - llt-reference\LenovoLegionToolkit.Lib\System\ExternalDisplays.cs
+            - llt-reference\LenovoLegionToolkit.Lib\System\InternalDisplay.cs
+            - llt-reference\LenovoLegionToolkit.Lib\System\KnownFolders.cs
+            - llt-reference\LenovoLegionToolkit.Lib\System\Management\WMI.LenovoCapabilityData00.cs
+            - llt-reference\LenovoLegionToolkit.Lib\System\Management\WMI.LenovoCapabilityData01.cs
+            - llt-reference\LenovoLegionToolkit.Lib\System\Management\WMI.LenovoCpuMethod.cs
+            - llt-reference\LenovoLegionToolkit.Lib\System\Management\WMI.LenovoDefaultValueInDifferentModeData.cs
+            - llt-reference\LenovoLegionToolkit.Lib\System\Management\WMI.LenovoDiscreteData.cs
+            - llt-reference\LenovoLegionToolkit.Lib\System\Management\WMI.LenovoFanMethod.cs
+            - llt-reference\LenovoLegionToolkit.Lib\System\Management\WMI.LenovoFanTableData.cs
+            - llt-reference\LenovoLegionToolkit.Lib\System\Management\WMI.LenovoGameZoneData.cs
+            - llt-reference\LenovoLegionToolkit.Lib\System\Management\WMI.LenovoGameZoneKeyLockStatusEvent.cs
+            - llt-reference\LenovoLegionToolkit.Lib\System\Management\WMI.LenovoGameZoneLightProfileChangeEvent.cs
+            - llt-reference\LenovoLegionToolkit.Lib\System\Management\WMI.LenovoGameZoneSmartFanModeEvent.cs
+            - llt-reference\LenovoLegionToolkit.Lib\System\Management\WMI.LenovoGameZoneThermalModeEvent.cs
+            - llt-reference\LenovoLegionToolkit.Lib\System\Management\WMI.LenovoGpuMethod.cs
+            - llt-reference\LenovoLegionToolkit.Lib\System\Management\WMI.LenovoIntelligentOPList.cs
+            - llt-reference\LenovoLegionToolkit.Lib\System\Management\WMI.LenovoLightingData.cs
+            - llt-reference\LenovoLegionToolkit.Lib\System\Management\WMI.LenovoLightingEvent.cs
+            - llt-reference\LenovoLegionToolkit.Lib\System\Management\WMI.LenovoLightingMethod.cs
+            - llt-reference\LenovoLegionToolkit.Lib\System\Management\WMI.LenovoOtherMethod.cs
+            - llt-reference\LenovoLegionToolkit.Lib\System\Management\WMI.LenovoUtilityEvent.cs
+            - llt-reference\LenovoLegionToolkit.Lib\System\Management\WMI.Win32.cs
+            - llt-reference\LenovoLegionToolkit.Lib\System\Management\WMI.WmiMonitorBrightnessEvent.cs
+            - llt-reference\LenovoLegionToolkit.Lib\System\Management\WMI.WmiMonitorBrightnessMethods.cs
+            - llt-reference\LenovoLegionToolkit.Lib\System\Management\WMI.cs
+            - llt-reference\LenovoLegionToolkit.Lib\System\NVAPI.cs
+            - llt-reference\LenovoLegionToolkit.Lib\System\Power.cs
+            - llt-reference\LenovoLegionToolkit.Lib\System\Registry.cs
+            - llt-reference\LenovoLegionToolkit.Lib\System\SystemPath.cs
+            - llt-reference\LenovoLegionToolkit.Lib\System\SystemTheme.cs
+            - llt-reference\LenovoLegionToolkit.Lib\System\WiFi.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Utils\Compatibility.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Utils\Crc32Adler.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Utils\Folders.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Utils\IMainThreadDispatcher.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Utils\LambdaAsyncDisposable.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Utils\LambdaDisposable.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Utils\Log.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Utils\NullSafeHandle.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Utils\RetryHelper.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Utils\SafePerformanceCounter.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Utils\StructSafeHandle.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Utils\SunriseSunset.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Utils\ThreadSafeBool.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Utils\ThreadSafeCounter.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Utils\ThrottleFirstDispatcher.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Utils\ThrottleLastDispatcher.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Utils\TokenManipulator.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Utils\UpdateChecker.cs
+            - llt-reference\LenovoLegionToolkit.Lib\Utils\WarrantyChecker.cs
+            - llt-reference\LenovoLegionToolkit.SpectrumTester\LenovoLegionToolkit.SpectrumTester.csproj
+            - llt-reference\LenovoLegionToolkit.SpectrumTester\Program.cs
+            - llt-reference\LenovoLegionToolkit.WPF\App.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\App.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Assets\AssetResources.Designer.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Assets\AssetResources.resx
+            - llt-reference\LenovoLegionToolkit.WPF\Assets\Donate\paypal_logo.png
+            - llt-reference\LenovoLegionToolkit.WPF\Assets\Donate\paypal_qr.png
+            - llt-reference\LenovoLegionToolkit.WPF\Assets\default_exe.png
+            - llt-reference\LenovoLegionToolkit.WPF\Assets\icon.ico
+            - llt-reference\LenovoLegionToolkit.WPF\Behaviors\ProgressBarAnimateBehavior.cs
+            - llt-reference\LenovoLegionToolkit.WPF\CLI\Features\FeatureRegistration.cs
+            - llt-reference\LenovoLegionToolkit.WPF\CLI\Features\FeatureRegistry.cs
+            - llt-reference\LenovoLegionToolkit.WPF\CLI\Features\IFeatureRegistration.cs
+            - llt-reference\LenovoLegionToolkit.WPF\CLI\IpcServer.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Constants.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\AbstractComboBoxFeatureCardControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\AbstractRefreshingControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\AbstractToggleFeatureCardControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\AbstractAutomationStepControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\AbstractComboBoxAutomationStepControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\AutomationPipelineControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\Steps\AlwaysOnUsbAutomationStepControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\Steps\BatteryAutomationStepControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\Steps\BatteryNightChargeAutomationStepControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\Steps\DeactivateGPUAutomationStepControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\Steps\DelayAutomationStepControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\Steps\DisplayBrightnessAutomationStepControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\Steps\DpiScaleAutomationStepControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\Steps\FlipToStartAutomationStepControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\Steps\FnLockAutomationStepControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\Steps\GodModePresetAutomationStepControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\Steps\HDRAutomationStepControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\Steps\HybridModeAutomationStepControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\Steps\InstantBootAutomationStepControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\Steps\MacroAutomationStepControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\Steps\MicrophoneAutomationStepControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\Steps\NotificationAutomationStepControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\Steps\OneLevelWhiteKeyboardBacklightAutomationStepControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\Steps\OverDriveAutomationStepControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\Steps\OverclockDiscreteGPUAutomationStepControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\Steps\PanelLogoBacklightAutomationStepControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\Steps\PlaySoundAutomationStepControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\Steps\PortsBacklightAutomationStepControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\Steps\PowerModeAutomationStepControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\Steps\QuickActionAutomationStepControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\Steps\RGBKeyboardBacklightAutomationStepControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\Steps\RefreshRateAutomationStepControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\Steps\ResolutionAutomationStepControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\Steps\RunAutomationStepControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\Steps\SpeakerAutomationStepControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\Steps\SpectrumKeyboardBacklightBrightnessAutomationStepControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\Steps\SpectrumKeyboardBacklightImportProfileAutomationStepControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\Steps\SpectrumKeyboardBacklightProfileAutomationStepControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\Steps\TouchpadLockAutomationStepControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\Steps\TurnOffMonitorsAutomationStepControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\Steps\TurnOffWiFiAutomationStepControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\Steps\TurnOnWiFiAutomationStepControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\Steps\WhiteKeyboardBacklightAutomationStepControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Automation\Steps\WinKeyAutomationStepControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\CardHeaderControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\ColorPickerControl.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\ColorPickerControl.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Custom\Badge.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Custom\CardAction.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Custom\CardControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Custom\CardExpander.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Custom\InfoBar.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Custom\NavigationItem.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Dashboard\AlwaysOnUSBControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Dashboard\BatteryModeControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Dashboard\BatteryNightChargeModeControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Dashboard\DashboardGroupControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Dashboard\DiscreteGPUControl.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Dashboard\DiscreteGPUControl.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Dashboard\DpiScaleControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Dashboard\Edit\EditDashboardGroupControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Dashboard\Edit\EditDashboardItemControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Dashboard\FlipToStartControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Dashboard\FnLockControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Dashboard\GodMode\GodModeValueControl.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Dashboard\GodMode\GodModeValueControl.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Dashboard\HDRControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Dashboard\HybridModeControlFactory.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Dashboard\InstantBootControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Dashboard\MicrophoneControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Dashboard\OneLevelWhiteKeyboardBacklightControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Dashboard\OverDriveControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Dashboard\OverclockDiscreteGPUControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Dashboard\PanelLogoBacklightControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Dashboard\PortsBacklightControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Dashboard\PowerModeControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Dashboard\RefreshRateControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Dashboard\ResolutionControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Dashboard\SensorsControl.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Dashboard\SensorsControl.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Dashboard\TouchpadLockControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Dashboard\TurnOffMonitorsControl.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Dashboard\TurnOffMonitorsControl.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Dashboard\WhiteKeyboardBacklightControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Dashboard\WinKeyControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\FanCurveControl.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\FanCurveControl.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\KeyboardBacklight\RGB\AbstractComboBoxRGBKeyboardCardControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\KeyboardBacklight\RGB\RGBKeyboardBacklightBrightnessCardControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\KeyboardBacklight\RGB\RGBKeyboardBacklightControl.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\KeyboardBacklight\RGB\RGBKeyboardBacklightControl.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\KeyboardBacklight\RGB\RGBKeyboardBacklightEffectCardControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\KeyboardBacklight\RGB\RGBKeyboardBacklightSpeedCardControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\KeyboardBacklight\Spectrum\Device\SpectrumDeviceControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\KeyboardBacklight\Spectrum\Device\SpectrumDeviceFullAlternativeControl.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\KeyboardBacklight\Spectrum\Device\SpectrumDeviceFullAlternativeControl.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\KeyboardBacklight\Spectrum\Device\SpectrumDeviceFullControl.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\KeyboardBacklight\Spectrum\Device\SpectrumDeviceFullControl.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\KeyboardBacklight\Spectrum\Device\SpectrumDeviceKeyboardAndFrontControl.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\KeyboardBacklight\Spectrum\Device\SpectrumDeviceKeyboardAndFrontControl.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\KeyboardBacklight\Spectrum\Device\SpectrumDeviceKeyboardOnlyControl.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\KeyboardBacklight\Spectrum\Device\SpectrumDeviceKeyboardOnlyControl.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\KeyboardBacklight\Spectrum\Device\SpectrumKeyboardANSIControl.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\KeyboardBacklight\Spectrum\Device\SpectrumKeyboardANSIControl.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\KeyboardBacklight\Spectrum\Device\SpectrumKeyboardControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\KeyboardBacklight\Spectrum\Device\SpectrumKeyboardISOControl.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\KeyboardBacklight\Spectrum\Device\SpectrumKeyboardISOControl.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\KeyboardBacklight\Spectrum\Device\SpectrumKeyboardJisControl.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\KeyboardBacklight\Spectrum\Device\SpectrumKeyboardJisControl.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\KeyboardBacklight\Spectrum\Device\SpectrumZoneControl.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\KeyboardBacklight\Spectrum\Device\SpectrumZoneControl.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\KeyboardBacklight\Spectrum\SpectrumKeyboardBacklightControl.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\KeyboardBacklight\Spectrum\SpectrumKeyboardBacklightControl.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\KeyboardBacklight\Spectrum\SpectrumKeyboardEffectControl.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\KeyboardBacklight\Spectrum\SpectrumKeyboardEffectControl.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\LoadableControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Macro\AbstractMacroEventControl.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Macro\AbstractMacroEventControl.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Macro\MacroSequenceControl.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Macro\MacroSequenceControl.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Macro\MultiAbstractMacroEventControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\Macro\SingleAbstractMacroEventControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\MultiColorPickerControl.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\MultiColorPickerControl.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\MultiColorPickerItemControl.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\MultiColorPickerItemControl.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Controls\SelectableControl.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Enums.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Extensions\AutomationPipelineTriggerExtensions.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Extensions\ClipboardExtensions.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Extensions\ColorExtensions.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Extensions\ComboBoxExtensions.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Extensions\DashboardItemExtensions.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Extensions\DispatcherExtensions.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Extensions\ImageSourceExtensions.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Extensions\ItemCollectionExtensions.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Extensions\NavigationStoreExtensions.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Extensions\PowerModeStateExtensions.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Extensions\RGBColorExtensions.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Extensions\UIElementExtensions.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Extensions\UriExtensions.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Extensions\WindowExtensions.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Flags.cs
+            - llt-reference\LenovoLegionToolkit.WPF\GlobalSuppressions.cs
+            - llt-reference\LenovoLegionToolkit.WPF\IoCModule.cs
+            - llt-reference\LenovoLegionToolkit.WPF\LenovoLegionToolkit.WPF.csproj
+            - llt-reference\LenovoLegionToolkit.WPF\LenovoLegionToolkit.WPF.csproj.DotSettings
+            - llt-reference\LenovoLegionToolkit.WPF\Pages\AboutPage.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Pages\AboutPage.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Pages\AutomationPage.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Pages\AutomationPage.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Pages\BatteryPage.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Pages\BatteryPage.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Pages\DashboardPage.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Pages\DashboardPage.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Pages\DonatePage.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Pages\DonatePage.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Pages\KeyboardBacklightPage.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Pages\KeyboardBacklightPage.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Pages\MacroPage.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Pages\MacroPage.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Pages\PackagesPage.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Pages\PackagesPage.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Pages\SettingsPage.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Pages\SettingsPage.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Properties\launchSettings.json
+            - llt-reference\LenovoLegionToolkit.WPF\Resources\Resource.Designer.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Resources\Resource.ar.resx
+            - llt-reference\LenovoLegionToolkit.WPF\Resources\Resource.bg.resx
+            - llt-reference\LenovoLegionToolkit.WPF\Resources\Resource.bs.resx
+            - llt-reference\LenovoLegionToolkit.WPF\Resources\Resource.ca.resx
+            - llt-reference\LenovoLegionToolkit.WPF\Resources\Resource.cs.resx
+            - llt-reference\LenovoLegionToolkit.WPF\Resources\Resource.de.resx
+            - llt-reference\LenovoLegionToolkit.WPF\Resources\Resource.el.resx
+            - llt-reference\LenovoLegionToolkit.WPF\Resources\Resource.es.resx
+            - llt-reference\LenovoLegionToolkit.WPF\Resources\Resource.fr.resx
+            - llt-reference\LenovoLegionToolkit.WPF\Resources\Resource.hu.resx
+            - llt-reference\LenovoLegionToolkit.WPF\Resources\Resource.it.resx
+            - llt-reference\LenovoLegionToolkit.WPF\Resources\Resource.ja.resx
+            - llt-reference\LenovoLegionToolkit.WPF\Resources\Resource.ko.resx
+            - llt-reference\LenovoLegionToolkit.WPF\Resources\Resource.lv.resx
+            - llt-reference\LenovoLegionToolkit.WPF\Resources\Resource.nl-nl.resx
+            - llt-reference\LenovoLegionToolkit.WPF\Resources\Resource.pl.resx
+            - llt-reference\LenovoLegionToolkit.WPF\Resources\Resource.pt-br.resx
+            - llt-reference\LenovoLegionToolkit.WPF\Resources\Resource.pt.resx
+            - llt-reference\LenovoLegionToolkit.WPF\Resources\Resource.resx
+            - llt-reference\LenovoLegionToolkit.WPF\Resources\Resource.ro.resx
+            - llt-reference\LenovoLegionToolkit.WPF\Resources\Resource.ru.resx
+            - llt-reference\LenovoLegionToolkit.WPF\Resources\Resource.sk.resx
+            - llt-reference\LenovoLegionToolkit.WPF\Resources\Resource.tr.resx
+            - llt-reference\LenovoLegionToolkit.WPF\Resources\Resource.uk.resx
+            - llt-reference\LenovoLegionToolkit.WPF\Resources\Resource.uz-latn-uz.resx
+            - llt-reference\LenovoLegionToolkit.WPF\Resources\Resource.vi.resx
+            - llt-reference\LenovoLegionToolkit.WPF\Resources\Resource.zh-hans.resx
+            - llt-reference\LenovoLegionToolkit.WPF\Resources\Resource.zh-hant.resx
+            - llt-reference\LenovoLegionToolkit.WPF\Settings\DashboardSettings.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Structs.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Styles\Badge.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Styles\CardAction.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Styles\CardControl.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Styles\CardExpander.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Styles\DynamicScrollBar.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Styles\InfoBar.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Styles\NavigationStore.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Utils\FullscreenHelper.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Utils\LocalizationHelper.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Utils\MainThreadDispatcher.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Utils\MesageBoxHelper.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Utils\NotificationsManager.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Utils\NotifyIcon.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Utils\ScreenHelper.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Utils\SmartKeyHelper.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Utils\SnackbarHelper.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Utils\SpectrumScreenCapture.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Utils\ThemeManager.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Utils\TrayHelper.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Automation\AddAutomationStepWindow.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Automation\AddAutomationStepWindow.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Automation\AutomationPipelineTriggerConfigurationWindow.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Automation\AutomationPipelineTriggerConfigurationWindow.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Automation\CreateAutomationPipelineWindow.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Automation\CreateAutomationPipelineWindow.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Automation\TabItemContent\DeviceAutomationPipelineTriggerTabItemContent.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Automation\TabItemContent\DeviceAutomationPipelineTriggerTabItemContent.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Automation\TabItemContent\GodModePresetPipelineTriggerTabItemContent.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Automation\TabItemContent\GodModePresetPipelineTriggerTabItemContent.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Automation\TabItemContent\IAutomationPipelineTriggerTabItemContent.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Automation\TabItemContent\PeriodicActionPipelineTriggerTabItemContent.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Automation\TabItemContent\PeriodicActionPipelineTriggerTabItemContent.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Automation\TabItemContent\PowerModeAutomationPipelineTriggerTabItemContent.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Automation\TabItemContent\PowerModeAutomationPipelineTriggerTabItemContent.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Automation\TabItemContent\ProcessAutomationPipelineTriggerTabItemControl.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Automation\TabItemContent\ProcessAutomationPipelineTriggerTabItemControl.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Automation\TabItemContent\TimeAutomationPipelineTriggerTabItemContent.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Automation\TabItemContent\TimeAutomationPipelineTriggerTabItemContent.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Automation\TabItemContent\UserInactivityPipelineTriggerTabItemContent.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Automation\TabItemContent\UserInactivityPipelineTriggerTabItemContent.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Automation\TabItemContent\WiFiConnectedPipelineTriggerTabItemContent.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Automation\TabItemContent\WiFiConnectedPipelineTriggerTabItemContent.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\BaseWindow.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Dashboard\AddDashboardItemWindow.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Dashboard\AddDashboardItemWindow.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Dashboard\BalanceModeSettingsWindow.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Dashboard\BalanceModeSettingsWindow.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Dashboard\EditDashboardWindow.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Dashboard\EditDashboardWindow.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Dashboard\ExtendedHybridModeInfoWindow.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Dashboard\ExtendedHybridModeInfoWindow.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Dashboard\GodModeSettingsWindow.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Dashboard\GodModeSettingsWindow.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Dashboard\OverclockDiscreteGPUSettingsWindow.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Dashboard\OverclockDiscreteGPUSettingsWindow.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\KeyboardBacklight\Spectrum\SpectrumKeyboardBacklightEditEffectWindow.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\KeyboardBacklight\Spectrum\SpectrumKeyboardBacklightEditEffectWindow.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Macro\MacroRecordingWindow.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\MainWindow.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\MainWindow.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Settings\BootLogoWindow.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Settings\BootLogoWindow.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Settings\ExcludeRefreshRatesWindow.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Settings\ExcludeRefreshRatesWindow.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Settings\NotificationsSettingsWindow.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Settings\NotificationsSettingsWindow.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Settings\SelectSmartKeyPipelinesWindow.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Settings\SelectSmartKeyPipelinesWindow.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Settings\WindowsPowerModesWindow.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Settings\WindowsPowerModesWindow.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Settings\WindowsPowerPlansWindow.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Settings\WindowsPowerPlansWindow.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Utils\DeviceInformationWindow.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Utils\DeviceInformationWindow.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Utils\INotificationWindow.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Utils\LanguageSelectorWindow.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Utils\LanguageSelectorWindow.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Utils\NativeLayeredWindow.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Utils\NotificationAoTWindow.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Utils\NotificationWindow.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Utils\StatusWindow.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Utils\StatusWindow.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Utils\SymbolRegularPicker.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Utils\SymbolRegularPicker.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Utils\UnsupportedWindow.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Utils\UnsupportedWindow.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Utils\UpdateWindow.xaml
+            - llt-reference\LenovoLegionToolkit.WPF\Windows\Utils\UpdateWindow.xaml.cs
+            - llt-reference\LenovoLegionToolkit.WPF\app.manifest
+            - llt-reference\LenovoLegionToolkit.sln
+            - llt-reference\LenovoLegionToolkit.sln.DotSettings
+            - llt-reference\README.md
+            - llt-reference\README_ja-JP.md
+            - llt-reference\README_zh-hans.md
+            - llt-reference\assets\logo.png
+            - llt-reference\assets\screenshot_main.png
+            - llt-reference\assets\screenshot_zh_hans.png
+            - llt-reference\clean.bat
+            - llt-reference\crowdin.yml
+            - llt-reference\make.bat
+            - llt-reference\make_installer.iss
+            - public\favicon.svg
+            - public\icons.svg
+            - server\_bak\HardwareAbstractionLayer.cs.bak.fan
+            - server\_bak\HardwareAbstractionLayer.cs.bak2
+            - server\_bak\Program.cs.bak.20260605-appbridge-fan
+            - server\_bak\Program.cs.bak.cf8
+            - server\_bak\Program.cs.bak.ecwrite
+            - server\_bak\Program.cs.bak.smu
+            - server\_bak\Program.cs.bak.wmi
+            - server\_bak\Program.cs.bak.wmi2
+            - server\_bak\SmuController.cs.bak.smu
+            - server\_bak\WmiInterface.cs.bak.wmi2
+            - server\_bak\_fix_wd.py
+            - server\_bak\_root_archives\_dsdt_orig.aml
+            - server\_bak\_root_archives\_enum_dll.cs
+            - server\_bak\tools\check_mem.py
+            - server\_bak\tools\ec_reader.cs
+            - server\_bak\tools\libryzenadj.dll
+            - server\_bak\tools\libryzenadj_win64.zip
+            - server\_bak\tools\pmtable-example.py
+            - server\_bak\tools\query
+            - server\_bak\tools\readjust.py
+            - server\_bak\tools\readjustService.ps1
+            - server\_bak\tools\ryzenadj_win64.zip
+            - server\api\Douzhanzhe.API.csproj
+            - server\api\Douzhanzhe.API.deps.json
+            - server\api\Douzhanzhe.API.dll
+            - server\api\Douzhanzhe.API.exe
+            - server\api\Douzhanzhe.API.http
+            - server\api\Douzhanzhe.API.pdb
+            - server\api\Douzhanzhe.API.runtimeconfig.json
+            - server\api\Douzhanzhe.API.staticwebassets.runtime.json
+            - server\api\Douzhanzhe.HAL.deps.json
+            - server\api\Douzhanzhe.HAL.dll
+            - server\api\Douzhanzhe.HAL.pdb
+            - server\api\Microsoft.AspNetCore.OpenApi.dll
+            - server\api\Microsoft.OpenApi.dll
+            - server\api\Program.cs
+            - server\api\Program.cs.bak2
+            - server\api\Program.cs.nodebak
+            - server\api\Properties\launchSettings.json
+            - server\api\Swashbuckle.AspNetCore.Swagger.dll
+            - server\api\Swashbuckle.AspNetCore.SwaggerGen.dll
+            - server\api\Swashbuckle.AspNetCore.SwaggerUI.dll
+            - server\api\System.CodeDom.dll
+            - server\api\System.Management.dll
+            - server\api\TelemetryBackgroundService.cs
+            - server\api\TelemetryBackgroundService.cs.bak
+            - server\api\WmiInterface.cs
+            - server\api\WmiInterface.cs.bak
+            - server\api\appsettings.Development.json
+            - server\api\appsettings.json
+            - server\api\bin\run\Douzhanzhe.API.deps.json
+            - server\api\bin\run\Douzhanzhe.API.dll
+            - server\api\bin\run\Douzhanzhe.API.exe
+            - server\api\bin\run\Douzhanzhe.API.pdb
+            - server\api\bin\run\Douzhanzhe.API.runtimeconfig.json
+            - server\api\bin\run\Douzhanzhe.API.staticwebassets.runtime.json
+            - server\api\bin\run\Douzhanzhe.HAL.deps.json
+            - server\api\bin\run\Douzhanzhe.HAL.dll
+            - server\api\bin\run\Douzhanzhe.HAL.pdb
+            - server\api\bin\run\Microsoft.AspNetCore.OpenApi.dll
+            - server\api\bin\run\Microsoft.OpenApi.dll
+            - server\api\bin\run\Microsoft.Win32.TaskScheduler.dll
+            - server\api\bin\run\Swashbuckle.AspNetCore.Swagger.dll
+            - server\api\bin\run\Swashbuckle.AspNetCore.SwaggerGen.dll
+            - server\api\bin\run\Swashbuckle.AspNetCore.SwaggerUI.dll
+            - server\api\bin\run\System.CodeDom.dll
+            - server\api\bin\run\System.Management.dll
+            - server\api\bin\run\WinRing0x64.dll
+            - server\api\bin\run\WinRing0x64.sys
+            - server\api\bin\run\appsettings.Development.json
+            - server\api\bin\run\appsettings.json
+            - server\api\bin\run\bin_temp\Douzhanzhe.API.deps.json
+            - server\api\bin\run\bin_temp\Douzhanzhe.API.runtimeconfig.json
+            - server\api\bin\run\bin_temp\Douzhanzhe.HAL.deps.json
+            - server\api\bin\run\bin_temp\appsettings.Development.json
+            - server\api\bin\run\bin_temp\appsettings.json
+            - server\api\bin\run\config\auto-start-opts.json
+            - server\api\bin\run\config\custom-params.json
+            - server\api\bin\run\config\ui-state.json
+            - server\api\bin\run\de\Microsoft.Win32.TaskScheduler.resources.dll
+            - server\api\bin\run\es\Microsoft.Win32.TaskScheduler.resources.dll
+            - server\api\bin\run\fr\Microsoft.Win32.TaskScheduler.resources.dll
+            - server\api\bin\run\inpoutx64.dll
+            - server\api\bin\run\it\Microsoft.Win32.TaskScheduler.resources.dll
+            - server\api\bin\run\ja\Microsoft.Win32.TaskScheduler.resources.dll
+            - server\api\bin\run\pl\Microsoft.Win32.TaskScheduler.resources.dll
+            - server\api\bin\run\ru\Microsoft.Win32.TaskScheduler.resources.dll
+            - server\api\bin\run\runtimes\win\lib\net8.0\System.Management.dll
+            - server\api\bin\run\ryzenadj.exe
+            - server\api\bin\run\sv\Microsoft.Win32.TaskScheduler.resources.dll
+            - server\api\bin\run\tr\Microsoft.Win32.TaskScheduler.resources.dll
+            - server\api\bin\run\wwwroot\assets\index-CtjVD_KL.css
+            - server\api\bin\run\wwwroot\assets\index-Cy-5-v64.js
+            - server\api\bin\run\wwwroot\favicon.svg
+            - server\api\bin\run\wwwroot\icons.svg
+            - server\api\bin\run\wwwroot\index.html
+            - server\api\bin\run\zh-CN\Microsoft.Win32.TaskScheduler.resources.dll
+            - server\api\bin\run\zh-Hant\Microsoft.Win32.TaskScheduler.resources.dll
+            - server\api\bin_temp\Douzhanzhe.API.deps.json
+            - server\api\bin_temp\Douzhanzhe.API.dll
+            - server\api\bin_temp\Douzhanzhe.API.exe
+            - server\api\bin_temp\Douzhanzhe.API.pdb
+            - server\api\bin_temp\Douzhanzhe.API.runtimeconfig.json
+            - server\api\bin_temp\Douzhanzhe.HAL.deps.json
+            - server\api\bin_temp\Douzhanzhe.HAL.dll
+            - server\api\bin_temp\Douzhanzhe.HAL.pdb
+            - server\api\bin_temp\Microsoft.AspNetCore.OpenApi.dll
+            - server\api\bin_temp\Microsoft.OpenApi.dll
+            - server\api\bin_temp\Swashbuckle.AspNetCore.Swagger.dll
+            - server\api\bin_temp\Swashbuckle.AspNetCore.SwaggerGen.dll
+            - server\api\bin_temp\Swashbuckle.AspNetCore.SwaggerUI.dll
+            - server\api\bin_temp\appsettings.Development.json
+            - server\api\bin_temp\appsettings.json
+            - server\api\bin_temp\inpoutx64.dll
+            - server\api\config\custom-params.json
+            - server\api\config\ui-state.json
+            - server\api\inpoutx64.dll
+            - server\api\run.ps1
+            - server\api\runtimes\win\lib\net8.0\System.Management.dll
+            - server\api\wwwroot\assets\index-CtjVD_KL.css
+            - server\api\wwwroot\assets\index-Cy-5-v64.js
+            - server\api\wwwroot\favicon.svg
+            - server\api\wwwroot\icons.svg
+            - server\api\wwwroot\index-CtjVD_KL.css
+            - server\api\wwwroot\index-Cy-5-v64.js
+            - server\api\wwwroot\index.html
+            - server\config\custom-params.json
+            - server\config\dashboard-default.json
+            - server\config\ui-state.json
+            - server\config\wmi-scan-result.json
+            - server\hal\CpuAffinityManager.cs
+            - server\hal\Douzhanzhe.HAL.csproj
+            - server\hal\DriverBridge.cs
+            - server\hal\GpuController.cs
+            - server\hal\GpuController.cs.bak
+            - server\hal\HardwareAbstractionLayer.cs
+            - server\hal\SmuController.cs
+            - server\hal\SmuController.cs.bak
+            - server\hal\SmuController.cs.bak2
+            - server\package-lock.json
+            - server\package.json
+            - server\shell\Douzhanzhe.Shell\Douzhanzhe.Shell.csproj
+            - server\shell\Douzhanzhe.Shell\Douzhanzhe.Shell.csproj.user
+            - server\shell\Douzhanzhe.Shell\Form1.cs
+            - server\shell\Douzhanzhe.Shell\Program.cs
+            - server\shell\Douzhanzhe.Shell\app.ico
+            - server\tools\WinRing0x64.dll
+            - server\tools\WinRing0x64.sys
+            - server\tools\ec_kb_map.exe
+            - server\tools\ec_reader.exe
+            - server\tools\inpoutx64.dll
+            - server\tools\query
+            - server\tools\reload-fe.ps1
+            - server\tools\ryzenadj.exe
+            - server\tools\start
+            - src\App.jsx
+            - src\_tmp_edit3.py
+            - src\assets\hero.png
+            - src\components\SortableDashboard.jsx
+            - src\components\ThemeSwitcher.jsx
+            - src\components\panels\PerformancePanel.jsx
+            - src\components\panels\PerformancePanel.jsx.bak
+            - src\components\panels\SettingsPanel.jsx
+            - src\components\panels\SystemInfoPanel.jsx
+            - src\components\panels\TelemetryPanel.jsx
+            - src\components\panels\_edit.py
+            - src\components\panels\_revert.py
+            - src\components\ui\Card.jsx
+            - src\components\ui\Gauge.jsx
+            - src\components\ui\SliderRow.jsx
+            - src\components\ui\SortableCard.jsx
+            - src\components\ui\Sparkline.jsx
+            - src\components\ui\SwitchRow.jsx
+            - src\components\ui\Toast.jsx
+            - src\data\mockTelemetry.js
+            - src\data\themes.js
+            - src\hooks\useCardOrder.js
+            - src\hooks\useControlState.js
+            - src\index.css
+            - src\main.jsx
+            - src\services\uxtuAdapter.js
+            - uxtu-reference\.gitattributes
+            - uxtu-reference\.github\FUNDING.yml
+            - uxtu-reference\.github\ISSUE_TEMPLATE\bug_report.md
+            - uxtu-reference\.github\ISSUE_TEMPLATE\feature_request.md
+            - uxtu-reference\.gitignore
+            - uxtu-reference\LICENSE
+            - uxtu-reference\README.md
+            - uxtu-reference\Universal x86 Tuning Utility V2\Universal x86 Tuning Utility V2.vdproj
+            - uxtu-reference\Universal x86 Tuning Utility.sln
+            - uxtu-reference\Universal x86 Tuning Utility\ADLX_3DSettings.dll
+            - uxtu-reference\Universal x86 Tuning Utility\ADLX_AutoTuning.dll
+            - uxtu-reference\Universal x86 Tuning Utility\ADLX_DisplaySettings.dll
+            - uxtu-reference\Universal x86 Tuning Utility\ADLX_PerformanceMetrics.dll
+            - uxtu-reference\Universal x86 Tuning Utility\App.config
+            - uxtu-reference\Universal x86 Tuning Utility\App.xaml
+            - uxtu-reference\Universal x86 Tuning Utility\App.xaml.cs
+            - uxtu-reference\Universal x86 Tuning Utility\AssemblyInfo.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Assets\BuiltInScaleModels.json
+            - uxtu-reference\Universal x86 Tuning Utility\Assets\GameImages\default.png
+            - uxtu-reference\Universal x86 Tuning Utility\Assets\Intel\KX\KX.exe
+            - uxtu-reference\Universal x86 Tuning Utility\Assets\Intel\MSR\WinIo32.dll
+            - uxtu-reference\Universal x86 Tuning Utility\Assets\Intel\MSR\WinIo32.sys
+            - uxtu-reference\Universal x86 Tuning Utility\Assets\Intel\MSR\WinIo64.dll
+            - uxtu-reference\Universal x86 Tuning Utility\Assets\Intel\MSR\WinIo64.sys
+            - uxtu-reference\Universal x86 Tuning Utility\Assets\Intel\MSR\WinRing0x64.dll
+            - uxtu-reference\Universal x86 Tuning Utility\Assets\Intel\MSR\WinRing0x64.sys
+            - uxtu-reference\Universal x86 Tuning Utility\Assets\Intel\MSR\msr-cmd.exe
+            - uxtu-reference\Universal x86 Tuning Utility\Assets\Intel\MSR\winio-drv.exe
+            - uxtu-reference\Universal x86 Tuning Utility\Assets\Laptops\Framework\framework-laptop-13.png
+            - uxtu-reference\Universal x86 Tuning Utility\Assets\Laptops\Framework\framework-laptop-16.png
+            - uxtu-reference\Universal x86 Tuning Utility\Assets\PCC Banner.png
+            - uxtu-reference\Universal x86 Tuning Utility\Assets\RTSS\RTSSHooks64.dll
+            - uxtu-reference\Universal x86 Tuning Utility\Assets\RTSS\RTSSSharedMemoryNET.dll
+            - uxtu-reference\Universal x86 Tuning Utility\Assets\Stress-Test\AVX2 Stress Test.deps.json
+            - uxtu-reference\Universal x86 Tuning Utility\Assets\Stress-Test\AVX2 Stress Test.dll
+            - uxtu-reference\Universal x86 Tuning Utility\Assets\Stress-Test\AVX2 Stress Test.exe
+            - uxtu-reference\Universal x86 Tuning Utility\Assets\Stress-Test\AVX2 Stress Test.runtimeconfig.json
+            - uxtu-reference\Universal x86 Tuning Utility\Assets\applicationIcon-1024.png
+            - uxtu-reference\Universal x86 Tuning Utility\Assets\applicationIcon-256.png
+            - uxtu-reference\Universal x86 Tuning Utility\Assets\config-DT-AM4.png
+            - uxtu-reference\Universal x86 Tuning Utility\Assets\config-DT-AM5.png
+            - uxtu-reference\Universal x86 Tuning Utility\Assets\config-FL1.png
+            - uxtu-reference\Universal x86 Tuning Utility\Assets\config.png
+            - uxtu-reference\Universal x86 Tuning Utility\Assets\icon.png
+            - uxtu-reference\Universal x86 Tuning Utility\Assets\pexels-photo-8037008.jpeg
+            - uxtu-reference\Universal x86 Tuning Utility\Fan Configs\AOKZOE_AOKZOE A1 AR07.json
+            - uxtu-reference\Universal x86 Tuning Utility\Fan Configs\AYANEO_AYANEO 2.json
+            - uxtu-reference\Universal x86 Tuning Utility\Fan Configs\AYANEO_GEEK.json
+            - uxtu-reference\Universal x86 Tuning Utility\Fan Configs\GPD_1618-04.json
+            - uxtu-reference\Universal x86 Tuning Utility\Fan Configs\GPD_1619-04.json
+            - uxtu-reference\Universal x86 Tuning Utility\Fan Configs\ONE-NETBOOK TECHNOLOGY CO., LTD._ONE-NETBOOK_V03.json
+            - uxtu-reference\Universal x86 Tuning Utility\Fan Configs\ONE-NETBOOK TECHNOLOGY CO., LTD._ONEXPLAYER 2 ARP23.json
+            - uxtu-reference\Universal x86 Tuning Utility\Fan Configs\ONE-NETBOOK_ONEXPLAYER 2 ARP23.json
+            - uxtu-reference\Universal x86 Tuning Utility\Fan Configs\ONE-NETBOOK_V03.json
+            - uxtu-reference\Universal x86 Tuning Utility\Helpers\EnumToBooleanConverter.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Magpie.dll
+            - uxtu-reference\Universal x86 Tuning Utility\MagpieRT.dll
+            - uxtu-reference\Universal x86 Tuning Utility\MagpieRT.exp
+            - uxtu-reference\Universal x86 Tuning Utility\MagpieRT.lib
+            - uxtu-reference\Universal x86 Tuning Utility\Models\AppConfig.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Models\DataColor.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Properties\Settings.Designer.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Properties\Settings.settings
+            - uxtu-reference\Universal x86 Tuning Utility\RTSSSharedMemoryNET.dll
+            - uxtu-reference\Universal x86 Tuning Utility\Scripts\AMD Backend\Mem_Timings.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Scripts\AMD Backend\OpenLibSys.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Scripts\AMD Backend\OpenLibSys_Fan.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Scripts\AMD Backend\OpenLibSys_Mem.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Scripts\AMD Backend\RyzenSmu.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Scripts\ASUS\ASUSWmi.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Scripts\ASUS\CurvePoint.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Scripts\ASUS\XgMobileConnectionService.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Scripts\Adaptive\CPUControl.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Scripts\Adaptive\iGPUControl.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Scripts\Family.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Scripts\Fan Control\Fan_Control.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Scripts\Fan Control\WinRingEC_Management.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Scripts\GPUs\AMD\ADLXBackend.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Scripts\GPUs\NVIDIA\NvHwCheck.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Scripts\GPUs\NVIDIA\NvTuning.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Scripts\Game_Manager.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Scripts\Intel Backend\Intel_Management.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Scripts\Intel Backend\Run_CLI.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Scripts\Misc\Display.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Scripts\Misc\Garbage.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Scripts\Misc\GetImages.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Scripts\Misc\GetSensor.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Scripts\Misc\GetSystemInfo.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Scripts\Misc\PerfCounters.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Scripts\Misc\PowerPlans.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Scripts\Misc\ScreenInterrogatory.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Scripts\Misc\Task_Scheduler.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Scripts\Misc\ToastNotification.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Scripts\PremadePresets.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Scripts\RTSS.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Scripts\RyzenAdj_To_UXTU.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Scripts\UXTU Super Resolution\Controller.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Scripts\UXTU Super Resolution\MagWindow.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Scripts\UXTU Super Resolution\NativeMethods.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Scripts\UXTU Super Resolution\ScaleModelManager.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Services\AdaptivePresetManager.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Services\ApplicationHostService.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Services\CpuAffinityUtility.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Services\FanConfigManager.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Services\GameDataManager.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Services\PageService.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Services\PresetManager.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Services\UpdateManager.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Universal x86 Tuning Utility.csproj
+            - uxtu-reference\Universal x86 Tuning Utility\ViewModels\CustomPresetsViewModel.cs
+            - uxtu-reference\Universal x86 Tuning Utility\ViewModels\DashboardViewModel.cs
+            - uxtu-reference\Universal x86 Tuning Utility\ViewModels\DataViewModel.cs
+            - uxtu-reference\Universal x86 Tuning Utility\ViewModels\GamesViewModel.cs
+            - uxtu-reference\Universal x86 Tuning Utility\ViewModels\MainWindowViewModel.cs
+            - uxtu-reference\Universal x86 Tuning Utility\ViewModels\SettingsViewModel.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Views\Pages\Adaptive.xaml
+            - uxtu-reference\Universal x86 Tuning Utility\Views\Pages\Adaptive.xaml.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Views\Pages\Automations.xaml
+            - uxtu-reference\Universal x86 Tuning Utility\Views\Pages\Automations.xaml.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Views\Pages\CustomPresets.xaml
+            - uxtu-reference\Universal x86 Tuning Utility\Views\Pages\CustomPresets.xaml.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Views\Pages\DashboardPage.xaml
+            - uxtu-reference\Universal x86 Tuning Utility\Views\Pages\DashboardPage.xaml.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Views\Pages\DataPage.xaml
+            - uxtu-reference\Universal x86 Tuning Utility\Views\Pages\DataPage.xaml.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Views\Pages\FanControl.xaml
+            - uxtu-reference\Universal x86 Tuning Utility\Views\Pages\FanControl.xaml.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Views\Pages\Games.xaml
+            - uxtu-reference\Universal x86 Tuning Utility\Views\Pages\Games.xaml.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Views\Pages\Premade.xaml
+            - uxtu-reference\Universal x86 Tuning Utility\Views\Pages\Premade.xaml.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Views\Pages\SettingsPage.xaml
+            - uxtu-reference\Universal x86 Tuning Utility\Views\Pages\SettingsPage.xaml.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Views\Pages\SystemInfo.xaml
+            - uxtu-reference\Universal x86 Tuning Utility\Views\Pages\SystemInfo.xaml.cs
+            - uxtu-reference\Universal x86 Tuning Utility\Views\Windows\MainWindow.xaml
+            - uxtu-reference\Universal x86 Tuning Utility\Views\Windows\MainWindow.xaml.cs
+            - uxtu-reference\Universal x86 Tuning Utility\WinRing0_Mem.dll
+            - uxtu-reference\Universal x86 Tuning Utility\WinRing0_Mem.sys
+            - uxtu-reference\Universal x86 Tuning Utility\WinRing0x64.dll
+            - uxtu-reference\Universal x86 Tuning Utility\WinRing0x64.sys
+            - uxtu-reference\Universal x86 Tuning Utility\WinRing0x64_Fan.dll
+            - uxtu-reference\Universal x86 Tuning Utility\WinRing0x64_Fan.sys
+            - uxtu-reference\Universal x86 Tuning Utility\WinRing0x64_Mem.dll
+            - uxtu-reference\Universal x86 Tuning Utility\WinRing0x64_Mem.sys
+            - uxtu-reference\Universal x86 Tuning Utility\app.manifest
+            - uxtu-reference\Universal x86 Tuning Utility\effects\ACNet.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\AdaptiveSharpen.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\Anime4K_3D_AA_Upscale_US.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\Anime4K_3D_Upscale_US.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\Anime4K_Denoise_Bilateral_Mean.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\Anime4K_Denoise_Bilateral_Median.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\Anime4K_Denoise_Bilateral_Mode.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\Anime4K_Restore_L.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\Anime4K_Restore_M.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\Anime4K_Restore_Soft_L.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\Anime4K_Restore_Soft_M.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\Anime4K_Restore_VL.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\Anime4K_Thin_HQ.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\Anime4K_Upscale_Denoise_L.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\Anime4K_Upscale_Denoise_S.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\Anime4K_Upscale_Denoise_UL.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\Anime4K_Upscale_Denoise_VL.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\Anime4K_Upscale_GAN_x2_S.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\Anime4K_Upscale_L.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\Anime4K_Upscale_S.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\Anime4K_Upscale_UL.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\Anime4K_Upscale_VL.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\Bicubic.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\Bilinear.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\CAS.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\CAS_Scaling.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\CRT_Easymode.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\CRT_Geom.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\CRT_Hyllian.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\CRT_Lottes.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\CatmullRom.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\FSRCNNX.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\FSRCNNX_LineArt.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\FSR_EASU.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\FSR_RCAS.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\FXAA.hlsli
+            - uxtu-reference\Universal x86 Tuning Utility\effects\FXAA_High.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\FXAA_Medium.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\FXAA_Ultra.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\FineSharp.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\GTU_v050.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\ImageAdjustment.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\Jinc.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\LCAS.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\Lanczos.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\LumaSharpen.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\MMPX.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\NIS.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\NIS_Coef_Scale.dds
+            - uxtu-reference\Universal x86 Tuning Utility\effects\NIS_Coef_USM.dds
+            - uxtu-reference\Universal x86 Tuning Utility\effects\NNEDI3_nns16_win8x4.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\NNEDI3_nns64_win8x6.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\NVSharpen.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\Nearest.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\Pixellate.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\RAVU_Lite_R3.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\RAVU_Lite_R3_Weights.dds
+            - uxtu-reference\Universal x86 Tuning Utility\effects\RAVU_Zoom_R3.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\RAVU_Zoom_R3_Weights.dds
+            - uxtu-reference\Universal x86 Tuning Utility\effects\SMAA.hlsli
+            - uxtu-reference\Universal x86 Tuning Utility\effects\SMAA_AreaTex.dds
+            - uxtu-reference\Universal x86 Tuning Utility\effects\SMAA_High.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\SMAA_Low.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\SMAA_Medium.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\SMAA_SearchTex.dds
+            - uxtu-reference\Universal x86 Tuning Utility\effects\SMAA_Ultra.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\SSimDownscaler.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\SharpBilinear.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\xBRZ_2x.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\xBRZ_3x.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\xBRZ_4x.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\xBRZ_5x.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\xBRZ_6x.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\effects\xBRZ_Freescale.hlsl
+            - uxtu-reference\Universal x86 Tuning Utility\favicon.ico
+            - uxtu-reference\Universal x86 Tuning Utility\inpoutx64.dll
+            - uxtu-reference\Universal x86 Tuning Utility\kernel32.dll
+            - uxtu-reference\Universal x86 Tuning Utility\ucrtbased.dll
+            - uxtu-reference\Universal x86 Tuning Utility\vcruntime140_1d.dll
+            - uxtu-reference\Universal x86 Tuning Utility\vcruntime140d.dll
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    docs:
+        dir_name: 斗战者控制台开发文档体系
+        title: 斗战者控制台开发文档体系
+        scope:
+            - docs/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    frontend:
+        dir_name: 斗战者硬件控制台前端
+        title: 斗战者硬件控制台前端
+        scope:
+            - src/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: server
+    server:
+        dir_name: 硬件控制与遥测服务后端
+        title: 硬件控制与遥测服务后端
+        scope:
+            - server/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend
