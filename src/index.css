@@ -73,6 +73,358 @@
   --border: rgba(147, 94, 255, 0.32);
 }
 
+.theme-chengguang {
+  --bg: #121c22;
+  --card: #0e171e;
+  --card-2: #091319;
+  --text: #9fb9d0;
+  --muted: #94a0a9;
+  --primary: #ff865b;
+  --primary-2: #9e77dc;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --border: rgba(255,134,91,0.25);
+}
+.theme-landiao {
+  --bg: #0f172a;
+  --card: #0c1425;
+  --card-2: #0a1120;
+  --text: #c9cbd0;
+  --muted: #cdd0d4;
+  --primary: #3abdf8;
+  --primary-2: #f471b5;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --border: rgba(58,189,248,0.25);
+}
+.theme-senlin {
+  --bg: #1b1717;
+  --card: #161212;
+  --card-2: #110d0d;
+  --text: #cac9c9;
+  --muted: #cdd3d1;
+  --primary: #1fb854;
+  --primary-2: #1fb8ab;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --border: rgba(31,184,84,0.25);
+}
+.theme-langchao {
+  --bg: #09002f;
+  --card: #120b3d;
+  --card-2: #1c184b;
+  --text: #a1b1ff;
+  --muted: #c6d2ff;
+  --primary: #f861b4;
+  --primary-2: #ff8904;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --border: rgba(248,97,180,0.25);
+}
+.theme-pengke {
+  --bg: #fff248;
+  --card: #f7e83a;
+  --card-2: #e3d40e;
+  --text: #000000;
+  --muted: #fff248;
+  --primary: #ff6596;
+  --primary-2: #ce74ff;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --border: rgba(255,101,150,0.25);
+}
+.theme-degula {
+  --bg: #282a36;
+  --card: #232530;
+  --card-2: #1f202a;
+  --text: #f8f8f3;
+  --muted: #d6d7db;
+  --primary: #ff79c6;
+  --primary-2: #ffb86c;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --border: rgba(255,121,198,0.25);
+}
+.theme-qihei {
+  --bg: #000000;
+  --card: #141414;
+  --card-2: #000000;
+  --text: #d6d6d6;
+  --muted: #8a8a8a;
+  --primary: #3a3a3a;
+  --primary-2: #3a3a3a;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --border: rgba(58,58,58,0.25);
+}
+.theme-weilan {
+  --bg: #1a368b;
+  --card: #162455;
+  --card-2: #121d40;
+  --text: #b8e6fe;
+  --muted: #8ab8d4;
+  --primary: #13ecf3;
+  --primary-2: #ffe999;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --border: rgba(19,236,243,0.25);
+}
+.theme-kafei {
+  --bg: #261b25;
+  --card: #1e151d;
+  --card-2: #120a11;
+  --text: #c59f61;
+  --muted: #c9c7c9;
+  --primary: #db924c;
+  --primary-2: #11576d;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --border: rgba(219,146,76,0.25);
+}
+.theme-shangwu {
+  --bg: #202020;
+  --card: #1c1c1c;
+  --card-2: #161616;
+  --text: #cdcdcd;
+  --muted: #9a9a9a;
+  --primary: #1c4e80;
+  --primary-2: #ea6947;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --border: rgba(28,78,128,0.25);
+}
+.theme-anjin {
+  --bg: #09090b;
+  --card: #171618;
+  --card-2: #0e0e10;
+  --text: #dca54d;
+  --muted: #b8863a;
+  --primary: #ffffff;
+  --primary-2: #513448;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --border: rgba(255,255,255,0.25);
+}
+.theme-wansheng {
+  --bg: #1b1816;
+  --card: #0b0908;
+  --card-2: #050302;
+  --text: #cdcdcd;
+  --muted: #9a9a9a;
+  --primary: #ff8f00;
+  --primary-2: #42aa00;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --border: rgba(255,143,0,0.25);
+}
+.theme-beiou {
+  --bg: #eceff4;
+  --card: #e5e9f0;
+  --card-2: #d8dee9;
+  --text: #2e3440;
+  --muted: #4c566a;
+  --primary: #5e81ac;
+  --primary-2: #88c0d0;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --border: rgba(94,129,172,0.25);
+}
+.theme-nuanyang {
+  --bg: #f1f1f1;
+  --card: #dbdbdb;
+  --card-2: #c5c5c5;
+  --text: #141414;
+  --muted: #555555;
+  --primary: #8c0327;
+  --primary-2: #d59b6b;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --border: rgba(140,3,39,0.25);
+}
+.theme-fugu {
+  --bg: #ece3ca;
+  --card: #e4d8b4;
+  --card-2: #d6c89e;
+  --text: #793205;
+  --muted: #a66535;
+  --primary: #ff9fa0;
+  --primary-2: #d08700;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --border: rgba(255,159,160,0.25);
+}
+.theme-huancai {
+  --bg: #f8f8f8;
+  --card: #eeeeee;
+  --card-2: #e0e0e0;
+  --text: #000000;
+  --muted: #666666;
+  --primary: #ff00ff;
+  --primary-2: #c8ff00;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --border: rgba(255,0,255,0.25);
+}
+.theme-liangbai {
+  --bg: #ffffff;
+  --card: #e8e8e8;
+  --card-2: #d4d4d4;
+  --text: #181a2a;
+  --muted: #555a70;
+  --primary: #0082ce;
+  --primary-2: #009689;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --border: rgba(0,130,206,0.25);
+}
+.theme-makalong {
+  --bg: #faf7f5;
+  --card: #efeae6;
+  --card-2: #e3dcd6;
+  --text: #291334;
+  --muted: #7a6078;
+  --primary: #44ebd3;
+  --primary-2: #ffd6a7;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --border: rgba(68,235,211,0.25);
+}
+.theme-feicui {
+  --bg: #ffffff;
+  --card: #e8e8e8;
+  --card-2: #d4d4d4;
+  --text: #333c4d;
+  --muted: #6b7382;
+  --primary: #66cc8a;
+  --primary-2: #f68067;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --border: rgba(102,204,138,0.25);
+}
+.theme-huanzi {
+  --bg: #ffffff;
+  --card: #e8e8e8;
+  --card-2: #d4d4d4;
+  --text: #1f2937;
+  --muted: #5a6577;
+  --primary: #6d0076;
+  --primary-2: #ff8600;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --border: rgba(109,0,118,0.25);
+}
+.theme-huangfeng {
+  --bg: #ffffff;
+  --card: #f5f5f5;
+  --card-2: #e8e8e8;
+  --text: #161616;
+  --muted: #666666;
+  --primary: #fdc700;
+  --primary-2: #000000;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --border: rgba(253,199,0,0.25);
+}
+.theme-qishui {
+  --bg: #f8fdef;
+  --card: #e1e6d9;
+  --card-2: #cdd2c3;
+  --text: #151614;
+  --muted: #596056;
+  --primary: #419400;
+  --primary-2: #edd000;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --border: rgba(65,148,0,0.25);
+}
+.theme-qinghuang {
+  --bg: #ffffff;
+  --card: #eeeeee;
+  --card-2: #dcdcdc;
+  --text: #161616;
+  --muted: #666666;
+  --primary: #45aeee;
+  --primary-2: #fff234;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --border: rgba(69,174,238,0.25);
+}
+.theme-dancai {
+  --bg: #ffffff;
+  --card: #f9fafb;
+  --card-2: #eef0f2;
+  --text: #161616;
+  --muted: #666666;
+  --primary: #e9d4ff;
+  --primary-2: #a3f2ce;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --border: rgba(233,212,255,0.25);
+}
+.theme-dongri {
+  --bg: #ffffff;
+  --card: #f2f7fe;
+  --card-2: #e3ecf8;
+  --text: #394e6a;
+  --muted: #68768d;
+  --primary: #0069ff;
+  --primary-2: #c148ac;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --border: rgba(0,105,255,0.25);
+}
+.theme-wuyu {
+  --bg: #fcf2f8;
+  --card: #f9e4f0;
+  --card-2: #f2d6e4;
+  --text: #c5005a;
+  --muted: #d94d7e;
+  --primary: #f43098;
+  --primary-2: #71d1fe;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --border: rgba(244,48,152,0.25);
+}
+.theme-huayuan {
+  --bg: #e9e7e7;
+  --card: #d4d2d2;
+  --card-2: #c0bebe;
+  --text: #100f0f;
+  --muted: #5a5858;
+  --primary: #fe0075;
+  --primary-2: #5c7f67;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --border: rgba(254,0,117,0.25);
+}
+
 body {
   background: var(--bg);
   color: var(--text);
