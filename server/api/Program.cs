@@ -598,9 +598,10 @@ app.MapPost("/api/auto-start", (HttpContext ctx) =>
     try
     {
         using var reader = new StreamReader(ctx.Request.Body);
-        var body = JsonSerializer.Deserialize<Dictionary<string, object?>>(reader.ReadToEndAsync().Result);
-        if (body == null || !body.TryGetValue("enabled", out var enabledObj) || enabledObj is not bool enabled)
+        var body = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(reader.ReadToEndAsync().Result);
+        if (body == null || !body.TryGetValue("enabled", out var enabledEl) || enabledEl.ValueKind != JsonValueKind.True && enabledEl.ValueKind != JsonValueKind.False)
             return Results.Json(new { ok = false, error = "需要 { enabled: bool }" });
+        var enabled = enabledEl.GetBoolean();
 
         using var ts = new TaskService();
         if (enabled)
