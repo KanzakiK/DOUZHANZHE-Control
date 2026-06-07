@@ -2,6 +2,7 @@ import Card from "../ui/Card";
 import Gauge from "../ui/Gauge";
 import SliderRow from "../ui/SliderRow";
 import Sparkline from "../ui/Sparkline";
+import { getFanRange } from "../../services/uxtuAdapter";
 function makeSeries(base, count = 36, jitter = 10, min = 0, max = 100) {
   return Array.from({ length: count }, (_, i) => {
     const wave = Math.sin(i / 4) * (jitter * 0.6);
@@ -12,6 +13,7 @@ function makeSeries(base, count = 36, jitter = 10, min = 0, max = 100) {
 }
 
 export default function TelemetryPanel({ telemetry, setTelemetry, settings, setSettings, uxtuPayload, fanLargeRpmTarget, fanSmallRpmTarget, setFanLargeRpmTarget, setFanSmallRpmTarget, history }) {
+  const fanRange = getFanRange(settings?.mode || "silent");
   const cpuSeries = history.cpu;
   const gpuSeries = history.gpu;
   const fanPctSeries = telemetry.fanLargeMax > 0
@@ -66,8 +68,8 @@ export default function TelemetryPanel({ telemetry, setTelemetry, settings, setS
               <SliderRow
                 label="大风扇目标转速"
                 value={fanLargeRpmTarget}
-                min={0}
-                max={telemetry.fanLargeMax}
+                min={fanRange.largeMin}
+                max={fanRange.largeMax}
                 step={100}
                 unit="RPM"
                 onChange={(value) => setFanLargeRpmTarget(value)}
@@ -97,8 +99,8 @@ export default function TelemetryPanel({ telemetry, setTelemetry, settings, setS
               <SliderRow
                 label="小风扇目标转速"
                 value={fanSmallRpmTarget}
-                min={0}
-                max={telemetry.fanSmallMax}
+                min={fanRange.smallMin}
+                max={fanRange.smallMax}
                 step={100}
                 unit="RPM"
                 onChange={(value) => setFanSmallRpmTarget(value)}

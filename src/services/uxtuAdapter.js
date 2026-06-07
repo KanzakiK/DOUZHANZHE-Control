@@ -95,6 +95,15 @@ export async function fetchGpuStatus() {
 }
 
 
+// 散热模式风扇区间（硬件限制：大扇 0-4400, 小扇 0-8200，受散热模式约束）
+const FAN_RANGES = {
+  silent: { largeMin: 1900, largeMax: 2200, smallMin: 1900, smallMax: 2000 },
+  office: { largeMin: 2600, largeMax: 2900, smallMin: 2800, smallMax: 6400 },
+  gaming: { largeMin: 4000, largeMax: 4400, smallMin: 4200, smallMax: 8000 },
+  beast:  { largeMin: 3200, largeMax: 3500, smallMin: 3800, smallMax: 6900 },
+  custom: { largeMin: 2600, largeMax: 2900, smallMin: 2800, smallMax: 6400 },
+};
+
 // 完整模式预设：CPU + GPU 功耗 + 风扇 (11 字段)
 export const MODE_PRESETS = {
   silent: { cpuTempLimitC: 75, cpuLongPptW: 35, cpuShortPptW: 45, cpuVoltageOffset: 0, cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 3000, cpuTurboDisabled: false, gpuPptLimitW: 60, gpuTempLimitC: 75, fanLargeRpmTarget: 2200, fanSmallRpmTarget: 2000 },
@@ -103,6 +112,10 @@ export const MODE_PRESETS = {
   beast:  { cpuTempLimitC: 88, cpuLongPptW: 85, cpuShortPptW: 100, cpuVoltageOffset: 0, cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 5000, cpuTurboDisabled: false, gpuPptLimitW: 100, gpuTempLimitC: 90, fanLargeRpmTarget: 3500, fanSmallRpmTarget: 6900 },
   custom: { cpuTempLimitC: 80, cpuLongPptW: 55, cpuShortPptW: 70, cpuVoltageOffset: 0, cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 4500, cpuTurboDisabled: false, gpuPptLimitW: 75, gpuTempLimitC: 85, fanLargeRpmTarget: 2900, fanSmallRpmTarget: 6400 },
 };
+
+export function getFanRange(mode) {
+  return FAN_RANGES[mode] || FAN_RANGES.silent;
+}
 
 export async function applySmuSet(parameter, valueM) {
   const res = await fetch("/api/smu/set", {
