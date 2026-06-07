@@ -2,45 +2,190 @@
 schema_version: 1
 locale: zh-CN
 branch: main
-exported_at: "2026-06-07T13:27:56Z"
+exported_at: "2026-06-07T14:00:25Z"
 modules:
     "":
-        dir_name: 斗战者硬件控制平台
-        title: 斗战者硬件控制平台
+        dir_name: 斗战者硬件控制台全栈架构
+        title: 斗战者硬件控制台全栈架构
         scope:
-            - .gitignore
             - .gitattributes
-            - .instructions.md
-            - package.json
-            - package-lock.json
-            - vite.config.js
-            - tailwind.config.js
-            - postcss.config.js
-            - eslint.config.js
-            - index.html
-            - _enum_dll_proj/
             - .github\copilot-instructions.md
+            - .gitignore
+            - .instructions.md
+            - .qoder\repowiki\knowledge\zh\_index.yaml
+            - .qoder\repowiki\knowledge\zh\斗战者控制台开发文档体系\_module.yaml
+            - .qoder\repowiki\knowledge\zh\斗战者控制台开发文档体系\技术栈.md
+            - .qoder\repowiki\knowledge\zh\斗战者控制台开发文档体系\架构设计.md
+            - .qoder\repowiki\knowledge\zh\斗战者控制台开发文档体系\概述.md
+            - .qoder\repowiki\knowledge\zh\斗战者控制台开发文档体系\特殊配置与命令.md
+            - .qoder\repowiki\knowledge\zh\斗战者控制台开发文档体系\编码规范.md
+            - .qoder\repowiki\knowledge\zh\斗战者硬件控制台前端\_module.yaml
+            - .qoder\repowiki\knowledge\zh\斗战者硬件控制台前端\技术栈.md
+            - .qoder\repowiki\knowledge\zh\斗战者硬件控制台前端\架构设计.md
+            - .qoder\repowiki\knowledge\zh\斗战者硬件控制台前端\概述.md
+            - .qoder\repowiki\knowledge\zh\斗战者硬件控制台前端\编码规范.md
+            - .qoder\repowiki\knowledge\zh\斗战者硬件控制平台\_module.yaml
+            - .qoder\repowiki\knowledge\zh\斗战者硬件控制平台\技术栈.md
+            - .qoder\repowiki\knowledge\zh\斗战者硬件控制平台\架构设计.md
+            - .qoder\repowiki\knowledge\zh\斗战者硬件控制平台\概述.md
+            - .qoder\repowiki\knowledge\zh\斗战者硬件控制平台\编码规范.md
+            - .qoder\repowiki\knowledge\zh\硬件控制与遥测服务后端\_module.yaml
+            - .qoder\repowiki\knowledge\zh\硬件控制与遥测服务后端\技术栈.md
+            - .qoder\repowiki\knowledge\zh\硬件控制与遥测服务后端\架构设计.md
+            - .qoder\repowiki\knowledge\zh\硬件控制与遥测服务后端\概述.md
+            - .qoder\repowiki\knowledge\zh\硬件控制与遥测服务后端\特殊配置与命令.md
+            - .qoder\repowiki\knowledge\zh\硬件控制与遥测服务后端\编码规范.md
+            - .qoder\repowiki\zh\content\API参考文档\API参考文档.md
+            - .qoder\repowiki\zh\content\API参考文档\GPU控制器API.md
+            - .qoder\repowiki\zh\content\API参考文档\RESTful API\RESTful API.md
+            - .qoder\repowiki\zh\content\API参考文档\RESTful API\SMU_GPU控制API\GPU时钟控制.md
+            - .qoder\repowiki\zh\content\API参考文档\RESTful API\SMU_GPU控制API\SMU_GPU控制API.md
+            - .qoder\repowiki\zh\content\API参考文档\RESTful API\SMU_GPU控制API\SMU参数控制.md
+            - .qoder\repowiki\zh\content\API参考文档\RESTful API\SMU_GPU控制API\SMU探测与状态.md
+            - .qoder\repowiki\zh\content\API参考文档\RESTful API\硬件控制API\EC寄存器控制API.md
+            - .qoder\repowiki\zh\content\API参考文档\RESTful API\硬件控制API\GPU模式控制API.md
+            - .qoder\repowiki\zh\content\API参考文档\RESTful API\硬件控制API\散热与电源控制API.md
+            - .qoder\repowiki\zh\content\API参考文档\RESTful API\硬件控制API\硬件控制API.md
+            - .qoder\repowiki\zh\content\API参考文档\RESTful API\硬件控制API\键盘背光控制API.md
+            - .qoder\repowiki\zh\content\API参考文档\RESTful API\硬件控制API\键盘锁定控制API.md
+            - .qoder\repowiki\zh\content\API参考文档\RESTful API\系统_WMI API.md
+            - .qoder\repowiki\zh\content\API参考文档\RESTful API\遥测数据API.md
+            - .qoder\repowiki\zh\content\API参考文档\RESTful API\配置管理API\UI状态管理.md
+            - .qoder\repowiki\zh\content\API参考文档\RESTful API\配置管理API\启动配置.md
+            - .qoder\repowiki\zh\content\API参考文档\RESTful API\配置管理API\自定义参数.md
+            - .qoder\repowiki\zh\content\API参考文档\RESTful API\配置管理API\配置管理API.md
+            - .qoder\repowiki\zh\content\API参考文档\RESTful API\风扇控制API.md
+            - .qoder\repowiki\zh\content\API参考文档\SMU控制器API\SMU控制器API.md
+            - .qoder\repowiki\zh\content\API参考文档\SMU控制器API\Turbo禁用控制.md
+            - .qoder\repowiki\zh\content\API参考文档\SMU控制器API\功率控制接口.md
+            - .qoder\repowiki\zh\content\API参考文档\SMU控制器API\探测与能力查询.md
+            - .qoder\repowiki\zh\content\API参考文档\SMU控制器API\曲线优化器.md
+            - .qoder\repowiki\zh\content\API参考文档\SMU控制器API\温度控制接口.md
+            - .qoder\repowiki\zh\content\API参考文档\SMU控制器API\频率控制接口.md
+            - .qoder\repowiki\zh\content\API参考文档\WMI接口.md
+            - .qoder\repowiki\zh\content\API参考文档\WebSocket API.md
+            - .qoder\repowiki\zh\content\API参考文档\配置管理API.md
+            - .qoder\repowiki\zh\content\UI组件库\UI组件库.md
+            - .qoder\repowiki\zh\content\UI组件库\仪表组件(Gauge).md
+            - .qoder\repowiki\zh\content\UI组件库\图表组件.md
+            - .qoder\repowiki\zh\content\UI组件库\布局容器组件.md
+            - .qoder\repowiki\zh\content\UI组件库\表单控件组件.md
+            - .qoder\repowiki\zh\content\前端应用\主题系统.md
+            - .qoder\repowiki\zh\content\前端应用\仪表盘系统\仪表盘系统.md
+            - .qoder\repowiki\zh\content\前端应用\仪表盘系统\卡片布局系统.md
+            - .qoder\repowiki\zh\content\前端应用\仪表盘系统\卡片顺序管理.md
+            - .qoder\repowiki\zh\content\前端应用\仪表盘系统\性能优化策略.md
+            - .qoder\repowiki\zh\content\前端应用\仪表盘系统\拖拽排序机制.md
+            - .qoder\repowiki\zh\content\前端应用\仪表盘系统\编辑模式交互.md
+            - .qoder\repowiki\zh\content\前端应用\前端应用.md
+            - .qoder\repowiki\zh\content\前端应用\应用架构.md
+            - .qoder\repowiki\zh\content\前端应用\状态管理\API通信状态管理.md
+            - .qoder\repowiki\zh\content\前端应用\状态管理\UXTU参数适配器.md
+            - .qoder\repowiki\zh\content\前端应用\状态管理\useControlState自定义Hook.md
+            - .qoder\repowiki\zh\content\前端应用\状态管理\实时数据同步.md
+            - .qoder\repowiki\zh\content\前端应用\状态管理\状态管理.md
+            - .qoder\repowiki\zh\content\前端应用\面板组件\性能面板.md
+            - .qoder\repowiki\zh\content\前端应用\面板组件\系统信息面板.md
+            - .qoder\repowiki\zh\content\前端应用\面板组件\设置面板.md
+            - .qoder\repowiki\zh\content\前端应用\面板组件\遥测面板.md
+            - .qoder\repowiki\zh\content\前端应用\面板组件\面板组件.md
+            - .qoder\repowiki\zh\content\后端服务\API服务设计.md
+            - .qoder\repowiki\zh\content\后端服务\WebSocket通信.md
+            - .qoder\repowiki\zh\content\后端服务\Windows系统集成.md
+            - .qoder\repowiki\zh\content\后端服务\后端服务.md
+            - .qoder\repowiki\zh\content\后端服务\硬件抽象层\CPU亲和性管理器.md
+            - .qoder\repowiki\zh\content\后端服务\硬件抽象层\SMU控制器.md
+            - .qoder\repowiki\zh\content\后端服务\硬件抽象层\硬件健康检查.md
+            - .qoder\repowiki\zh\content\后端服务\硬件抽象层\硬件抽象层.md
+            - .qoder\repowiki\zh\content\后端服务\硬件抽象层\驱动桥接层.md
+            - .qoder\repowiki\zh\content\后端服务\遥测后台服务.md
+            - .qoder\repowiki\zh\content\后端服务\配置管理.md
+            - .qoder\repowiki\zh\content\开发者指南.md
+            - .qoder\repowiki\zh\content\快速开始.md
+            - .qoder\repowiki\zh\content\扩展开发\API接口扩展.md
+            - .qoder\repowiki\zh\content\扩展开发\UI组件扩展.md
+            - .qoder\repowiki\zh\content\扩展开发\扩展开发.md
+            - .qoder\repowiki\zh\content\扩展开发\插件开发.md
+            - .qoder\repowiki\zh\content\扩展开发\硬件控制器扩展.md
+            - .qoder\repowiki\zh\content\扩展开发\第三方集成.md
+            - .qoder\repowiki\zh\content\桌面壳应用\WebView2集成机制.md
+            - .qoder\repowiki\zh\content\桌面壳应用\WinForms主窗体设计.md
+            - .qoder\repowiki\zh\content\桌面壳应用\开机自启动机制.md
+            - .qoder\repowiki\zh\content\桌面壳应用\桌面壳应用.md
+            - .qoder\repowiki\zh\content\桌面壳应用\系统托盘管理.md
+            - .qoder\repowiki\zh\content\硬件控制模块\CPU亲和性管理器.md
+            - .qoder\repowiki\zh\content\硬件控制模块\GPU控制器.md
+            - .qoder\repowiki\zh\content\硬件控制模块\SMU控制器.md
+            - .qoder\repowiki\zh\content\硬件控制模块\硬件控制模块.md
+            - .qoder\repowiki\zh\content\硬件控制模块\驱动桥接层.md
+            - .qoder\repowiki\zh\content\系统架构\前端架构.md
+            - .qoder\repowiki\zh\content\系统架构\后端架构.md
+            - .qoder\repowiki\zh\content\系统架构\整体架构设计.md
+            - .qoder\repowiki\zh\content\系统架构\桌面壳架构.md
+            - .qoder\repowiki\zh\content\系统架构\硬件抽象层.md
+            - .qoder\repowiki\zh\content\系统架构\系统架构.md
+            - .qoder\repowiki\zh\content\部署运维\性能优化.md
+            - .qoder\repowiki\zh\content\部署运维\故障排除.md
+            - .qoder\repowiki\zh\content\部署运维\生产环境部署.md
+            - .qoder\repowiki\zh\content\部署运维\监控与日志.md
+            - .qoder\repowiki\zh\content\部署运维\部署运维.md
+            - .qoder\repowiki\zh\content\配置管理系统\用户配置文件.md
+            - .qoder\repowiki\zh\content\配置管理系统\界面状态管理.md
+            - .qoder\repowiki\zh\content\配置管理系统\配置生命周期管理.md
+            - .qoder\repowiki\zh\content\配置管理系统\配置管理系统.md
+            - .qoder\repowiki\zh\content\配置管理系统\默认配置模板.md
+            - .qoder\repowiki\zh\content\面板系统\性能面板.md
+            - .qoder\repowiki\zh\content\面板系统\系统信息面板.md
+            - .qoder\repowiki\zh\content\面板系统\设置面板.md
+            - .qoder\repowiki\zh\content\面板系统\遥测面板.md
+            - .qoder\repowiki\zh\content\面板系统\面板系统.md
+            - .qoder\repowiki\zh\content\项目概述.md
+            - .qoder\repowiki\zh\meta\repowiki-metadata.json
             - .vscode\launch.json
             - CHANGELOG.md
             - README.md
             - _enum_dll_proj\EnumDll.csproj
             - _enum_dll_proj\Program.cs
             - _lab\.gitkeep
+            - _lab\GamingControlCenter.KaronOC.dll
+            - _lab\KaronOC.dll
+            - _lab\KaronOC32.dll
+            - _lab\final_test_driver_ok.png
+            - _lab\test_screenshot.png
+            - _lab\test_with_backend.png
             - _test_ec\Program.cs
             - _test_ec\TestEc.csproj
             - _test_ec\inpoutx64.dll
+            - _test_karon.cs
             - _tmp_acpi.py
             - _tmp_bios_scan.py
             - _tmp_build_log.txt
             - _tmp_build_log2.txt
+            - _tmp_decompile\Program.cs
+            - _tmp_decompile\_tmp_decompile.csproj
+            - _tmp_decompile_karon.csx
+            - _tmp_disasm_karon.py
+            - _tmp_disasm_karon2.py
+            - _tmp_disasm_karon_x64.py
             - _tmp_dl_iasl.py
             - _tmp_edit4.py
             - _tmp_explore.py
             - _tmp_find_setup.py
+            - _tmp_iat_karon.py
             - _tmp_ls.py
+            - _tmp_nvapi_parse.py
+            - _tmp_nvapi_pwr.py
+            - _tmp_nvapi_scan.py
+            - _tmp_nvapi_scan2.py
+            - _tmp_nvapi_set.py
+            - _tmp_reverse_karon.py
             - _tmp_scan2.py
             - _tmp_scan_ppt.py
             - _tmp_script.py
+            - _tmp_strings_karon.py
+            - _tmp_test_karon_direct.py
+            - _tmp_test_karonoc.py
+            - _tmp_verify_oc.py
             - _verify_write.py
             - body_clean.json
             - docs\dev-api.md
@@ -55,6 +200,8 @@ modules:
             - docs\reference-consoles.md
             - docs\session-archive.md
             - douzhanzhe-console.code-workspace
+            - eslint.config.js
+            - index.html
             - llt-reference\.gitattributes
             - llt-reference\.github\FUNDING.yml
             - llt-reference\.github\ISSUE_TEMPLATE\1_feature_request.yml
@@ -821,6 +968,9 @@ modules:
             - llt-reference\crowdin.yml
             - llt-reference\make.bat
             - llt-reference\make_installer.iss
+            - package-lock.json
+            - package.json
+            - postcss.config.js
             - public\favicon.svg
             - public\icons.svg
             - server\_bak\HardwareAbstractionLayer.cs.bak.fan
@@ -871,6 +1021,8 @@ modules:
             - server\api\TelemetryBackgroundService.cs.bak
             - server\api\WmiInterface.cs
             - server\api\WmiInterface.cs.bak
+            - server\api\_fix_driver.bat
+            - server\api\_run_admin.bat
             - server\api\appsettings.Development.json
             - server\api\appsettings.json
             - server\api\bin\run\Douzhanzhe.API.deps.json
@@ -942,6 +1094,8 @@ modules:
             - server\api\inpoutx64.dll
             - server\api\run.ps1
             - server\api\runtimes\win\lib\net8.0\System.Management.dll
+            - server\api\wwwroot\assets\index-B94rc26k.js
+            - server\api\wwwroot\assets\index-B9A4zy4G.css
             - server\api\wwwroot\assets\index-CtjVD_KL.css
             - server\api\wwwroot\assets\index-Cy-5-v64.js
             - server\api\wwwroot\favicon.svg
@@ -959,6 +1113,7 @@ modules:
             - server\hal\GpuController.cs
             - server\hal\GpuController.cs.bak
             - server\hal\HardwareAbstractionLayer.cs
+            - server\hal\NvapiGpuController.cs
             - server\hal\SmuController.cs
             - server\hal\SmuController.cs.bak
             - server\hal\SmuController.cs.bak2
@@ -1004,6 +1159,7 @@ modules:
             - src\index.css
             - src\main.jsx
             - src\services\uxtuAdapter.js
+            - tailwind.config.js
             - uxtu-reference\.gitattributes
             - uxtu-reference\.github\FUNDING.yml
             - uxtu-reference\.github\ISSUE_TEMPLATE\bug_report.md
@@ -1230,6 +1386,7 @@ modules:
             - uxtu-reference\Universal x86 Tuning Utility\ucrtbased.dll
             - uxtu-reference\Universal x86 Tuning Utility\vcruntime140_1d.dll
             - uxtu-reference\Universal x86 Tuning Utility\vcruntime140d.dll
+            - vite.config.js
         source_files: []
         children: []
         depends_on: []
@@ -1242,7 +1399,9 @@ modules:
         source_files: []
         children: []
         depends_on: []
-        related_to: []
+        related_to:
+            - path: server
+            - path: frontend
     frontend:
         dir_name: 斗战者硬件控制台前端
         title: 斗战者硬件控制台前端
@@ -1252,14 +1411,16 @@ modules:
         children: []
         depends_on: []
         related_to:
+            - path: docs
             - path: server
     server:
-        dir_name: 硬件控制与遥测服务后端
-        title: 硬件控制与遥测服务后端
+        dir_name: 斗战者硬件控制与遥测服务
+        title: 斗战者硬件控制与遥测服务
         scope:
             - server/
         source_files: []
         children: []
         depends_on: []
         related_to:
+            - path: docs
             - path: frontend
