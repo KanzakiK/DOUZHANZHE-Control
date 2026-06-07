@@ -470,7 +470,7 @@ app.MapGet("/api/nvapi/status", (NvapiGpuController nv) =>
 {
     var s = nv.GetStatus();
     return Results.Json(new {
-        ok = s.Available, gpuName = s.GpuName,
+        ok = s.Available, gpuName = s.GpuName, overclockSupported = s.OverclockSupported,
         coreMhz = s.CoreMhz, memMhz = s.MemMhz,
         coreOffsetMhz = s.CoreOffsetMhz, memOffsetMhz = s.MemOffsetMhz,
         powerLimitMw = s.PowerLimitMw, powerMinMw = s.PowerMinMw,

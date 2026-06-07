@@ -2,7 +2,7 @@
 schema_version: 1
 locale: zh-CN
 branch: main
-exported_at: "2026-06-07T13:21:40Z"
+exported_at: "2026-06-07T13:27:56Z"
 modules:
     "":
         dir_name: 斗战者硬件控制平台
