@@ -108,12 +108,12 @@ app.MapGet("/api/telemetry", (HardwareAbstractionLayer hal, WmiInterface wmi) =>
         diskTotalGB = hal.DiskTotalGB,
         diskFreeGB = hal.DiskFreeGB,
         kbBrightness = hal.KeyboardBrightness,
-        fnLock = hal.FnLock,
+        fnLock = wmi.Available ? wmi.GetFnLock() == 1 : hal.FnLock,
         numLock = hal.NumLock,
         capsLock = hal.CapsLock,
         thermalMode = hal.ThermalMode,
         powerPlan = hal.PowerPlan,
-        touchpadLock = hal.TouchpadLocked,
+        touchpadLock = wmi.Available ? wmi.GetTouchpadLock() == 1 : hal.TouchpadLocked,
         igpuOnly = hal.IgpuOnly,
         gpuMode = wmi.Available ? wmi.GetGpuMode().ToString() : null,
     });
@@ -151,7 +151,7 @@ app.MapPost("/api/control", (ControlRequest req, HardwareAbstractionLayer hal, W
                 hal.KeyboardBrightness = (byte)int.Clamp(req.Value, 0, 3);
                 break;
             case "fn_lock":
-                hal.FnLock = req.Value != 0;
+                wmi.SetFnLock(req.Value != 0);
                 break;
             case "num_lock":
                 hal.NumLock = req.Value != 0;
@@ -160,7 +160,7 @@ app.MapPost("/api/control", (ControlRequest req, HardwareAbstractionLayer hal, W
                 hal.CapsLock = req.Value != 0;
                 break;
             case "touchpad_lock":
-                hal.TouchpadLocked = req.Value != 0;
+                wmi.SetTouchpadLock(req.Value != 0);
                 break;
             case "power_plan":
                 hal.PowerPlan = req.Value;
