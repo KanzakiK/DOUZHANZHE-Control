@@ -124,9 +124,20 @@ touchpadLock, igpuOnly, timestamp
 ### POST /api/auto-start
 设置开机自启（Windows Task Scheduler LogonTrigger）。
 - Body: `{ enabled: bool }`
-- `enabled = true` → 创建最高权限开机启动任务
+- `enabled = true` → 创建最高权限开机启动任务，启动 `Douzhanzhe.Shell.exe`（非 API.exe）
 - `enabled = false` → 删除开机启动任务
+- 自动读取 `auto-start-opts` 偏好，附带 `--minimized` 参数（如已开启最小化）
 - Return: `{ ok: bool, enabled: bool }`
+
+### GET /api/auto-start-opts
+查询开机自启偏好选项。
+- Return: `{ minimized: bool }`（开机时是否最小化到托盘）
+
+### POST /api/auto-start-opts
+保存开机自启偏好选项。
+- Body: `{ minimized: bool }`
+- 持久化到 `config/auto-start-opts.json`
+- Return: `{ ok: bool, minimized: bool }`
 
 ---
 
