@@ -49,7 +49,12 @@ public sealed class HardwareAbstractionLayer : IDisposable
     {
         _io = DriverBridge.Instance;
         _io.Init();
+        if (!_io.Ready)
+            Console.WriteLine("[HAL] 硬件驱动不可用，所有硬件读取将返回安全默认值");
     }
+
+    /// <summary>硬件驱动是否可用</summary>
+    public bool DriverAvailable => _io.Ready;
 
     // ================================================================
     // EC 偏移量常量 (相对 0xFE800400)
