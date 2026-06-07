@@ -53,24 +53,21 @@
 
 ## 快速启动
 
-### 开发态（推荐）— Vite HMR 热更新
-双终端并行：
 ```powershell
-# 终端 1 - C# HAL API（管理员）
-.\server\tools\dev-start.ps1
-
-# 终端 2 - Vite 开发服务器（热更新）
-npm run dev
+# 终端 1 - C# HAL API (唯一必需，管理员)
+cd server/api
+dotnet run --urls http://0.0.0.0:3100
 ```
-浏览器访问 `http://localhost:5173/`，修改 src/ 下代码自动刷新。
 
-### 生产态 — 全量构建
+或使用 `run.ps1`（自动构建前端 + 复制依赖 + 启动）：
 ```powershell
-# C# HAL API（前端自动构建嵌入）
 cd server/api
 .\run.ps1
 ```
-访问 `http://127.0.0.1:3100/`。
+
+前端页面由 `run.ps1` 自动构建并嵌入 C# API（`wwwroot/`），访问 `http://127.0.0.1:3100/` 即可。
+
+> 注：Vite dev server (`:5173`) 已废弃，前端修改后运行 `run.ps1` 或 `npm run build` 即可刷新。
 
 ## 技术栈
 | 层级 | 技术 | 许可证 |

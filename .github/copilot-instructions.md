@@ -54,17 +54,6 @@
 - **一步到位**：`server/api/run.ps1` 自动完成：清除 `.vite-temp` → dotnet build → copy to bin/run → npm build → copy dist to bin/run/wwwroot → launch
 - **纯前端修改（后端未改）**：`server/tools/reload-fe.ps1` 只构建前端 + 部署到运行中服务器，无需重启 C#。
 
-### 开发态流程（Vite HMR 热更新）
-双终端并行：
-```powershell
-# 终端 1 - C# 后端（管理员）
-server/tools/dev-start.ps1
-
-# 终端 2 - Vite 开发服务器
-npm run dev
-```
-浏览器访问 `http://localhost:5173/`。修改 src/ 文件后自动热更新，无需手动构建。
-
 ### 快捷验证
 - 检查部署是否生效：`Select-String "目标文本" "server/api/bin/run/wwwroot/assets/*.js"`
 - 确认 Content root：查看服务器启动日志第 3 行 `Content root path:`，`UseStaticFiles()` 从该路径的相对位置读取文件。
@@ -74,9 +63,7 @@ npm run dev
 1. □ 确认当前服务器 Content root 路径（`Get-Process | Where ProcessName -like Douzhanzhe*` → 看启动日志）
 2. □ 确认修改的目标文件磁盘内容与预期一致（`read_file` + 字节级对账）
 3. □ 确认 `run.ps1` 可用（未锁文件、未缺权限）
-4. □ 构思是开发态（`dev-start.ps1` + `npm run dev`）还是生产态（`run.ps1`）
-
-## 四、 文档同步与冲突处理
+4. □ 构思是否只需前端热更新（`reload-fe.ps1`）还是需全量（`run.ps1`）
 
 ## 四、 文档同步与冲突处理
 - 开发文档 (docs/) 具有最高参考权威，记录已完成功能、待完成功能和已知 Bug。
