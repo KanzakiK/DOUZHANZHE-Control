@@ -25,6 +25,14 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
       catch (err) { console.error("SMU set failed:", err); }
     }, 600);
   }
+  const coreTimer = useRef(null);
+  function queueCoreLimit(coreCount) {
+    clearTimeout(coreTimer.current);
+    coreTimer.current = setTimeout(async () => {
+      try { await applyUxtuLimits({ params: { cpuCoreLimit: coreCount } }); }
+      catch (err) { console.error("Core limit failed:", err); }
+    }, 600);
+  }
   const paramsLocked = false;
 
   useEffect(() => {
@@ -71,11 +79,11 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
           </div>
           {uxtuParams.cpuFreqLimitEnabled && (
             <SliderRow label="最大频率" value={uxtuParams.cpuFreqLimitMhz}
-              min={2000} max={5500} step={50} unit="MHz" onChange={update("cpuFreqLimitMhz")} />
+              min={2000} max={5500} step={50} unit="MHz" onChange={(v) => { update("cpuFreqLimitMhz")(v); queueSmu("cpu_freq_limit", v); }} />
           )}
           <div className="flex items-center gap-2">
             <input type="checkbox" checked={uxtuParams.cpuTurboDisabled}
-              onChange={(e) => update("cpuTurboDisabled")(e.target.checked)}
+              onChange={(e) => { update("cpuTurboDisabled")(e.target.checked); queueSmu("turbo_disable", e.target.checked ? 1 : 0); }}
             disabled={paramsLocked}
               className="accent-cyan-400" />
             <span className="text-xs">关闭睿频</span>
@@ -84,14 +92,14 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
             min={60} max={100} unit="°C" onChange={(v) => { update("cpuTempLimitC")(v); queueSmu("temp_limit", v); }} disabled={paramsLocked} />
           <div className="flex items-center gap-2">
             <input type="checkbox" checked={uxtuParams.cpuCoreLimit > 0}
-              onChange={(e) => update("cpuCoreLimit")(e.target.checked ? 8 : 0)}
+              onChange={(e) => { const v = e.target.checked ? 8 : 0; update("cpuCoreLimit")(v); queueCoreLimit(v); }}
               disabled={paramsLocked}
               className="accent-cyan-400" />
             <span className="text-xs">限制核心数</span>
           </div>
           {uxtuParams.cpuCoreLimit > 0 && (
             <SliderRow label="核心数" value={uxtuParams.cpuCoreLimit}
-              min={2} max={14} step={2} unit="核" onChange={update("cpuCoreLimit")} disabled={paramsLocked} />
+              min={2} max={14} step={2} unit="核" onChange={(v) => { update("cpuCoreLimit")(v); queueCoreLimit(v); }} disabled={paramsLocked} />
           )}
           <div>
             <p className="text-xs mb-1" style={{ color: "var(--muted)" }}>电源管理</p>
@@ -211,6 +219,7 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
               if (preset.cpuShortPptW) queueSmu("short_power_limit", preset.cpuShortPptW);
               if (preset.cpuVoltageOffset !== undefined) queueSmu("co_all", preset.cpuVoltageOffset);
               if (preset.cpuFreqLimitMhz) queueSmu("cpu_freq_limit", preset.cpuFreqLimitMhz);
+              if (preset.cpuTurboDisabled !== undefined) queueSmu("turbo_disable", preset.cpuTurboDisabled ? 1 : 0);
               toast?.("\u5df2\u6062\u590d\u9884\u8bbe\u503c", "success");
             }}
               className="text-xs px-3 py-1.5 rounded-lg cursor-pointer"
