@@ -231,19 +231,7 @@ export function useControlState(onSaveResult) {
     } else {
       const preset = MODE_PRESETS[currentMode];
       if (!preset) return;
-      setUxtuParams((prev) => ({
-        ...prev,
-        cpuTempLimitC: preset.cpuTempLimitC,
-        cpuLongPptW: preset.cpuLongPptW,
-        cpuShortPptW: preset.cpuShortPptW,
-        gpuPptLimitW: preset.gpuPptLimitW,
-        gpuTempLimitC: preset.gpuTempLimitC,
-        gpuCoreFreqMhz: preset.gpuCoreFreqMhz,
-        gpuMemFreqMhz: preset.gpuMemFreqMhz,
-        gpuFreqLimitEnabled: preset.gpuFreqLimitEnabled,
-        gpuFreqLimitMhz: preset.gpuFreqLimitMhz,
-        gpuFreqLocked: preset.gpuFreqLocked,
-      }));
+      setUxtuParams((prev) => ({ ...prev, ...preset }));
       setFanLargeRpmTarget(preset.fanLargeRpmTarget);
       setFanSmallRpmTarget(preset.fanSmallRpmTarget);
       // 模式切换时自动下发 MODE_PRESETS 预设到 SMU

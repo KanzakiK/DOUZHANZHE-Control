@@ -1,3 +1,8 @@
+/**
+ * @deprecated 此组件当前未使用。
+ * 所有遥测面板由 SortableDashboard.renderCard() 内联实现。
+ * 保留此文件仅供未来复用参考。
+ */
 import Card from "../ui/Card";
 import Gauge from "../ui/Gauge";
 import SliderRow from "../ui/SliderRow";
@@ -16,9 +21,6 @@ export default function TelemetryPanel({ telemetry, setTelemetry, settings, setS
   const fanRange = getFanRange(settings?.mode || "silent");
   const cpuSeries = history.cpu;
   const gpuSeries = history.gpu;
-  const fanPctSeries = telemetry.fanLargeMax > 0
-    ? history.fan.map((v) => Math.round((v / telemetry.fanLargeMax) * 100))
-    : [];
 
   return (
     <>
@@ -110,8 +112,6 @@ export default function TelemetryPanel({ telemetry, setTelemetry, settings, setS
                 value={Math.round((telemetry.fanSmallRpm / Math.max(1, telemetry.fanSmallMax)) * 100)}
               />
             </div>
-
-            <Sparkline data={fanPctSeries} title="风扇负载曲线" color="var(--ok)" />
           </div>
         </Card>
 

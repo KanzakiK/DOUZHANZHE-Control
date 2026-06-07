@@ -17,6 +17,7 @@ namespace Douzhanzhe.API;
 public class TelemetryBackgroundService : BackgroundService
 {
     private readonly HardwareAbstractionLayer _hal;
+    private readonly WmiInterface _wmi;
     private readonly ILogger<TelemetryBackgroundService> _log;
 
     // WebSocket 客户端列表
@@ -30,9 +31,11 @@ public class TelemetryBackgroundService : BackgroundService
 
     public TelemetryBackgroundService(
         HardwareAbstractionLayer hal,
+        WmiInterface wmi,
         ILogger<TelemetryBackgroundService> log)
     {
         _hal = hal;
+        _wmi = wmi;
         _log = log;
     }
 
@@ -87,13 +90,14 @@ public class TelemetryBackgroundService : BackgroundService
                     diskTotalGB = _hal.DiskTotalGB,
                     diskFreeGB = _hal.DiskFreeGB,
                     kbBrightness = _hal.KeyboardBrightness,
-                    fnLock = _hal.FnLock,
+                    fnLock = _wmi.Available ? _wmi.GetFnLock() == 1 : _hal.FnLock,
                     numLock = _hal.NumLock,
                     capsLock = _hal.CapsLock,
                     thermalMode = _hal.ThermalMode,
                     powerPlan = _hal.PowerPlan,
-                    touchpadLock = _hal.TouchpadLocked,
+                    touchpadLock = _wmi.Available ? _wmi.GetTouchpadLock() == 1 : _hal.TouchpadLocked,
                     igpuOnly = _hal.IgpuOnly,
+                    gpuMode = _wmi.Available ? _wmi.GetGpuMode().ToString() : null,
                     timestamp = DateTime.Now.ToString("HH:mm:ss"),
                 }, _jsonOpt);
 

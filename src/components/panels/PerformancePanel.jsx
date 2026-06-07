@@ -210,22 +210,3 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
       </Card>}</>
   );
 }
-          <div className="flex gap-2 pt-2">
-            <button onClick={() => {
-              const preset = MODE_PRESETS[settings.mode] || {};
-              setUxtuParams((p) => ({ ...p, ...preset, gpuCoreFreqMhz: 2700, gpuMemFreqMhz: 0, gpuFreqLimitMhz: 2600, gpuFreqLimitEnabled: false, gpuFreqLocked: false }));
-              if (preset.cpuTempLimitC) queueSmu("temp_limit", preset.cpuTempLimitC);
-              if (preset.cpuLongPptW) queueSmu("power_limit", preset.cpuLongPptW);
-              if (preset.cpuShortPptW) queueSmu("short_power_limit", preset.cpuShortPptW);
-              if (preset.cpuVoltageOffset !== undefined) queueSmu("co_all", preset.cpuVoltageOffset);
-              if (preset.cpuFreqLimitMhz) queueSmu("cpu_freq_limit", preset.cpuFreqLimitMhz);
-              if (preset.cpuTurboDisabled !== undefined) queueSmu("turbo_disable", preset.cpuTurboDisabled ? 1 : 0);
-              toast?.("\u5df2\u6062\u590d\u9884\u8bbe\u503c", "success");
-            }}
-              className="text-xs px-3 py-1.5 rounded-lg cursor-pointer"
-              style={{ border: "1px solid var(--warn)", color: "var(--warn)", background: "transparent" }}
-            >\u6062\u590d\u9884\u8bbe</button>
-          </div>
-
-
-// DEBUG_MARKER_20260606

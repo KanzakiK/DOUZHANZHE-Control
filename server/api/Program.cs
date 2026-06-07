@@ -10,7 +10,6 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton<HardwareAbstractionLayer>();
 builder.Services.AddSingleton<SmuController>();
 builder.Services.AddSingleton<GpuController>();
-builder.Services.AddSingleton<GpuController>();
 builder.Services.AddSingleton<WmiInterface>();
 builder.Services.AddHostedService<TelemetryBackgroundService>();
 builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
