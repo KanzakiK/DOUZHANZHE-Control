@@ -10,7 +10,7 @@ const POWER_PLANS = [
   { id: "performance", label: "最佳性能", halValue: powerPlanHALMap.performance },
 ];
 
-export default function PerformancePanel({ settings, setSettings, uxtuParams, setUxtuParams, uxtuPayload, onApplied, showCpu = true, showGpu = true }) {
+export default function PerformancePanel({ settings, setSettings, uxtuParams, setUxtuParams, uxtuPayload, onApplied, showCpu = true, showGpu = true, showPower = true, telemetry }) {
   const toast = useToast();
   const [isApplying, setIsApplying] = useState(false);
   const [applyMessage, setApplyMessage] = useState("");
@@ -99,11 +99,10 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
 
   return (
     <>
-      {showCpu && <Card title="CPU 调节" className="!p-3">
+      {showCpu && <Card title="CPU 频率控制" className="!p-3">
         <div className="space-y-3">
           {cpuPowerStatus && cpuPowerStatus.ok !== false && (
             <div className="text-xs flex items-center gap-2" style={{ color: "var(--muted)" }}>
-              <span>电源状态:</span>
               <span>睿频 {cpuPowerStatus.turboEnabled ? "开" : "关"}</span>
               <span>·</span>
               <span>频率限制 {cpuPowerStatus.freqLimitMhz > 0 ? cpuPowerStatus.freqLimitMhz + " MHz" : "无"}</span>
@@ -120,7 +119,7 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
               }}
             disabled={paramsLocked}
               className="accent-cyan-400" />
-            <span className="text-xs">频率限制 <span style={{ color: "var(--muted)" }}>(powercfg)</span></span>
+            <span className="text-xs">频率限制</span>
           </div>
           {uxtuParams.cpuFreqLimitEnabled && (
             <SliderRow label="最大频率" value={uxtuParams.cpuFreqLimitMhz}
@@ -136,16 +135,14 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
               }}
             disabled={paramsLocked}
               className="accent-cyan-400" />
-            <span className="text-xs">关闭睿频 <span style={{ color: "var(--muted)" }}>(powercfg)</span></span>
+            <span className="text-xs">关闭睿频</span>
           </div>
-          <SliderRow label="温度墙" value={uxtuParams.cpuTempLimitC}
-            min={60} max={100} unit="°C" onChange={(v) => { update("cpuTempLimitC")(v); queueSmu("temp_limit", v); }} disabled={paramsLocked} />
           <div className="flex items-center gap-2">
             <input type="checkbox" checked={uxtuParams.cpuCoreLimit > 0}
               onChange={(e) => { const v = e.target.checked ? 8 : 0; update("cpuCoreLimit")(v); queueCoreLimit(v); }}
               disabled={paramsLocked}
               className="accent-cyan-400" />
-            <span className="text-xs">限制核心数 <span style={{ color: "var(--muted)" }}>(powercfg)</span></span>
+            <span className="text-xs">限制核心数</span>
           </div>
           {uxtuParams.cpuCoreLimit > 0 && (
             <SliderRow label="核心数" value={uxtuParams.cpuCoreLimit}
@@ -183,6 +180,14 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
               ))}
             </div>
           </div>
+        </div>
+      </Card>
+      }
+
+      {showPower && <Card title="CPU 功耗与温度" className="!p-3">
+        <div className="space-y-3">
+          <SliderRow label="温度墙" value={uxtuParams.cpuTempLimitC}
+            min={60} max={100} unit="°C" onChange={(v) => { update("cpuTempLimitC")(v); queueSmu("temp_limit", v); }} disabled={paramsLocked} />
           <SliderRow label="电压调节(降压)" value={uxtuParams.cpuVoltageOffset}
             min={-30} max={0} step={1} unit="mV" onChange={(v) => { update("cpuVoltageOffset")(v); queueSmu("co_all", v); }} disabled={paramsLocked} />
           <SliderRow label="长时功耗" value={uxtuParams.cpuLongPptW}
@@ -191,11 +196,21 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
             min={15} max={140} unit="W" onChange={(v) => { update("cpuShortPptW")(v); queueSmu("short_power_limit", v); }} disabled={paramsLocked} />
         </div>
       </Card>
-
       }
 
 {showGpu && <Card title="GPU 调节" className="!p-3">
         <div className="space-y-3">
+          {telemetry && typeof telemetry.gpuFreq === "number" && (
+            <div className="text-xs flex items-center gap-2 flex-wrap" style={{ color: "var(--muted)" }}>
+              <span>核心 {telemetry.gpuFreq.toFixed(2)} GHz</span>
+              <span>·</span>
+              <span>显存 {telemetry.gpuMemMhz || "?"} MHz</span>
+              <span>·</span>
+              <span>功耗 {typeof telemetry.gpuPowerDrawW === "number" ? telemetry.gpuPowerDrawW.toFixed(1) : "?"}W</span>
+              <span>·</span>
+              <span>{telemetry.gpuTemp}°C</span>
+            </div>
+          )}
           <SliderRow label="核心频率" value={uxtuParams.gpuCoreFreqMhz}
             min={1000} max={3090} step={50} unit="MHz"
             disabled={uxtuParams.gpuFreqLocked}

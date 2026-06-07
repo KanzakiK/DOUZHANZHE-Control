@@ -79,6 +79,8 @@ public class TelemetryBackgroundService : BackgroundService
                     gpuFreq = _hal.GpuFreq,
                     gpuVram = _hal.GpuVram,
                     gpuVramUsed = _hal.GpuVramUsed,
+                    gpuMemMhz = _hal.GpuMemMhz,
+                    gpuPowerDrawW = _hal.GpuPowerDrawW,
                     fanLargeRpm = cpuFan,
                     fanSmallRpm = gpuFan,
                     fanLargeMax = HardwareAbstractionLayer.FanLargeMax,

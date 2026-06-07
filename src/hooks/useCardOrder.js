@@ -7,16 +7,17 @@ const API_UI_STATE = "/api/ui-state";
 const DEFAULT_ORDER = [
   "cpu-monitor",
   "gpu-monitor",
-  "cpu-adjust",
-  "gpu-adjust",
-  "mem-disk",
-  "fan-info",
   "keyboard-light",
+  "cpu-adjust",
+  "cpu-power",
   "gpu-mode",
-  "about",
+  "gpu-adjust",
+  "fan-info",
+  "mem-disk",
   "system-switches",
+  "about",
 ];
-const DEFAULT_HIDDEN = ["system-switches"];
+const DEFAULT_HIDDEN = [];
 
 function loadHidden() {
   try {

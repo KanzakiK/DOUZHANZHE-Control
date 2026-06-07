@@ -27,7 +27,8 @@ const CARD_MAP = {
   "gpu-monitor": { label: "GPU 监控" },
   "mem-disk": { label: "内存+硬盘" },
   "fan-info": { label: "风扇信息" },
-  "cpu-adjust": { label: "CPU 调节" },
+  "cpu-adjust": { label: "CPU 频率控制" },
+  "cpu-power": { label: "CPU 功耗与温度" },
   "gpu-adjust": { label: "GPU 调节" },
   "system-switches": { label: "系统开关" },
   "keyboard-light": { label: "键盘灯亮度" },
@@ -151,9 +152,11 @@ export default function SortableDashboard({
           </Card>
         );
       case "cpu-adjust":
-        return <PerformancePanel showGpu={false} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} uxtuPayload={uxtuPayload}/>;
+        return <PerformancePanel showGpu={false} showPower={false} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} uxtuPayload={uxtuPayload}/>;
+      case "cpu-power":
+        return <PerformancePanel showCpu={false} showGpu={false} showPower={true} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} uxtuPayload={uxtuPayload}/>;
       case "gpu-adjust":
-        return <PerformancePanel showCpu={false} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} uxtuPayload={uxtuPayload}/>;
+        return <PerformancePanel showCpu={false} showPower={false} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} uxtuPayload={uxtuPayload} telemetry={telemetry}/>;
       case "keyboard-light":
         return <SettingsPanel settings={settings} setSettings={setSettings} uxtuPayload={uxtuPayload} showSwitches={false} showKeyboard={true} showSummary={false} showSmu={false} showAbout={false}/>;
       case "system-switches":

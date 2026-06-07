@@ -27,6 +27,8 @@ public sealed class HardwareAbstractionLayer : IDisposable
     private float _sgGpuFreq;
     private uint _sgGpuVram;
     private float _sgGpuVramUsed;
+    private int _sgGpuMemMhz;
+    private float _sgGpuPowerDrawW;
     private DateTime _sgGpuTime = DateTime.MinValue;
     private int _sgCpuPct;
     private DateTime _sgCpuTime = DateTime.MinValue;
@@ -658,6 +660,8 @@ public sealed class HardwareAbstractionLayer : IDisposable
     public float GpuFreq { get { RefreshGpu(); return _sgGpuFreq; } }
     public uint GpuVram { get { RefreshGpu(); return _sgGpuVram; } }
     public float GpuVramUsed { get { RefreshGpu(); return _sgGpuVramUsed; } }
+    public int GpuMemMhz { get { RefreshGpu(); return _sgGpuMemMhz; } }
+    public float GpuPowerDrawW { get { RefreshGpu(); return _sgGpuPowerDrawW; } }
 
     private void RefreshGpu()
     {
@@ -669,7 +673,7 @@ public sealed class HardwareAbstractionLayer : IDisposable
                 StartInfo = new ProcessStartInfo
                 {
                     FileName = "nvidia-smi",
-                    Arguments = "--query-gpu=utilization.gpu,clocks.current.graphics,memory.total,memory.used --format=csv,noheader,nounits",
+                    Arguments = "--query-gpu=utilization.gpu,clocks.current.graphics,memory.total,memory.used,clocks.current.memory,power.draw --format=csv,noheader,nounits",
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
                     CreateNoWindow = true
@@ -686,6 +690,8 @@ public sealed class HardwareAbstractionLayer : IDisposable
                 if (float.TryParse(parts[1].Trim(), out var f)) _sgGpuFreq = f / 1000f;
                 if (float.TryParse(parts[2].Trim(), out var t)) _sgGpuVram = (uint)Math.Round(t / 1024.0);
                 if (float.TryParse(parts[3].Trim(), out var u)) _sgGpuVramUsed = (float)(u / 1024.0);
+                if (parts.Length >= 5 && int.TryParse(parts[4].Trim(), out var mm)) _sgGpuMemMhz = mm;
+                if (parts.Length >= 6 && float.TryParse(parts[5].Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var pw)) _sgGpuPowerDrawW = pw;
                 _sgGpuTime = DateTime.UtcNow;
             }
         }

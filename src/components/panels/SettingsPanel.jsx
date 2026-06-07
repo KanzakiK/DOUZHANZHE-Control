@@ -99,13 +99,6 @@ export default function SettingsPanel({ settings, setSettings, uxtuPayload, show
             onChange={(v) => toggleSetting("kbBrightnessLevel", v)} />
         </Card>
       )}
-      {showSummary && (
-        <Card title="当前策略">
-          <div className="text-xs space-y-1" style={{ color: "var(--muted)" }}>
-            <p>显卡 TDP：{uxtuPayload.params?.gpuPptLimitW ?? "?"}W | 显卡温度墙：{uxtuPayload.params?.gpuTempLimitC ?? "?"}°C</p>
-          </div>
-        </Card>
-      )}
       {showAbout && (<Card title="关于" className="!p-3">
         <div className="text-xs space-y-1" style={{ color: "var(--muted)" }}>
           <p>Douzhanzhe Console v1.0.0</p>
