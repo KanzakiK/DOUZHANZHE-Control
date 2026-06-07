@@ -111,17 +111,14 @@ PerformancePanel → update() → setUxtuParams()
 
 恢复预设按钮 (模式选择 Card action)
   → localStorage.removeItem(douzhanzhe_params_{当前模式})
-  → 应用 MODE_PRESETS 出厂值
+  → MODE_PRESETS[settings.mode] 覆盖全部参数（CPU+GPU功耗+风扇，不含GPU频率）
   → 风扇目标恢复 + applyUxtuLimits() 全量下发
+  → nvidia-smi reset-clocks + reset-memory-clocks（硬件重置GPU频率）
+  → React state重置：gpuCoreFreqMhz=2700, gpuMemFreqMhz=0, gpuFreqLimitMhz=2600, gpuFreqLimitEnabled=false, gpuFreqLocked=false
   → Toast "已恢复预设值"
-
-恢复预设按钮 (模式选择 Card action)
-  → MODE_PRESETS[settings.mode] 覆盖全部参数
-  → 风扇目标恢复
-  → applyUxtuLimits() 全量下发
 ```
 
-- `MODE_PRESETS` 定义在 `uxtuAdapter.js`，含 CPU (7字段) + GPU (6字段) + 风扇 (2字段) = 15 字段
+- `MODE_PRESETS` 定义在 `uxtuAdapter.js`，含 CPU (9字段) + GPU (2字段) = 11 字段（不含GPU频率——非硬件预设，由nvidia-smi独立控制）
 - 模式切换时滑块跟随预设值跳转
 - "恢复预设"按钮在模式选择 Card 右上角，恢复当前模式的完整出厂值
 

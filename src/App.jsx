@@ -94,7 +94,7 @@ export default function App() {
               // 重置 GPU 频率到驱动默认值（预设表不含 GPU 频率）
               applyGpuControl("reset-clocks").catch(() => {});
               applyGpuControl("reset-memory-clocks").catch(() => {});
-              setUxtuParams(prev => ({ ...prev, gpuFreqLimitEnabled: false, gpuFreqLocked: false }));
+              setUxtuParams(prev => ({ ...prev, gpuFreqLimitEnabled: false, gpuFreqLocked: false, gpuCoreFreqMhz: 2700, gpuMemFreqMhz: 0, gpuFreqLimitMhz: 2600 }));
               applyUxtuLimits({ chipset: uxtuPayload.chipset, profile: uxtuPayload.profile, params: merged }).then(r => {
                 toast?.(r.message || "已恢复预设值", "success");
               }).catch(err => {

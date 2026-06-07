@@ -205,7 +205,7 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
           <div className="flex gap-2 pt-2">
             <button onClick={() => {
               const preset = MODE_PRESETS[settings.mode] || {};
-              setUxtuParams((p) => ({ ...p, ...preset }));
+              setUxtuParams((p) => ({ ...p, ...preset, gpuCoreFreqMhz: 2700, gpuMemFreqMhz: 0, gpuFreqLimitMhz: 2600, gpuFreqLimitEnabled: false, gpuFreqLocked: false }));
               if (preset.cpuTempLimitC) queueSmu("temp_limit", preset.cpuTempLimitC);
               if (preset.cpuLongPptW) queueSmu("power_limit", preset.cpuLongPptW);
               if (preset.cpuShortPptW) queueSmu("short_power_limit", preset.cpuShortPptW);
