@@ -111,9 +111,9 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
           <SliderRow label="电压调节(降压)" value={uxtuParams.cpuVoltageOffset}
             min={-30} max={0} step={1} unit="mV" onChange={(v) => { update("cpuVoltageOffset")(v); queueSmu("co_all", v); }} disabled={paramsLocked} />
           <SliderRow label="长时功耗" value={uxtuParams.cpuLongPptW}
-            min={15} max={150} unit="W" onChange={(v) => { update("cpuLongPptW")(v); queueSmu("power_limit", v); }} disabled={paramsLocked} />
+            min={15} max={120} unit="W" onChange={(v) => { update("cpuLongPptW")(v); queueSmu("power_limit", v); }} disabled={paramsLocked} />
           <SliderRow label="短时功耗" value={uxtuParams.cpuShortPptW}
-            min={15} max={180} unit="W" onChange={(v) => { update("cpuShortPptW")(v); queueSmu("short_power_limit", v); }} disabled={paramsLocked} />
+            min={15} max={140} unit="W" onChange={(v) => { update("cpuShortPptW")(v); queueSmu("short_power_limit", v); }} disabled={paramsLocked} />
         </div>
       </Card>
 
