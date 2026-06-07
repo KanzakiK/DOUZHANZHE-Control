@@ -10,36 +10,45 @@
 ## 系统分层
 
 ```
-                   浏览器 (React SPA)
-                   访问 127.0.0.1:3100
-                           |
-                 C# HAL API (单一进程)
-                 :3100
-                 ┌─────────────────────────┐
-                 │  wwwroot/ (静态文件)     │
-                 │  UseStaticFiles()        │
-                 │  MapFallbackToFile()     │
-                 ├─────────────────────────┤
-                 │  WmiInterface            │
-                 │  (System.Management)     │
-                 │  GPU/Fn/TP/恢复固件      │
-                 ├─────────────────────────┤
-                 │  DriverBridge            │
-                 │  inpoutx64 EC 直写       │
-                 │  风扇/背光/散热          │
-                 ├─────────────────────────┤
-                 │  SmuController           │
-                 │  (ryzenadj 子进程)        │
-                 ├─────────────────────────┤
-                 │  GpuController           │
-                 │  (nvidia-smi 子进程)      │
-                 └─────────────────────────┘
-                 WebSocket /ws
+     ┌──────────────────────────────────────┐
+     │  Douzhanzhe.Shell (桌面壳)            │
+     │  WinForms + WebView2                 │
+     │  加载 http://127.0.0.1:3100/         │
+     │  NotifyIcon 系统托盘最小化            │
+     └──────────────┬───────────────────────┘
+                    │ WebView2 内嵌
+                    ▼
+     ┌──────────────────────────────────────┐
+     │  C# HAL API (单一进程)               │
+     │  :3100                               │
+     │  ┌─────────────────────────────┐      │
+     │  │  wwwroot/ (静态文件)         │      │
+     │  │  UseStaticFiles()           │      │
+     │  │  MapFallbackToFile()        │      │
+     │  ├─────────────────────────────┤      │
+     │  │  WmiInterface               │      │
+     │  │  (System.Management)        │      │
+     │  │  GPU/Fn/TP/恢复固件         │      │
+     │  ├─────────────────────────────┤      │
+     │  │  DriverBridge               │      │
+     │  │  inpoutx64 EC 直写          │      │
+     │  │  风扇/背光/散热             │      │
+     │  ├─────────────────────────────┤      │
+     │  │  SmuController              │      │
+     │  │  (ryzenadj 子进程)           │      │
+     │  ├─────────────────────────────┤      │
+     │  │  GpuController              │      │
+     │  │  (nvidia-smi 子进程)         │      │
+     │  └─────────────────────────────┘      │
+     └──────────────────────────────────────┘
                            |
                     Windows 内核 / 硬件
 ```
 
 > Node.js 辅助服务已退役，全功能迁至 C#。
+>
+> **桌面壳** (`server/shell/Douzhanzhe.Shell/`) 是可选的 WinForms 壳层，提供系统托盘最小化功能。
+> 也支持直接在浏览器中访问 `http://127.0.0.1:3100/` 使用。
 详见：
 - [后端架构](dev-backend.md) — C# HAL 四层 (DriverBridge/HAL/SmuController/API)
 - [前端架构](dev-frontend.md) — 组件树、状态管理、响应式、仪表盘自定义、主题
@@ -82,8 +91,10 @@ C# JSON (config/*.json) <- POST /api/custom-params /api/ui-state (退出编辑/1
 | 服务 | 端口 | 技术 | 职责 |
 |------|------|------|------|
 | C# HAL API | :3100 | .NET 8 Minimal API | 遥测、EC 直写、WebSocket、SMU、GPU、Debug、配置持久化 |
+| Douzhanzhe.Shell (可选) | — | WinForms + WebView2 | 桌面壳，WebView2 加载 UI，系统托盘最小化 |
 
 > Vite Dev Server (:5173) 和 Node.js (:3099) 均已退役。前端由 C# `wwwroot/` 自托管。
+> 桌面壳 (`server/shell/Douzhanzhe.Shell/`) 需单独编译运行，依赖 WebView2 运行时。
 
 ## 驱动依赖
 
