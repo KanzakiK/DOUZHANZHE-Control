@@ -11,13 +11,13 @@ const DEFAULT_ORDER = [
   "cpu-adjust",
   "cpu-power",
   "gpu-adjust",
-  "gpu-mode",
-  "fan-info",
   "mem-disk",
+  "fan-info",
+  "gpu-mode",
   "system-switches",
   "about",
 ];
-const DEFAULT_HIDDEN = [];
+const DEFAULT_HIDDEN = ["keyboard-light", "about"];
 
 function loadHidden() {
   try {

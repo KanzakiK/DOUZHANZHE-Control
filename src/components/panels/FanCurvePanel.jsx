@@ -280,7 +280,7 @@ export default function FanCurvePanel({ telemetry }) {
           className="text-sm rounded-lg px-3 py-2.5 transition"
           style={{ border: "1px solid var(--warn)", color: "var(--warn)", background: "transparent" }}
         >
-          恢复默认
+          恢复预设
         </button>
       </div>
 

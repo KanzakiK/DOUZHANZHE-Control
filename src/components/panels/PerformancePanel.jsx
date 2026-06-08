@@ -182,14 +182,14 @@ export default function PerformancePanel({
             setCpuPowerStatus(s => s ? { ...s, turboEnabled: true, freqLimitMhz: 0, coreLimitPercent: 100 } : s);
             setCpuCoreLimitPercent(100).catch(() => {});
             applyHardwareControl("power_plan", powerPlanHALMap.balance).catch(() => {});
-            toast?.("CPU 限制已重置", "success");
+            toast?.("已恢复预设值", "success");
           } catch (err) {
-            toast?.("重置失败: " + err.message, "error");
+            toast?.("恢复预设失败: " + err.message, "error");
           }
         }}
           className="text-xs px-2 py-1 rounded-lg"
           style={{ border: "1px solid var(--warn)", color: "var(--warn)", background: "transparent" }}
-        >重置 CPU 限制</button>}
+        >恢复预设</button>}
       >
         <div className="space-y-3">
           <SwitchRow label="频率限制" checked={uxtuParams.cpuFreqLimitEnabled}
@@ -301,11 +301,11 @@ export default function PerformancePanel({
             return next;
           });
           await applyNvapiThermalLimit(thermalDefault);
-          toast?.("GPU 已重置", "success");
+          toast?.("已恢复预设值", "success");
         }}
           className="text-xs px-2 py-1 rounded-lg"
           style={{ border: "1px solid var(--warn)", color: "var(--warn)", background: "transparent" }}
-        >重置 GPU</button>}
+        >恢复预设</button>}
       >
         <div className="space-y-3">
           <SliderRow label="核心频率" value={uxtuParams.gpuCoreFreqMhz}

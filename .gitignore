@@ -81,3 +81,22 @@ _clean*.py
 _ec_test/
 *.bak
 *.disabled
+
+# Qoder tool files
+.qoder/
+.instructions.md
+
+# Temp / experiment directories
+_enum_dll_proj/
+_lab/
+_tmp_decompile/
+_*.csx
+
+# Development docs (not pushed yet)
+docs/
+
+# Runtime config (all JSON under api/config)
+server/api/config/*.json
+
+# Other dot-prefixed directories
+.venv/
