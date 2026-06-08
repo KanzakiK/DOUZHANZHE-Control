@@ -16,8 +16,10 @@ const CH = H - PT - PB;
 const T_MIN = 40, T_MAX = 105;
 const RPM_MAX = 8400;
 
-// 默认曲线 (对齐 BellatorFanControl LoadDefaultCurve)
+// 默认曲线 (对齐 BellatorFanControl + 向两端延展)
+// 40°C = 设备允许的最低转速, 90-100°C = 高温满载区
 const DEFAULT_POINTS = [
+  { temp: 40, largeRpm: 1900, smallRpm: 1700 },
   { temp: 50, largeRpm: 2200, smallRpm: 2000 },
   { temp: 55, largeRpm: 2600, smallRpm: 3500 },
   { temp: 60, largeRpm: 2900, smallRpm: 4800 },
@@ -26,6 +28,9 @@ const DEFAULT_POINTS = [
   { temp: 75, largeRpm: 3800, smallRpm: 6900 },
   { temp: 80, largeRpm: 4000, smallRpm: 7500 },
   { temp: 85, largeRpm: 4300, smallRpm: 8000 },
+  { temp: 90, largeRpm: 4400, smallRpm: 8200 },
+  { temp: 95, largeRpm: 4400, smallRpm: 8200 },
+  { temp: 100, largeRpm: 4400, smallRpm: 8200 },
 ];
 
 // ── 坐标映射 ──
@@ -41,6 +46,31 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 function buildPath(pts, rpmKey) {
   const sorted = [...pts].sort((a, b) => a.temp - b.temp);
   return sorted.map((p, i) => `${i === 0 ? "M" : "L"}${tX(p.temp).toFixed(1)},${rY(p[rpmKey]).toFixed(1)}`).join(" ");
+}
+
+// ── 首尾延伸（虚线段）──
+// 用首/尾两点的斜率向两侧延展到 T_MIN / T_MAX
+function buildExtendPaths(pts, rpmKey, maxRpm) {
+  const sorted = [...pts].sort((a, b) => a.temp - b.temp);
+  if (sorted.length < 2) return { head: "", tail: "" };
+  const first = sorted[0], second = sorted[1];
+  const last = sorted[sorted.length - 1], prev = sorted[sorted.length - 2];
+
+  // 向下延伸: first → T_MIN
+  const slopeHead = (first[rpmKey] - second[rpmKey]) / (first.temp - second.temp || 1);
+  const headRpm = clamp(Math.round(first[rpmKey] + slopeHead * (T_MIN - first.temp)), 0, maxRpm);
+  const head = first.temp > T_MIN
+    ? `M${tX(T_MIN).toFixed(1)},${rY(headRpm).toFixed(1)} L${tX(first.temp).toFixed(1)},${rY(first[rpmKey]).toFixed(1)}`
+    : "";
+
+  // 向上延伸: last → T_MAX
+  const slopeTail = (last[rpmKey] - prev[rpmKey]) / (last.temp - prev.temp || 1);
+  const tailRpm = clamp(Math.round(last[rpmKey] + slopeTail * (T_MAX - last.temp)), 0, maxRpm);
+  const tail = last.temp < T_MAX
+    ? `M${tX(last.temp).toFixed(1)},${rY(last[rpmKey]).toFixed(1)} L${tX(T_MAX).toFixed(1)},${rY(tailRpm).toFixed(1)}`
+    : "";
+
+  return { head, tail };
 }
 
 export default function FanCurvePanel({ telemetry }) {
@@ -359,17 +389,25 @@ export default function FanCurvePanel({ telemetry }) {
       >
         {/* 表头 */}
         <div
-          className="grid gap-1 text-xs font-medium px-1 py-1"
-          style={{ gridTemplateColumns: "1fr 1fr 1fr 32px", color: "var(--muted)" }}
+          className="grid gap-x-4 gap-y-1 text-xs font-medium px-1 py-1"
+          style={{ gridTemplateColumns: "1fr 1fr", color: "var(--muted)" }}
         >
-          <span>温度 °C</span>
-          <span style={{ color: "#4fc3f7" }}>大风扇 RPM</span>
-          <span style={{ color: "#ce93d8" }}>小风扇 RPM</span>
-          <span />
+          <div className="grid gap-1" style={{ gridTemplateColumns: "1fr 1fr 1fr 28px" }}>
+            <span>温度 °C</span>
+            <span style={{ color: "#4fc3f7" }}>大风扇</span>
+            <span style={{ color: "#ce93d8" }}>小风扇</span>
+            <span />
+          </div>
+          <div className="grid gap-1" style={{ gridTemplateColumns: "1fr 1fr 1fr 28px" }}>
+            <span>温度 °C</span>
+            <span style={{ color: "#4fc3f7" }}>大风扇</span>
+            <span style={{ color: "#ce93d8" }}>小风扇</span>
+            <span />
+          </div>
         </div>
 
-        {/* 数据行 */}
-        <div className="space-y-1 max-h-[260px] overflow-y-auto">
+        {/* 数据行：两列 */}
+        <div className="grid gap-x-4 gap-y-1 max-h-[220px] overflow-y-auto" style={{ gridTemplateColumns: "1fr 1fr" }}>
           {sorted.map((p, sortIdx) => {
             const realIdx = points.indexOf(p);
             const isSel = selIdx === realIdx;
@@ -378,7 +416,7 @@ export default function FanCurvePanel({ telemetry }) {
                 key={`row-${sortIdx}`}
                 className="grid gap-1 items-center rounded px-1 py-0.5"
                 style={{
-                  gridTemplateColumns: "1fr 1fr 1fr 32px",
+                  gridTemplateColumns: "1fr 1fr 1fr 28px",
                   background: isSel ? "var(--primary-2)" : "transparent",
                   opacity: isSel ? 0.9 : 1,
                 }}

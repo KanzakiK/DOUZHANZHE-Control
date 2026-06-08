@@ -36,9 +36,10 @@ public sealed class FanCurveService : IDisposable
     public bool Active => _active;
 
     /// <summary>曲线点：温度(°C) → 大扇/小扇目标 RPM</summary>
-    /// <remarks>默认曲线对齐 BellatorFanControl LoadDefaultCurve</remarks>
+    /// <remarks>默认曲线: 40°C 最低转速 → 50-85°C 渐变 → 90-100°C 满载</remarks>
     public List<FanCurvePoint> Points { get; private set; } = new()
     {
+        new(40, 1900, 1700),
         new(50, 2200, 2000),
         new(55, 2600, 3500),
         new(60, 2900, 4800),
@@ -47,6 +48,9 @@ public sealed class FanCurveService : IDisposable
         new(75, 3800, 6900),
         new(80, 4000, 7500),
         new(85, 4300, 8000),
+        new(90, 4400, 8200),
+        new(95, 4400, 8200),
+        new(100, 4400, 8200),
     };
 
     public FanCurveService(
