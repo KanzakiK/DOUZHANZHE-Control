@@ -73,7 +73,7 @@ export default function App() {
       const next = { ...prev, ...patch };
       const { url, ...cfg } = next;
       localStorage.setItem("dz_bg", JSON.stringify(cfg));
-      if (patch.hasImage !== undefined) next.url = patch.hasImage ? "/api/background?" + Date.now() : null;
+      if (patch.hasImage !== undefined && patch.url === undefined) next.url = patch.hasImage ? "/api/background?" + Date.now() : null;
       return next;
     });
   }, []);

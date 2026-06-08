@@ -1080,16 +1080,23 @@ app.MapPost("/api/background", async (HttpContext ctx) =>
         // 清理旧的背景图片
         var configDir = Path.GetDirectoryName(bgOptsPath)!;
         foreach (var old in Directory.GetFiles(configDir, "background.*"))
-            File.Delete(old);
+        {
+            try { File.Delete(old); }
+            catch { /* 忽略被占用的文件，写入时会被覆盖 */ }
+        }
 
         var filePath = Path.Combine(configDir, $"background.{ext}");
-        await File.WriteAllBytesAsync(filePath, Convert.FromBase64String(b64));
+        var tmpPath = filePath + ".tmp";
+        await File.WriteAllBytesAsync(tmpPath, Convert.FromBase64String(b64));
+        // 原子替换：先写临时文件，再重命名
+        if (File.Exists(filePath)) File.Delete(filePath);
+        File.Move(tmpPath, filePath);
         return Results.Json(new { ok = true, ext });
     }
     catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }); }
 });
 
-app.MapGet("/api/background", () =>
+app.MapGet("/api/background", async () =>
 {
     try
     {
@@ -1105,7 +1112,9 @@ app.MapGet("/api/background", () =>
             ".webp" => "image/webp",
             _ => "image/png"
         };
-        return Results.File(filePath, contentType);
+        // 读入内存以释放文件句柄，避免与上传操作冲突
+        var bytes = await File.ReadAllBytesAsync(filePath);
+        return Results.File(bytes, contentType);
     }
     catch { return Results.StatusCode(500); }
 });

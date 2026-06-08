@@ -91,7 +91,7 @@ export default function SettingsPanel({ settings, setSettings, uxtuPayload, show
     const reader = new FileReader();
     reader.onload = () => {
       const dataUrl = reader.result;
-      updateBg({ hasImage: true, url: dataUrl, enabled: true });
+      updateBg({ hasImage: true });
       fetch("/api/background", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
