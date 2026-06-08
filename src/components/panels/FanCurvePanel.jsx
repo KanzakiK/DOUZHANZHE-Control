@@ -98,8 +98,8 @@ export default function FanCurvePanel({ telemetry }) {
       .catch(() => {});
   }, []);
 
-  // ── 排序后的点 (用于绘制折线) ──
-  const sorted = [...points].sort((a, b) => a.temp - b.temp);
+  // ── 排序后的点 (用于绘制折线) + 保留原始索引 ──
+  const sorted = [...points].map((p, i) => ({ ...p, _i: i })).sort((a, b) => a.temp - b.temp);
 
   // ── 当前 hotspot 指示线 ──
   const hotspot = telemetry
@@ -461,7 +461,7 @@ export default function FanCurvePanel({ telemetry }) {
         {/* 数据行：两列 */}
         <div className="grid gap-x-4 gap-y-1 max-h-[220px] overflow-y-auto" style={{ gridTemplateColumns: "1fr 1fr" }}>
           {sorted.map((p, sortIdx) => {
-            const realIdx = points.indexOf(p);
+            const realIdx = p._i;
             const isSel = selIdx === realIdx;
             return (
               <div

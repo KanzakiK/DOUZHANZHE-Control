@@ -64,9 +64,7 @@ export function createTelemetrySocket(onData, onError) {
     } catch { /* ignore */ }
   };
   ws.onerror = () => onError?.();
-  ws.onclose = () => {
-    setTimeout(() => createTelemetrySocket(onData, onError), 3000);
-  };
+  // 不在此处自动重连，由调用方 (useControlState) 管理生命周期
   return ws;
 }
 

@@ -188,14 +188,30 @@ export function useControlState(onSaveResult) {
   // ── WebSocket 遥测 ──
   const [backendOnline, setBackendOnline] = useState(false);
   useEffect(() => {
-    const ws = createTelemetrySocket(
-      (data) => {
-        setBackendOnline(true);
-        setTelemetry(prev => ({ ...prev, ...data }));
-      },
-      () => setBackendOnline(false)
-    );
-    return () => ws.close();
+    let disposed = false;
+    let ws;
+    let reconnectTimer;
+
+    const connect = () => {
+      ws = createTelemetrySocket(
+        (data) => {
+          setBackendOnline(true);
+          setTelemetry(prev => ({ ...prev, ...data }));
+        },
+        () => setBackendOnline(false)
+      );
+      ws.onclose = () => {
+        setBackendOnline(false);
+        if (!disposed) reconnectTimer = setTimeout(connect, 3000);
+      };
+    };
+
+    connect();
+    return () => {
+      disposed = true;
+      clearTimeout(reconnectTimer);
+      if (ws) ws.close();
+    };
   }, []);
 
   // ── Mock 模拟 (后端不可用时) ──
