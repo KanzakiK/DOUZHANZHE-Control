@@ -88,10 +88,14 @@ export default function SettingsPanel({ settings, setSettings, uxtuPayload, show
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 10 * 1024 * 1024) { toast?.("图片不能超过 10MB", "error"); return; }
+
+    // 立即显示预览（不等待 base64 编码）
+    const previewUrl = URL.createObjectURL(file);
+    updateBg({ hasImage: true, url: previewUrl, enabled: true });
+
     const reader = new FileReader();
     reader.onload = () => {
       const dataUrl = reader.result;
-      updateBg({ hasImage: true });
       fetch("/api/background", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -99,13 +103,18 @@ export default function SettingsPanel({ settings, setSettings, uxtuPayload, show
       })
         .then(r => r.json())
         .then(d => {
+          URL.revokeObjectURL(previewUrl);
           if (d.ok) {
+            updateBg({ hasImage: true });
             toast?.("背景图片已设置", "success");
           } else {
             toast?.(d.error || "上传失败", "error");
           }
         })
-        .catch(() => toast?.("上传失败", "error"));
+        .catch(() => {
+          URL.revokeObjectURL(previewUrl);
+          toast?.("上传失败", "error");
+        });
     };
     reader.readAsDataURL(file);
     e.target.value = "";
