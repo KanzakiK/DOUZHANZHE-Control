@@ -18,7 +18,7 @@ import Sparkline from "./ui/Sparkline";
 import SortableCard from "./ui/SortableCard";
 import PerformancePanel from "./panels/PerformancePanel";
 import SettingsPanel from "./panels/SettingsPanel";
-import { getFanRange, applyHardwareControl, MODE_PRESETS } from "../services/uxtuAdapter";
+import { getFanRange, applyHardwareControl, MODE_PRESETS, startFanCurve, stopFanCurve } from "../services/uxtuAdapter";
 import { useCardOrder } from "./../hooks/useCardOrder";
 import { useToast } from "./ui/Toast";
 
@@ -40,6 +40,7 @@ export default function SortableDashboard({
   telemetry, setTelemetry, settings, setSettings,
   uxtuPayload, uxtuParams, setUxtuParams,
   history, editMode, setEditMode,
+  fanCurveActive, onSwitchTab,
 }) {
   const toast = useToast();
   const onSyncResult = useCallback((ok) => {
@@ -131,29 +132,51 @@ export default function SortableDashboard({
         );
       case "fan-info":
         const fanRange = getFanRange(settings?.mode || "silent");
-        const toast = useToast();
+        const fanToast = useToast();
         return (
           <Card title="风扇信息"
-            action={!editMode && <button onClick={() => {
-              const mode = settings?.mode || "silent";
-              const preset = MODE_PRESETS[mode] || {};
-              setUxtuParams(p => {
-                const next = {
-                  ...p,
-                  fanLargeRpmTarget: preset.fanLargeRpmTarget ?? 2200,
-                  fanSmallRpmTarget: preset.fanSmallRpmTarget ?? 4100,
-                };
-                try { localStorage.setItem("douzhanzhe_params_" + mode, JSON.stringify(next)); } catch {}
-                return next;
-              });
-              const modeName = mode === "silent" ? "安静" : mode === "office" ? "均衡" : mode === "gaming" ? "斗战" : mode === "beast" ? "野兽" : "自定义";
-              toast?.(`已恢复${modeName}模式风扇预设`, "success");
-            }}
-              className="text-xs px-2 py-1 rounded-lg"
-              style={{ border: "1px solid var(--warn)", color: "var(--warn)", background: "transparent" }}
-            >恢复预设</button>}
+            action={!editMode && (fanCurveActive ? (
+              <button onClick={async () => {
+                try { await stopFanCurve(); fanToast?.("自定义散热已关闭", "success"); }
+                catch { fanToast?.("关闭自定义散热失败", "error"); }
+              }}
+                className="text-xs px-2 py-1 rounded-lg flex items-center gap-1"
+                style={{ border: "1px solid var(--ok)", color: "var(--ok)", background: "transparent" }}
+              >
+                <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: "var(--ok)", animation: "pulse 1.5s infinite" }} />
+                自定义散热运行中
+              </button>
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <button onClick={async () => {
+                  try { await startFanCurve(); fanToast?.("自定义散热已开启", "success"); }
+                  catch { fanToast?.("开启自定义散热失败", "error"); }
+                }}
+                  className="text-xs px-2 py-1 rounded-lg"
+                  style={{ border: "1px solid var(--primary-2)", color: "var(--primary-2)", background: "transparent" }}
+                >自定义</button>
+                <button onClick={() => {
+                  const mode = settings?.mode || "silent";
+                  const preset = MODE_PRESETS[mode] || {};
+                  setUxtuParams(p => {
+                    const next = {
+                      ...p,
+                      fanLargeRpmTarget: preset.fanLargeRpmTarget ?? 2200,
+                      fanSmallRpmTarget: preset.fanSmallRpmTarget ?? 4100,
+                    };
+                    try { localStorage.setItem("douzhanzhe_params_" + mode, JSON.stringify(next)); } catch {}
+                    return next;
+                  });
+                  const modeName = mode === "silent" ? "安静" : mode === "office" ? "均衡" : mode === "gaming" ? "斗战" : mode === "beast" ? "野兽" : "自定义";
+                  fanToast?.(`已恢复${modeName}模式风扇预设`, "success");
+                }}
+                  className="text-xs px-2 py-1 rounded-lg"
+                  style={{ border: "1px solid var(--warn)", color: "var(--warn)", background: "transparent" }}
+                >恢复预设</button>
+              </div>
+            ))}
           >
-            <div className="space-y-3">
+            <div className="space-y-3" style={{ opacity: fanCurveActive ? 0.5 : 1 }}>
               <div className="space-y-1">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-sm">大风扇(CPU): <span className="font-bold">{telemetry.fanLargeRpm}</span> RPM</p>
@@ -165,6 +188,7 @@ export default function SortableDashboard({
                 </div>
                 <SliderRow label="大风扇目标转速" value={uxtuParams.fanLargeRpmTarget ?? 2900}
                   min={fanRange.largeMin} max={fanRange.largeMax} step={100} unit="RPM"
+                  disabled={fanCurveActive}
                   onChange={(v) => setUxtuParams(p => ({ ...p, fanLargeRpmTarget: v }))}/>
                 <Gauge label="大风扇负载" value={Math.round((telemetry.fanLargeRpm / Math.max(1, telemetry.fanLargeMax)) * 100)}/>
               </div>
@@ -179,10 +203,10 @@ export default function SortableDashboard({
                 </div>
                 <SliderRow label="小风扇目标转速" value={uxtuParams.fanSmallRpmTarget ?? 6400}
                   min={fanRange.smallMin} max={fanRange.smallMax} step={100} unit="RPM"
+                  disabled={fanCurveActive}
                   onChange={(v) => setUxtuParams(p => ({ ...p, fanSmallRpmTarget: v }))}/>
                 <Gauge label="小风扇负载" value={Math.round((telemetry.fanSmallRpm / Math.max(1, telemetry.fanSmallMax)) * 100)}/>
               </div>
-              {/* 风扇负载曲线已隐藏 — EC 16 位竞态导致心电图问题 */}
             </div>
           </Card>
         );

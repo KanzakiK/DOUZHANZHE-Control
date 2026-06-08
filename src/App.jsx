@@ -9,7 +9,7 @@ import Gauge from "./components/ui/Gauge";
 import SortableDashboard from "./components/SortableDashboard";
 import { ToastProvider, useToast } from "./components/ui/Toast";
 import { useControlState } from "./hooks/useControlState";
-import { MODE_PRESETS, FULL_PARAMS, dispatchFullMode } from "./services/uxtuAdapter";
+import { MODE_PRESETS, FULL_PARAMS, dispatchFullMode, fetchFanCurveStatus } from "./services/uxtuAdapter";
 import { useCallback, useState, useEffect } from "react";
 
 const NAV_ITEMS = ["主页", "散热曲线", "系统", "设置"];
@@ -33,6 +33,19 @@ export default function App() {
     catch { return "dashboard"; }
   });
   const [editMode, setEditMode] = useState(false);
+  // 轮询自定义曲线状态 (每 3s)
+  const [fanCurveActive, setFanCurveActive] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    const poll = () => {
+      fetchFanCurveStatus()
+        .then(s => { if (!cancelled && s.ok) setFanCurveActive(s.active); })
+        .catch(() => {});
+    };
+    poll();
+    const timer = setInterval(poll, 3000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, []);
   // 持久化当前标签页
   useEffect(() => {
     localStorage.setItem("douzhanzhe_active_tab", activeTab);
@@ -75,7 +88,9 @@ export default function App() {
             uxtuPayload={uxtuPayload}
             uxtuParams={uxtuParams} setUxtuParams={setUxtuParams}
             history={history}
-            editMode={editMode} setEditMode={setEditMode} />
+            editMode={editMode} setEditMode={setEditMode}
+            fanCurveActive={fanCurveActive}
+            onSwitchTab={setActiveTab} />
           )}
           {activeTab === "system" && <SystemInfoPanel />}
           {activeTab === "settings" && (
