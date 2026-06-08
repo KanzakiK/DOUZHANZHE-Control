@@ -11,31 +11,43 @@
 >
 > **Use at your own risk.** The developers assume no liability for any hardware damage, system failure, or warranty issues resulting from the use of this tool.
 
-**斗战者控制台** — Lenovo Legion N176 2025 (宝龙达 OEM) 开源硬件控制面板。
-替代官方联想电脑管家，提供完整的硬件监控、性能调优和系统控制能力。
+---
 
-**Douzhanzhe Console** — Open-source hardware control panel for Lenovo Legion N176 2025 (BaoLongDa OEM).
-A full-featured alternative to Lenovo Vantage for hardware monitoring, performance tuning, and system control.
+**斗战者控制台** — 专为联想 Legion N176 2025 (宝龙达 OEM) 打造的开源硬件控制面板，替代官方联想电脑管家，提供完整的硬件监控、性能调优和系统控制能力。
+
+**Douzhanzhe Console** — Open-source hardware control panel for Lenovo Legion N176 2025 (BaoLongDa OEM). A full-featured alternative to Lenovo Vantage for hardware monitoring, performance tuning, and system control.
 
 ---
 
 ## 功能 Features
 
-**实时监控** — CPU/GPU 温度、频率、占用率、风扇转速、内存与磁盘，通过 WebSocket 每 500ms 推送。
+**实时监控** — CPU/GPU 温度、频率、占用率、功耗、风扇转速、显存、内存与磁盘，WebSocket 每 500ms 全量推送，含负载曲线历史。
 
-**性能调优** — CPU 功耗墙/温度墙 (SMU via RyzenAdj)、GPU 功耗/超频偏移/锁频 (NVAPI + nvidia-smi)、四档模式预设一键切换。
+**性能调优** — CPU 功耗墙/温度墙/核心数/睿频 (SMU via RyzenAdj)、GPU 功耗/超频偏移/锁频 (NVAPI + nvidia-smi)、四档模式预设一键切换（安静/均衡/野兽/斗战）。
 
-**散热曲线** — 自定义温度-转速曲线编辑器，SVG 可视化预览，支持保存/加载/启停。
+**自定义散热曲线** — 独立标签页，SVG 可视化温度-转速曲线编辑器，支持多点拖拽、保存/加载/启停/恢复预设，后台 FanCurveService 定时执行。
 
-**GPU 模式** — 混合/集显/独显三档切换 (WMI MiInterface)，重启后自动恢复用户选择。
+**GPU 模式** — 混合/集显/独显三档切换 (WMI MiInterface)，用户选择持久化到配置文件，重启后自动恢复。
 
-**系统控制** — 键盘背光亮度、FnLock、电源计划、CapsLock/NumLock、风扇转速直写 (EC 寄存器)。
+**系统控制** — 键盘背光亮度 (0-3级)、FnLock/CapsLock/NumLock/触摸板锁定、电源计划管理、风扇目标转速直写 (EC 寄存器)。
 
-**个性化** — @dnd-kit 拖拽排序仪表盘、模块隐藏/显示、四套主题皮肤。
+**自定义背景** — 上传本地图片作为界面背景，支持透明度调节和黑色/白色遮罩切换。
+
+**个性化** — @dnd-kit 拖拽排序仪表盘、模块隐藏/显示、30+ 主题皮肤。
+
+**桌面集成** — WinForms + WebView2 原生桌面壳，单实例运行、系统托盘最小化、开机自启（计划任务）、窗口尺寸/位置记忆。
 
 ---
 
-## 快速开始 Quick Start
+## 安装 Installation
+
+从 [Releases](https://github.com/KanzakiK/DOUZHANZHE-Control/releases) 页面下载最新安装包 `DouzhanzheConsole-*-Setup.exe`，双击运行即可。
+
+安装程序会自动检测并安装所需依赖（.NET 8 Desktop Runtime、WebView2 Runtime）。
+
+---
+
+## 快速开始 Quick Start (开发)
 
 ### 环境要求 Prerequisites
 
@@ -57,18 +69,14 @@ dotnet run --urls http://0.0.0.0:3100
 npx vite --host 0.0.0.0 --port 5173
 ```
 
-### 部署 Deployment
+### 构建打包 Build & Package
 
 ```powershell
 # 构建前端 + 同步到后端 wwwroot
 .\deploy.ps1
 
-# 仅同步（跳过构建）
-.\deploy.ps1 -SkipBuild
-
-# 启动生产服务（管理员）
-cd server/api/bin/build
-dotnet Douzhanzhe.API.dll --urls=http://127.0.0.1:3100
+# 完整构建：前端 → API 发布 → Shell 发布 → 合并工具 → 编译安装包
+# （需先配置 build-all.ps1 中的路径和文件 hash）
 ```
 
 生产模式访问 `http://127.0.0.1:3100`，Debug 面板在 `http://127.0.0.1:3100/debug`。
@@ -79,11 +87,13 @@ dotnet Douzhanzhe.API.dll --urls=http://127.0.0.1:3100
 
 | 层级 Layer | 技术 |
 |:-----|:-----|
+| 桌面壳 Shell | WinForms + WebView2 (单实例、托盘、开机自启) |
 | 前端 Frontend | React 19 + Vite 8 + TailwindCSS 3 + @dnd-kit |
 | 后端 Backend | .NET 8 Minimal API + WMI + inpoutx64 |
-| SMU 控制 | RyzenAdj (子进程调用) |
+| SMU 控制 | RyzenAdj + WinRing0x64 (子进程调用) |
 | GPU 控制 | nvidia-smi 锁频 + NVAPI 超频 + WMI 模式切换 |
 | EC 直写 | inpoutx64 (IO 端口 0x62/0x66) |
+| 安装包 | Inno Setup 6 |
 
 ---
 
@@ -92,23 +102,30 @@ dotnet Douzhanzhe.API.dll --urls=http://127.0.0.1:3100
 ```
 DOUZHANZHE-Control/
 ├── src/                        # React 前端
-│   ├── App.jsx                 # 主布局 + 标签页路由
+│   ├── App.jsx                 # 主布局 + 标签页路由 + 背景层
 │   ├── components/
 │   │   ├── SortableDashboard   # 拖拽排序仪表盘
 │   │   ├── panels/             # 性能/散热曲线/遥测/系统/设置面板
 │   │   └── ui/                 # Card, Gauge, Toast 等通用组件
 │   ├── hooks/                  # useCardOrder, useControlState
-│   └── services/               # uxtuAdapter (API 通信)
+│   └── services/               # uxtuAdapter (API 通信 + 模式预设)
 ├── server/
 │   ├── api/                    # ASP.NET 8 后端
-│   │   ├── Program.cs          # Minimal API 端点 + WebSocket 遥测
+│   │   ├── Program.cs          # Minimal API 端点 + WebSocket 遥测 + 背景 API
 │   │   ├── WmiInterface.cs     # WMI MiInterface 硬件通信
 │   │   ├── FanCurveService.cs  # 散热曲线后台服务
 │   │   └── TelemetryBackgroundService.cs
-│   └── hal/                    # 硬件抽象层
-│       ├── DriverBridge.cs     # inpoutx64 P/Invoke
-│       ├── HardwareAbstractionLayer.cs  # EC 寄存器语义映射
-│       └── SmuController.cs    # RyzenAdj 子进程封装
+│   ├── hal/                    # 硬件抽象层
+│   │   ├── DriverBridge.cs     # inpoutx64 P/Invoke
+│   │   ├── HardwareAbstractionLayer.cs  # EC 寄存器语义映射
+│   │   └── SmuController.cs    # RyzenAdj 子进程封装
+│   ├── shell/                  # WinForms 桌面壳
+│   │   └── Douzhanzhe.Shell/
+│   │       ├── Program.cs      # 单实例互斥 + 管理员提权 + 窗口激活
+│   │       └── Form1.cs        # WebView2 宿主 + 托盘 + 窗口状态记忆
+│   └── tools/                  # 运行时工具 (ryzenadj, WinRing0x64)
+├── installer/                  # Inno Setup 安装脚本
+│   └── douzhanzhe-setup.iss
 ├── deploy.ps1                  # 一键构建部署脚本
 └── vite.config.js              # Vite 配置 + API 代理
 ```
