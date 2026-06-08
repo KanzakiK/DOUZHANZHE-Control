@@ -80,7 +80,6 @@ export default function SortableDashboard({
               <Gauge label="占用率" value={telemetry.cpuUsage}/>
               <Gauge label="温度" value={telemetry.cpuTemp} unit="°C" color="var(--warn)"/>
               <Gauge label="频率" value={telemetry.cpuFreq} unit=" GHz" color="var(--ok)" max={5.2}/>
-              <p className="text-sm" style={{ color: "var(--muted)" }}>核心: {telemetry.cpuCores}</p>
               <Sparkline data={history.cpu} title="CPU 负载曲线"/>
             </div>
           </Card>
@@ -90,9 +89,27 @@ export default function SortableDashboard({
           <Card title="GPU 监控" className="!p-5">
             <div className="space-y-3">
               <Gauge label="占用率" value={telemetry.gpuUsage}/>
-              <Gauge label="温度" value={telemetry.gpuTemp} unit="°C" color="var(--warn)"/>
               <Gauge label="频率" value={telemetry.gpuFreq} unit=" GHz" color="var(--primary-2)" max={3.2}/>
-              <p className="text-sm" style={{ color: "var(--muted)" }}>显存: {typeof telemetry.gpuVramUsed === "number" ? telemetry.gpuVramUsed.toFixed(1) : "?"}/{telemetry.gpuVram} GB</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs" style={{ color: "var(--muted)" }}>温度</p>
+                  <p className="text-xl font-bold">{telemetry.gpuTemp || 0}<span className="text-sm font-normal" style={{ color: "var(--muted)" }}> °C</span></p>
+                </div>
+                <div>
+                  <p className="text-xs" style={{ color: "var(--muted)" }}>显存</p>
+                  <p className="text-xl font-bold">{typeof telemetry.gpuVramUsed === "number" ? telemetry.gpuVramUsed.toFixed(1) : "0.0"}<span className="text-sm font-normal" style={{ color: "var(--muted)" }}> GB</span></p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs" style={{ color: "var(--muted)" }}>功耗</p>
+                  <p className="text-xl font-bold">{typeof telemetry.gpuPowerDrawW === "number" ? telemetry.gpuPowerDrawW.toFixed(1) : "0.0"}<span className="text-sm font-normal" style={{ color: "var(--muted)" }}> W</span></p>
+                </div>
+                <div>
+                  <p className="text-xs" style={{ color: "var(--muted)" }}>显存频率</p>
+                  <p className="text-xl font-bold">{telemetry.gpuMemMhz || 0}<span className="text-sm font-normal" style={{ color: "var(--muted)" }}> MHz</span></p>
+                </div>
+              </div>
               <Sparkline data={history.gpu} title="GPU 负载曲线" color="var(--primary-2)"/>
             </div>
           </Card>
@@ -156,7 +173,7 @@ export default function SortableDashboard({
       case "cpu-power":
         return <PerformancePanel showCpu={false} showGpu={false} showPower={true} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} uxtuPayload={uxtuPayload}/>;
       case "gpu-adjust":
-        return <PerformancePanel showCpu={false} showPower={false} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} uxtuPayload={uxtuPayload} telemetry={telemetry}/>;
+        return <PerformancePanel showCpu={false} showPower={false} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} uxtuPayload={uxtuPayload}/>;
       case "keyboard-light":
         return <SettingsPanel settings={settings} setSettings={setSettings} uxtuPayload={uxtuPayload} showSwitches={false} showKeyboard={true} showSummary={false} showSmu={false} showAbout={false}/>;
       case "system-switches":

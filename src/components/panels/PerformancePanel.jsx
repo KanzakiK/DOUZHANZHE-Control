@@ -101,15 +101,6 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
     <>
       {showCpu && <Card title="CPU 频率控制" className="!p-3">
         <div className="space-y-3">
-          {cpuPowerStatus && cpuPowerStatus.ok !== false && (
-            <div className="text-xs flex items-center gap-2" style={{ color: "var(--muted)" }}>
-              <span>睿频 {cpuPowerStatus.turboEnabled ? "开" : "关"}</span>
-              <span>·</span>
-              <span>频率限制 {cpuPowerStatus.freqLimitMhz > 0 ? cpuPowerStatus.freqLimitMhz + " MHz" : "无"}</span>
-              <span>·</span>
-              <span>核心 {cpuPowerStatus.coreLimitPercent > 0 && cpuPowerStatus.coreLimitPercent < 100 ? cpuPowerStatus.coreLimitPercent + "%" : "100%"}</span>
-            </div>
-          )}
           <div className="flex items-center gap-2">
             <input type="checkbox" checked={uxtuParams.cpuFreqLimitEnabled}
               onChange={(e) => {
@@ -200,17 +191,6 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
 
 {showGpu && <Card title="GPU 调节" className="!p-3">
         <div className="space-y-3">
-          {telemetry && typeof telemetry.gpuFreq === "number" && (
-            <div className="text-xs flex items-center gap-2 flex-wrap" style={{ color: "var(--muted)" }}>
-              <span>核心 {telemetry.gpuFreq.toFixed(2)} GHz</span>
-              <span>·</span>
-              <span>显存 {telemetry.gpuMemMhz || "?"} MHz</span>
-              <span>·</span>
-              <span>功耗 {typeof telemetry.gpuPowerDrawW === "number" ? telemetry.gpuPowerDrawW.toFixed(1) : "?"}W</span>
-              <span>·</span>
-              <span>{telemetry.gpuTemp}°C</span>
-            </div>
-          )}
           <SliderRow label="核心频率" value={uxtuParams.gpuCoreFreqMhz}
             min={1000} max={3090} step={50} unit="MHz"
             disabled={uxtuParams.gpuFreqLocked}

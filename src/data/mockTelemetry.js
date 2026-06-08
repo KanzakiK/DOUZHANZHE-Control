@@ -7,7 +7,9 @@ export const mockTelemetry = {
   gpuFreq: 1.2,
   gpuTemp: 62,
   gpuVram: 8,
-  gpuVramUsed: 0,
+  gpuVramUsed: 3.5,
+  gpuMemMhz: 9001,
+  gpuPowerDrawW: 15,
   fanLargeRpm: 3000,  // 大风扇(CPU) 实际转速
   fanSmallRpm: 5100,  // 小风扇(GPU) 实际转速
   fanLargeMax: 4400,  // 大风扇(CPU) 最大转速

@@ -2,16 +2,15 @@
   "cardOrder": [
     "cpu-monitor",
     "gpu-monitor",
-    "cpu-adjust",
-    "gpu-adjust",
-    "mem-disk",
-    "fan-info",
-    "current-strategy",
     "keyboard-light",
-    "about",
-    "system-switches"
+    "cpu-adjust",
+    "cpu-power",
+    "gpu-adjust",
+    "gpu-mode",
+    "fan-info",
+    "mem-disk",
+    "system-switches",
+    "about"
   ],
-  "hiddenCards": [
-    "system-switches"
-  ]
+  "hiddenCards": []
 }
