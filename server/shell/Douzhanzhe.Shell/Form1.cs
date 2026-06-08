@@ -88,6 +88,7 @@ public partial class Form1 : Form
 
         // 初始化 WebView2 — 用户数据目录放在 %LOCALAPPDATA% 下，避免 Program Files 写入权限问题
         bool webViewOk = false;
+        string webViewError = "";
         try
         {
             var userDataDir = Path.Combine(
@@ -104,13 +105,36 @@ public partial class Form1 : Form
                     await initTask; // 传播可能的异常
                     webViewOk = true;
                 }
+                else
+                {
+                    webViewError = "WebView2 EnsureCoreWebView2Async 超时 (15s)";
+                }
+            }
+            else
+            {
+                webViewError = "WebView2 CreateAsync 超时 (15s)";
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            webViewError = $"{ex.GetType().Name}: {ex.Message}";
+        }
 
         if (!webViewOk)
         {
-            // WebView2 初始化失败或超时 — 用 WinForms Label 显示错误
+            // 写入日志文件
+            try
+            {
+                var logDir = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "Douzhanzhe Console");
+                Directory.CreateDirectory(logDir);
+                File.AppendAllText(Path.Combine(logDir, "api-startup.log"),
+                    $"[{DateTime.Now:HH:mm:ss}] WebView2 init failed: {webViewError}\n");
+            }
+            catch { }
+
+            // 用 WinForms Label 显示错误
             _webView.Dispose();
             var lbl = new Label
             {
@@ -123,7 +147,7 @@ public partial class Form1 : Form
                 Text = "界面引擎初始化失败\n\n" +
                        "请确认已安装 Microsoft Edge WebView2 Runtime：\n" +
                        "https://developer.microsoft.com/zh-cn/microsoft-edge/webview2/\n\n" +
-                       "安装后重启本程序即可。"
+                       $"错误详情：{webViewError}"
             };
             Controls.Add(lbl);
             return;

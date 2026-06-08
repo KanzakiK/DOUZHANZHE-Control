@@ -34,6 +34,21 @@ if (!Directory.Exists(configDir))
         configDir = devConfig;
 }
 Directory.CreateDirectory(configDir);
+
+// ---- File logger ----
+var _logDir = Path.Combine(
+    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+    "Douzhanzhe Console");
+Directory.CreateDirectory(_logDir);
+var _logPath = Path.Combine(_logDir, "api.log");
+void Log(string msg)
+{
+    var line = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {msg}\n";
+    Console.WriteLine(msg);
+    try { File.AppendAllText(_logPath, line); } catch { }
+}
+// 每次启动清空旧日志（保留最近一次运行记录）
+try { File.WriteAllText(_logPath, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] API starting, BaseDir={AppContext.BaseDirectory}, ConfigDir={configDir}\n"); } catch { }
 // ---- JSON persistence helpers ----
 T JsonRead<T>(string fileName, T fallback) where T : class
 {
@@ -74,7 +89,7 @@ _ = System.Threading.Tasks.Task.Run(() =>
             if (wmiStartup.Available)
             {
                 wmiStartup.SetGpuMode((byte)mode);
-                Console.WriteLine($"[Startup] GPU mode restored to {mode}");
+                Log($"[Startup] GPU mode restored to {mode}");
             }
         }
     }
@@ -598,7 +613,7 @@ app.MapGet("/api/gpu/status", (GpuController gpu) =>
 // ---- NVAPI GPU 控制 (超频/降频/功率/温度) ----
 var nvapi = app.Services.GetRequiredService<NvapiGpuController>();
 if (!nvapi.Init())
-    Console.WriteLine("[NVAPI] 未初始化，超频/功率/温度控制不可用");
+    Log("[NVAPI] 未初始化，超频/功率/温度控制不可用");
 
 app.MapGet("/api/nvapi/status", (NvapiGpuController nv) =>
 {
@@ -1116,7 +1131,7 @@ try
         check?.WaitForExit(2000);
         if (check?.ExitCode != 0)
         {
-            Console.WriteLine("[WinRing0] Driver not loaded, attempting to install...");
+            Log("[WinRing0] Driver not loaded, attempting to install...");
             var create = Process.Start(new ProcessStartInfo("sc.exe", $"create {svcName} type=kernel start=demand binPath=\"{sysPath}\"") { UseShellExecute = false, CreateNoWindow = true });
             create?.WaitForExit(2000);
             var start = Process.Start(new ProcessStartInfo("sc.exe", "start " + svcName) { UseShellExecute = false, CreateNoWindow = true });
@@ -1127,18 +1142,29 @@ try
                 var outText = verify.StandardOutput.ReadToEnd();
                 verify.WaitForExit(1000);
                 if (outText.Contains("RUNNING"))
-                    Console.WriteLine("[WinRing0] Driver loaded OK");
+                    Log("[WinRing0] Driver loaded OK");
                 else
-                    Console.WriteLine("[WinRing0] Driver load FAILED - SMU control unavailable");
+                    Log("[WinRing0] Driver load FAILED - SMU control unavailable");
             }
         }
-        else Console.WriteLine("[WinRing0] Driver already loaded");
+        else Log("[WinRing0] Driver already loaded");
     }
-    else Console.WriteLine("[WinRing0] WinRing0x64.sys not found at " + sysPath);
+    else Log("[WinRing0] WinRing0x64.sys not found at " + sysPath);
 }
-catch (Exception ex) { Console.WriteLine("[WinRing0] Error: " + ex.Message); }
+catch (Exception ex) { Log("[WinRing0] Error: " + ex.Message); }
 
-app.Run();
+// ---- Start server ----
+try
+{
+    Log("Starting server on http://127.0.0.1:3100");
+    app.Run();
+}
+catch (Exception ex)
+{
+    Log($"[FATAL] Server failed to start: {ex.GetType().Name}: {ex.Message}");
+    Log($"  StackTrace: {ex.StackTrace}");
+    throw;
+}
 public record WmiCmdRequest(int Method, int? Value);
 public record GpuSetRequest(
     [property: System.Text.Json.Serialization.JsonPropertyName("action")] string Action,
