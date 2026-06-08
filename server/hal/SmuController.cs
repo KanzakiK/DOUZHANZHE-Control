@@ -94,6 +94,22 @@ public sealed class SmuController
         return r == 0 || r == 1 || r == SMU_OK_CRASH ? 0 : r;
     }
 
+    /// <summary>批量设置所有 SMU 参数，单次 ryzenadj 调用</summary>
+    public int BatchApply(uint? stapmMw, uint? fastMw, uint? slowMw, uint? tempC, int? coAllMv, uint? maxClkMhz, bool? turboOff)
+    {
+        var args = new List<string>();
+        if (stapmMw.HasValue) args.Add("--stapm-limit=" + stapmMw.Value);
+        if (fastMw.HasValue) args.Add("--fast-limit=" + fastMw.Value);
+        if (slowMw.HasValue) args.Add("--slow-limit=" + slowMw.Value);
+        if (tempC.HasValue) args.Add("--tctl-temp=" + tempC.Value);
+        if (coAllMv.HasValue) args.Add("--set-coall=" + coAllMv.Value);
+        if (maxClkMhz.HasValue) args.Add("--max-cpuclk=" + maxClkMhz.Value);
+        if (turboOff.HasValue) args.Add(turboOff.Value ? "--power-saving=1" : "--max-performance=1");
+        if (args.Count == 0) return 0;
+        var r = RyzenAdj(args.ToArray());
+        return r == 0 || r == 1 || r == SMU_OK_CRASH ? 0 : r;
+    }
+
     
 
     public int SetVrmCurrent(uint mA) => throw new System.NotSupportedException("VRM current not supported on this hardware");

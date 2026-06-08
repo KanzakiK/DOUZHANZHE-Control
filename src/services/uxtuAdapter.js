@@ -70,7 +70,7 @@ export function createTelemetrySocket(onData, onError) {
   return ws;
 }
 
-export const GPU_BASE_CLOCK = 2700; // RTX 5060 典型 boost 频率 (nvidia-smi 无法读取，用户提供)
+export const GPU_BASE_CLOCK = 2750; // RTX 5060 典型 boost 频率 (nvidia-smi 无法读取，用户提供)
 export const GPU_MEM_BASE_CLOCK = 12001; // 显存最大频率 (limit-memory 作为上限使用) // 显存基准频率
 
 // GPU 控制: action = "limit-max" | "lock-exact" | "reset-clocks" | "reset-memory-clocks"
@@ -91,6 +91,35 @@ export async function applyGpuControl(action, value, min, max) {
 export async function fetchGpuStatus() {
   const res = await fetch(`/api/gpu/status`);
   if (!res.ok) throw new Error(`GPU 状态返回 ${res.status}`);
+  return res.json();
+}
+
+// NVAPI 状态 (超频偏移/功率/温度限制)
+export async function fetchNvapiStatus() {
+  const res = await fetch(`/api/nvapi/status`);
+  if (!res.ok) throw new Error(`NVAPI 状态返回 ${res.status}`);
+  return res.json();
+}
+
+// NVAPI 超频: coreOffsetMhz / memOffsetMhz 偏移值
+export async function applyNvapiOverclock(coreOffsetMhz, memOffsetMhz) {
+  const res = await fetch(`/api/nvapi/overclock`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ coreOffsetMhz, memOffsetMhz }),
+  });
+  if (!res.ok) throw new Error(`NVAPI 超频返回 ${res.status}`);
+  return res.json();
+}
+
+// NVAPI 温度限制
+export async function applyNvapiThermalLimit(tempC) {
+  const res = await fetch(`/api/nvapi/thermal-limit`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tempC }),
+  });
+  if (!res.ok) throw new Error(`NVAPI 温度限制返回 ${res.status}`);
   return res.json();
 }
 

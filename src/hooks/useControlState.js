@@ -67,7 +67,7 @@ export function useControlState(onSaveResult) {
     cpuShortPptW: 85,
     gpuFreqLimitEnabled: false,
     gpuFreqLimitMhz: 2600,
-    gpuCoreFreqMhz: 2700,
+    gpuCoreFreqMhz: 2750,
     gpuMemFreqMhz: 1,
     gpuFreqLocked: false,
     gpuPptLimitW: 115,

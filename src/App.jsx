@@ -8,7 +8,7 @@ import Gauge from "./components/ui/Gauge";
 import SortableDashboard from "./components/SortableDashboard";
 import { ToastProvider, useToast } from "./components/ui/Toast";
 import { useControlState } from "./hooks/useControlState";
-import { MODE_PRESETS, applyUxtuLimits, applyHardwareControl, applyGpuControl, thermalModeMap } from "./services/uxtuAdapter";
+import { MODE_PRESETS, applyUxtuLimits, applyHardwareControl, applyGpuControl, applyNvapiThermalLimit, thermalModeMap } from "./services/uxtuAdapter";
 import { useCallback, useState, useEffect, useRef } from "react";
 
 const NAV_ITEMS = ["主页", "系统", "设置"];
@@ -96,7 +96,7 @@ export default function App() {
               // 重置 GPU 频率到驱动默认值（预设表不含 GPU 频率）
               applyGpuControl("reset-clocks").catch(() => {});
               applyGpuControl("reset-memory-clocks").catch(() => {});
-              setUxtuParams(prev => ({ ...prev, gpuFreqLimitEnabled: false, gpuFreqLocked: false, gpuCoreFreqMhz: 2700, gpuMemFreqMhz: 0, gpuFreqLimitMhz: 2600 }));
+              setUxtuParams(prev => ({ ...prev, gpuFreqLimitEnabled: false, gpuFreqLocked: false, gpuCoreFreqMhz: 2750, gpuMemFreqMhz: 0, gpuFreqLimitMhz: 2600 }));
               applyUxtuLimits({ chipset: uxtuPayload.chipset, profile: uxtuPayload.profile, params: merged }).then(r => {
                 toast?.(r.message || "已恢复预设值", "success");
               }).catch(err => {
@@ -112,12 +112,17 @@ export default function App() {
                 <button key={mode.id} onClick={() => {
                 setSettings((prev) => ({ ...prev, mode: mode.id }));
                 const tv = thermalModeMap[mode.id];
-                // 双发方案：EC 切换前后都写 SMU，避免固件刷预设覆盖我们的值
                 const buildParams = (mid) => { try { var s = JSON.parse(localStorage.getItem("douzhanzhe_params_" + mid) || "null"); return s || MODE_PRESETS[mid] || {}; } catch { return MODE_PRESETS[mid] || {}; } };
                 var p = buildParams(mode.id);
+                // GPU 温度限制: 立即乐观更新 UI + 异步下发
+                var gpuTemp = Math.min(p.gpuTempLimitC || 75, 87);
+                window.dispatchEvent(new CustomEvent("gpu-thermal-updated", { detail: gpuTemp }));
+                applyNvapiThermalLimit(gpuTemp).catch(function(e){});
+                // SMU + EC 散热模式
                 applyUxtuLimits({ chipset: "Ryzen 9 8940HX", profile: mode.id, params: p }).catch(function(e){});
                 if (tv !== null && tv !== undefined) applyHardwareControl("thermal_mode", tv).catch(function(e){});
-                setTimeout(function() { applyUxtuLimits({ chipset: "Ryzen 9 8940HX", profile: mode.id, params: buildParams(mode.id) }).then(function(r){console.log("[SMU] mode switch write:", r)}).catch(function(e){console.warn("[SMU] mode switch failed:", e)}); }, 1000);
+                // 500ms 后重发 SMU，防止 EC 刷预设覆盖
+                setTimeout(function() { applyUxtuLimits({ chipset: "Ryzen 9 8940HX", profile: mode.id, params: buildParams(mode.id) }).then(function(r){console.log("[SMU] mode switch write:", r)}).catch(function(e){console.warn("[SMU] mode switch failed:", e)}); }, 500);
               }}
                   className="text-xs md:text-sm rounded-lg px-2 py-3 transition-all"
                   style={{ border: "1px solid var(--border)", background: settings.mode === mode.id ? "var(--primary-2)" : "var(--card-2)", color: settings.mode === mode.id ? "#ffffff" : "var(--text)", boxShadow: settings.mode === mode.id ? "0 0 24px rgba(167, 139, 250, 0.35)" : "none" }}

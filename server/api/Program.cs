@@ -587,8 +587,6 @@ app.MapPost("/api/uxtu/apply", (HttpContext ctx, SmuController smu) =>
         var jsonOpts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
         var body = JsonSerializer.Deserialize<UxtuApplyRequest>(reader.ReadToEndAsync().Result, jsonOpts);
         if (body == null) return Results.Json(new { ok = false, error = "invalid body" });
-        // Support both { params: { cpuLongPptW, cpuShortPptW, cpuTempLimitC, gpuPptLimitW, cpuVoltageOffset } }
-        // and { limits: { cpu: { pptLimitW, tempLimitC }, gpu: { pptLimitW } } }
         int? cpuPpt = body.Params?.CpuLongPptW ?? body.Limits?.Cpu?.PptLimitW;
         int? cpuShortPpt = body.Params?.CpuShortPptW;
         int? cpuTemp = body.Params?.CpuTempLimitC ?? body.Limits?.Cpu?.TempLimitC;
@@ -598,16 +596,17 @@ app.MapPost("/api/uxtu/apply", (HttpContext ctx, SmuController smu) =>
         int? cpuFreqMhz = body.Params?.CpuFreqLimitMhz;
         bool? cpuTurboOff = body.Params?.CpuTurboDisabled;
         int? cpuCoreLimit = body.Params?.CpuCoreLimit;
-        var errors = new List<string>();
-        if (cpuPpt.HasValue) { var rc = smu.SetPowerLimit((uint)(cpuPpt.Value * 1000)); if (rc != 0) errors.Add($"cpuPpt rc={rc}"); }
-        if (cpuShortPpt.HasValue && cpuShortPpt.Value != (cpuPpt ?? 0)) { var rc = smu.SetShortPowerLimit((uint)(cpuShortPpt.Value * 1000), (uint)(cpuShortPpt.Value * 1000)); if (rc != 0) errors.Add($"cpuShortPpt rc={rc}"); }
-        if (cpuTemp.HasValue) { var rc = smu.SetTempLimit((uint)cpuTemp.Value); if (rc != 0) errors.Add($"cpuTemp rc={rc}"); }
-        if (gpuPpt.HasValue) { var rc = smu.SetPowerLimit((uint)(gpuPpt.Value * 1000)); if (rc != 0) errors.Add($"gpuPpt rc={rc}"); }
-        if (cpuVoltage.HasValue) { var rc = smu.SetCurveOptimizer(cpuVoltage.Value); if (rc != 0) errors.Add($"cpuVoltage rc={rc}"); }
-        if (cpuFreqEnabled.HasValue && cpuFreqEnabled.Value && cpuFreqMhz.HasValue) { var rc = smu.SetCpuFreqLimit((uint)cpuFreqMhz.Value); if (rc != 0) errors.Add($"cpuFreq rc={rc}"); }
-        if (cpuTurboOff.HasValue) { var rc = smu.SetTurboDisabled(cpuTurboOff.Value); if (rc != 0) errors.Add($"cpuTurbo rc={rc}"); }
+        // 批量单次 ryzenadj 调用
+        uint? stapmMw = cpuPpt.HasValue ? (uint)(cpuPpt.Value * 1000) : null;
+        uint? fastMw = cpuShortPpt.HasValue ? (uint)(cpuShortPpt.Value * 1000) : stapmMw;
+        uint? slowMw = fastMw;
+        uint? tempC = cpuTemp.HasValue ? (uint)cpuTemp.Value : null;
+        int? coAllMv = cpuVoltage;
+        uint? maxClkMhz = (cpuFreqEnabled == true && cpuFreqMhz.HasValue) ? (uint)cpuFreqMhz.Value : null;
+        bool? turboOff = cpuTurboOff;
+        var rc = smu.BatchApply(stapmMw, fastMw, slowMw, tempC, coAllMv, maxClkMhz, turboOff);
         if (cpuCoreLimit.HasValue) { CpuAffinityManager.SetCoreLimit(cpuCoreLimit.Value); }
-        return Results.Json(new { ok = errors.Count == 0, message = errors.Count > 0 ? string.Join("; ", errors) : "OK" });
+        return Results.Json(new { ok = rc == 0, message = rc == 0 ? "OK" : $"rc={rc}" });
     }
     catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }); }
 });
