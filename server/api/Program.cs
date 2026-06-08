@@ -147,7 +147,12 @@ app.MapGet("/api/system/info-ext", () =>
         return Results.Content(_sysInfoExtCache, "application/json");
     try
     {
-        var scriptPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "sysinfo-ext.ps1");
+        // bin/<config>/net8.0/ → project root (up 3), or bin/run/ or bin/build/ → project root (up 2)
+        var scriptPath = Path.Combine(AppContext.BaseDirectory, "sysinfo-ext.ps1");
+        if (!File.Exists(scriptPath))
+            scriptPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "sysinfo-ext.ps1");
+        if (!File.Exists(scriptPath))
+            scriptPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "sysinfo-ext.ps1");
         if (!File.Exists(scriptPath))
             scriptPath = Path.Combine(Directory.GetCurrentDirectory(), "sysinfo-ext.ps1");
         using var p = new System.Diagnostics.Process
