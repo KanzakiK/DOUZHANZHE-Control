@@ -59,23 +59,47 @@ var
 function IsDotNet8DesktopInstalled(): Boolean;
 var
   Installed: Cardinal;
+  Version: String;
+  FindRec: TFindRec;
+  DesktopDir: String;
 begin
+  Result := False;
+
+  // 检查 1: 独立 Desktop Runtime 安装器创建的键
   if RegQueryDWordValue(HKLM64, 'SOFTWARE\dotnet\Setup\InstalledVersions\x64\client', 'Install', Installed) then
-    Result := (Installed = 1)
-  else
-    Result := False;
+    if Installed = 1 then begin Result := True; Exit; end;
+
+  // 检查 2: SDK 安装时只有 sharedhost 键，验证版本是否为 8.x
+  if RegQueryStringValue(HKLM64, 'SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedhost', 'Version', Version) then
+    if (Length(Version) > 0) and (Version[1] = '8') then begin Result := True; Exit; end;
+
+  // 检查 3: 磁盘文件回退 — 扫描 8.0.* 子目录
+  DesktopDir := ExpandConstant('{commonpf}\dotnet\shared\Microsoft.WindowsDesktop.App');
+  if FindFirst(DesktopDir + '\*', FindRec) then
+  begin
+    repeat
+      if (FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY <> 0) and
+         (Length(FindRec.Name) > 2) and (FindRec.Name[1] = '8') and (FindRec.Name[2] = '.') then
+      begin
+        Result := True;
+        Break;
+      end;
+    until not FindNext(FindRec);
+    FindClose(FindRec);
+  end;
 end;
 
 function IsWebView2Installed(): Boolean;
 var
   Version: String;
 begin
+  Result := False;
   if RegQueryStringValue(HKLM, 'SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}', 'pv', Version) then
-    Result := (Version <> '')
-  else if RegQueryStringValue(HKCU, 'Software\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}', 'pv', Version) then
-    Result := (Version <> '')
-  else
-    Result := False;
+    if Version <> '' then begin Result := True; Exit; end;
+  if RegQueryStringValue(HKLM, 'SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}', 'pv', Version) then
+    if Version <> '' then begin Result := True; Exit; end;
+  if RegQueryStringValue(HKCU, 'Software\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}', 'pv', Version) then
+    if Version <> '' then begin Result := True; Exit; end;
 end;
 
 procedure InitializeWizard();
@@ -145,7 +169,102 @@ begin
 end;
 
 // ----------------------------------------------------------
-// 卸载前：关闭正在运行的程序
+// 通过 XML 定义创建计划任务（避免 schtasks 引号问题）
+// ----------------------------------------------------------
+function CreateAutoStartTask(): Boolean;
+var
+  XmlPath: String;
+  AppPath: String;
+  TaskXml: String;
+  ResultCode: Integer;
+begin
+  Result := False;
+  AppPath := ExpandConstant('{app}\{#MyAppExeName}');
+  XmlPath := ExpandConstant('{tmp}\douzhanzhe_task.xml');
+
+  // 构建 Task Scheduler XML（双单引号 '' 在 Pascal 字符串中表示一个单引号）
+  TaskXml := '<?xml version="1.0" encoding="UTF-16"?>' + #13#10 +
+    '<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">' + #13#10 +
+    '  <Triggers>' + #13#10 +
+    '    <LogonTrigger><Enabled>true</Enabled></LogonTrigger>' + #13#10 +
+    '  </Triggers>' + #13#10 +
+    '  <Settings>' + #13#10 +
+    '    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>' + #13#10 +
+    '    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>' + #13#10 +
+    '    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>' + #13#10 +
+    '    <DisallowStartOnRemoteAppSession>false</DisallowStartOnRemoteAppSession>' + #13#10 +
+    '  </Settings>' + #13#10 +
+    '  <Actions Context="Author">' + #13#10 +
+    '    <Exec>' + #13#10 +
+    '      <Command>"' + AppPath + '"</Command>' + #13#10 +
+    '      <Arguments>--minimized</Arguments>' + #13#10 +
+    '    </Exec>' + #13#10 +
+    '  </Actions>' + #13#10 +
+    '  <Principals>' + #13#10 +
+    '    <Principal>' + #13#10 +
+    '      <RunLevel>HighestAvailable</RunLevel>' + #13#10 +
+    '    </Principal>' + #13#10 +
+    '  </Principals>' + #13#10 +
+    '</Task>';
+
+  if SaveStringToFile(XmlPath, TaskXml, False) then
+  begin
+    if Exec('schtasks', '/Create /TN "DouzhanzheControl" /XML "' + XmlPath + '" /F', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+      Result := (ResultCode = 0);
+    DeleteFile(XmlPath);
+  end;
+end;
+
+// ----------------------------------------------------------
+// 安装后：创建计划任务实现开机自启（与后端 API 使用同一机制）
+// ----------------------------------------------------------
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  ResultCode: Integer;
+  ConfigDir: String;
+  ConfigFile: String;
+  StartupLink: String;
+begin
+  // 安装前：先关闭正在运行的程序 + 卸载内核驱动（覆盖安装时防止文件被锁）
+  if CurStep = ssInstall then
+  begin
+    Exec('taskkill', '/f /im {#MyAppExeName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Exec('taskkill', '/f /im {#MyAppApiExeName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    // WinRing0x64.sys 是内核驱动，进程退出后驱动服务仍在运行，必须停止服务才能释放文件
+    Exec('sc', 'stop WinRing0_1_2_0', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Exec('sc', 'delete WinRing0_1_2_0', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Sleep(1000);
+  end;
+
+  // 安装后：创建计划任务 + 清理旧版快捷方式
+  if CurStep = ssPostInstall then
+  begin
+    // 清理旧版启动文件夹快捷方式（从旧版升级时）
+    StartupLink := ExpandConstant('{userstartup}\{#MyAppName}.lnk');
+    if FileExists(StartupLink) then
+      DeleteFile(StartupLink);
+
+    // 先删除已有计划任务（升级场景）
+    Exec('schtasks', '/Delete /TN "DouzhanzheControl" /F', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+
+    if WizardIsTaskSelected('autostart') then
+    begin
+      if CreateAutoStartTask() then
+      begin
+        // 同步写入自启配置，让前端 UI 开关状态一致
+        ConfigDir := ExpandConstant('{app}\config');
+        if not DirExists(ConfigDir) then
+          CreateDir(ConfigDir);
+        ConfigFile := ConfigDir + '\auto-start-opts.json';
+        if not FileExists(ConfigFile) then
+          SaveStringToFile(ConfigFile, '{"minimized":true}', False);
+      end;
+    end;
+  end;
+end;
+
+// ----------------------------------------------------------
+// 卸载前：关闭正在运行的程序 + 停止驱动服务 + 删除计划任务
 // ----------------------------------------------------------
 function InitializeUninstall(): Boolean;
 var
@@ -155,17 +274,33 @@ begin
   Exec('taskkill', '/f /im {#MyAppExeName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Exec('taskkill', '/f /im {#MyAppApiExeName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Sleep(500);
+
+  // 停止 WinRing0x64 内核驱动服务（否则 .sys 文件被锁定无法删除）
+  Exec('sc', 'stop WinRing0_1_2_0', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec('sc', 'delete WinRing0_1_2_0', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+
+  // 删除开机自启计划任务
+  Exec('schtasks', '/Delete /TN "DouzhanzheControl" /F', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+
+  Sleep(300);
 end;
 
 // ----------------------------------------------------------
-// 卸载后清理用户配置（可选）
+// 卸载后清理：用户配置 + WebView2 缓存
 // ----------------------------------------------------------
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
   ConfigDir: String;
+  WebView2Dir: String;
 begin
   if CurUninstallStep = usPostUninstall then
   begin
+    // 清理 WebView2 运行时数据
+    WebView2Dir := ExpandConstant('{app}\{#MyAppExeName}.WebView2');
+    if DirExists(WebView2Dir) then
+      DelTree(WebView2Dir, True, True, True);
+
+    // 清理用户配置（可选）
     ConfigDir := ExpandConstant('{app}\config');
     if DirExists(ConfigDir) then
     begin
@@ -192,8 +327,6 @@ Source: "..\dist\publish\api\config\*"; DestDir: "{app}\config"; Flags: onlyifdo
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{group}\卸载 {#MyAppName}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
-; 开机自启 (最小化到托盘)
-Name: "{autostartup}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--minimized"; Tasks: autostart
 
 [Run]
 ; 安装完成后启动程序
@@ -204,3 +337,4 @@ Filename: "{app}\{#MyAppExeName}"; Description: "启动 {#MyAppName}"; \
 ; 清理运行时生成的文件
 Type: files; Name: "{app}\config\*.json"
 Type: files; Name: "{app}\*.log"
+Type: files; Name: "{app}\crash.log"

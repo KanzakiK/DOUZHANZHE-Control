@@ -7,10 +7,10 @@ namespace Douzhanzhe.Shell;
 
 static class Program
 {
-    private const string MutexName = "DouzhanzheShell_SingleInstance";
+    private const string MutexName = @"Global\DouzhanzheShell_SingleInstance";
     private const string ElevateTaskName = "DouzhanzheConsole_Elevate";
 
-    [DllImport("user32.dll", SetLastError = true)]
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern IntPtr FindWindow(string? lpClassName, string? lpWindowName);
 
     [DllImport("user32.dll")]
@@ -19,7 +19,29 @@ static class Program
     [DllImport("user32.dll")]
     private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
+    [DllImport("user32.dll")]
+    private static extern bool IsWindowVisible(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool BringWindowToTop(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+    [DllImport("user32.dll")]
+    private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+    private const int SW_SHOW = 5;
     private const int SW_RESTORE = 9;
+    private const int SW_SHOWNOACTIVATE = 4;
+    private const uint WM_SYSCOMMAND = 0x0112;
+    private const int SC_RESTORE = 0xF120;
 
     [STAThread]
     static void Main(string[] args)
@@ -27,11 +49,7 @@ static class Program
         ApplicationConfiguration.Initialize();
 
         // ── 1. 单实例检测 ──
-        if (!Mutex.TryOpenExisting(MutexName, out var existingMutex))
-        {
-            existingMutex?.Dispose();
-        }
-        else
+        if (Mutex.TryOpenExisting(MutexName, out var existingMutex))
         {
             // 已有实例运行，激活它的窗口
             ActivateExistingWindow();
@@ -65,22 +83,53 @@ static class Program
                 LogCrash("AppDomain", ex);
         };
 
-        // ── 4. 创建单实例互斥锁 ──
+        // ── 4. 创建全局单实例互斥锁 ──
         using var mutex = new Mutex(true, MutexName);
 
         Application.Run(new Form1());
     }
 
     /// <summary>
-    /// 激活已有实例的主窗口
+    /// 激活已有实例的主窗口（处理最小化到托盘的情况）
+    /// 使用 AttachThreadInput 绕过 Windows 前台窗口限制
     /// </summary>
     private static void ActivateExistingWindow()
     {
         var hWnd = FindWindow(null, "斗战者控制台");
-        if (hWnd != IntPtr.Zero)
+        if (hWnd == IntPtr.Zero)
         {
+            MessageBox.Show("斗战者控制台已在后台运行。", "提示",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        // 获取当前前台窗口和目标窗口的线程 ID
+        var foreWnd = GetForegroundWindow();
+        GetWindowThreadProcessId(hWnd, out uint targetPid);
+        uint foreThread = GetWindowThreadProcessId(foreWnd, out _);
+        uint curThread = (uint)Environment.CurrentManagedThreadId;
+
+        // 将当前线程附加到前台线程的输入队列，绕过 SetForegroundWindow 限制
+        if (curThread != foreThread)
+            AttachThreadInput(curThread, foreThread, true);
+
+        try
+        {
+            // 如果窗口不可见（隐藏到托盘），先显示
+            if (!IsWindowVisible(hWnd))
+                ShowWindow(hWnd, SW_SHOW);
+
+            // 用 WM_SYSCOMMAND SC_RESTORE 恢复窗口（比 ShowWindow 更可靠）
+            SendMessage(hWnd, WM_SYSCOMMAND, (IntPtr)SC_RESTORE, IntPtr.Zero);
             ShowWindow(hWnd, SW_RESTORE);
+
+            BringWindowToTop(hWnd);
             SetForegroundWindow(hWnd);
+        }
+        finally
+        {
+            if (curThread != foreThread)
+                AttachThreadInput(curThread, foreThread, false);
         }
     }
 

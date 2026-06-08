@@ -11,6 +11,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3967.48" />
+    <PackageReference Include="TaskScheduler" Version="2.11.0" />
   </ItemGroup>
 
 </Project>

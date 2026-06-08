@@ -80,8 +80,12 @@ public partial class Form1 : Form
         // 启动后端 API（如果尚未运行）
         StartApiIfNotRunning();
 
-        // 先初始化 WebView2
-        await _webView.EnsureCoreWebView2Async();
+        // 初始化 WebView2 — 用户数据目录放在 %LOCALAPPDATA% 下，避免 Program Files 写入权限问题
+        var userDataDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Douzhanzhe Console", "WebView2");
+        var env = await CoreWebView2Environment.CreateAsync(null, userDataDir);
+        await _webView.EnsureCoreWebView2Async(env);
 
         // 等待后端 API 就绪（最多 30 秒）
         using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(2) };
