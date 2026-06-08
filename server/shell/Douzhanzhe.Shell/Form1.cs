@@ -204,7 +204,8 @@ public partial class Form1 : Form
                 WorkingDirectory = baseDir,
                 UseShellExecute = false,
                 CreateNoWindow = true,
-                WindowStyle = ProcessWindowStyle.Hidden
+                WindowStyle = ProcessWindowStyle.Hidden,
+                Arguments = "--urls=http://127.0.0.1:3100"
             };
             Process.Start(psi);
         }
