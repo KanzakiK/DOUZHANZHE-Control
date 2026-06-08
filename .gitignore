@@ -101,3 +101,20 @@ server/api/config/*.json
 # Other dot-prefixed directories
 .venv/
 .github/
+
+# Build output published alongside source (server/api/)
+server/api/*.dll
+!server/api/inpoutx64.dll
+server/api/*.exe
+server/api/*.pdb
+server/api/*.deps.json
+server/api/*.runtimeconfig.json
+server/api/*.staticwebassets.runtime.json
+server/api/*.http
+server/api/runtimes/
+
+# Temp scripts
+_*.bat
+
+# Backup file variants
+*.bak2
