@@ -46,8 +46,6 @@ uxtu-reference/
 server/tools/*.bak
 
 # Deleted/replaced experiment tools (no longer in dist)
-server/tools/WinRing0x64.dll
-server/tools/WinRing0x64.sys
 server/tools/ec_writer.exe
 
 # Root temporary files (_*.py, _*.txt, _*.html, _*.ps1, etc.)
