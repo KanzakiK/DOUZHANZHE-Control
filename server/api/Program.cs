@@ -24,9 +24,8 @@ app.UseDefaultFiles();
 app.UseStaticFiles();
 app.MapFallbackToFile("index.html");
 // ---- Config directory (shared with Node.js) ----
-var configDir = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "..", "config"));
-if (!Directory.Exists(configDir))
-    configDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "config"));
+// 统一使用 AppContext.BaseDirectory 解析，无论工作目录如何都能定位到 server/api/config/
+var configDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "config"));
 Directory.CreateDirectory(configDir);
 // ---- JSON persistence helpers ----
 T JsonRead<T>(string fileName, T fallback) where T : class
@@ -56,19 +55,24 @@ void JsonWrite<T>(string fileName, T data)
     File.WriteAllText(tmpPath, json);
     File.Move(tmpPath, filePath, overwrite: true);
 }
-// ---- 启动时恢复 GPU 模式 ----
+// ---- 启动时恢复 GPU 模式 (异步，不阻塞服务启动) ----
+_ = System.Threading.Tasks.Task.Run(() =>
 {
-    var saved = JsonRead<Dictionary<string, int>>("gpu-mode.json", new Dictionary<string, int>());
-    if (saved.TryGetValue("gpuMode", out int mode) && mode >= 0 && mode <= 2)
+    try
     {
-        var wmiStartup = app.Services.GetRequiredService<WmiInterface>();
-        if (wmiStartup.Available)
+        var saved = JsonRead<Dictionary<string, int>>("gpu-mode.json", new Dictionary<string, int>());
+        if (saved.TryGetValue("gpuMode", out int mode) && mode >= 0 && mode <= 2)
         {
-            wmiStartup.SetGpuMode((byte)mode);
-            Console.WriteLine($"[Startup] GPU mode restored to {mode}");
+            var wmiStartup = app.Services.GetRequiredService<WmiInterface>();
+            if (wmiStartup.Available)
+            {
+                wmiStartup.SetGpuMode((byte)mode);
+                Console.WriteLine($"[Startup] GPU mode restored to {mode}");
+            }
         }
     }
-}
+    catch (Exception ex) { Console.WriteLine($"[Startup] GPU mode restore failed: {ex.Message}"); }
+});
 app.Map("/ws", async (HttpContext ctx) =>
 {
     if (!ctx.WebSockets.IsWebSocketRequest)
@@ -699,13 +703,13 @@ app.MapPost("/api/cpu/reset", async (CpuPowerController cpu) =>
 });
 
 // ---- Node.js 废弃迁移端点 ----
-app.MapPost("/api/uxtu/apply", (HttpContext ctx, SmuController smu) =>
+app.MapPost("/api/uxtu/apply", async (HttpContext ctx, SmuController smu) =>
 {
     try
     {
         using var reader = new StreamReader(ctx.Request.Body);
         var jsonOpts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-        var body = JsonSerializer.Deserialize<UxtuApplyRequest>(reader.ReadToEndAsync().Result, jsonOpts);
+        var body = JsonSerializer.Deserialize<UxtuApplyRequest>(await reader.ReadToEndAsync(), jsonOpts);
         if (body == null) return Results.Json(new { ok = false, error = "invalid body" });
         int? cpuPpt = body.Params?.CpuLongPptW ?? body.Limits?.Cpu?.PptLimitW;
         int? cpuShortPpt = body.Params?.CpuShortPptW;
@@ -754,12 +758,12 @@ app.MapPost("/api/wmi/cmd", (WmiInterface wmi, WmiCmdRequest req) =>
         return Results.Json(new { ok = false, error = ex.Message });
     }
 });
-app.MapPost("/api/system/settings", (HttpContext ctx) =>
+app.MapPost("/api/system/settings", async (HttpContext ctx) =>
 {
     try
     {
         using var reader = new StreamReader(ctx.Request.Body);
-        var body = JsonSerializer.Deserialize<SystemSettingsRequest>(reader.ReadToEndAsync().Result);
+        var body = JsonSerializer.Deserialize<SystemSettingsRequest>(await reader.ReadToEndAsync());
         Console.WriteLine($"[system] {body?.Key}={body?.Value} — Node.js 已废弃，此端点仅做兼容");
         return Results.Json(new { ok = false, error = "此端点已废弃，请使用 /api/control" });
     }
@@ -777,12 +781,12 @@ app.MapGet("/api/custom-params", () =>
 {
     return Results.Json(JsonRead<Dictionary<string, object?>>("custom-params.json", new Dictionary<string, object?>()));
 });
-app.MapPost("/api/custom-params", (HttpContext ctx) =>
+app.MapPost("/api/custom-params", async (HttpContext ctx) =>
 {
     try
     {
         using var reader = new StreamReader(ctx.Request.Body);
-        var body = JsonSerializer.Deserialize<Dictionary<string, object?>>(reader.ReadToEndAsync().Result);
+        var body = JsonSerializer.Deserialize<Dictionary<string, object?>>(await reader.ReadToEndAsync());
         JsonWrite("custom-params.json", body ?? new Dictionary<string, object?>());
         return Results.Json(new { ok = true });
     }
@@ -792,13 +796,13 @@ app.MapGet("/api/ui-state", () =>
 {
     return Results.Json(JsonRead<UiState>("ui-state.json", new UiState()));
 });
-app.MapPost("/api/ui-state", (HttpContext ctx) =>
+app.MapPost("/api/ui-state", async (HttpContext ctx) =>
 {
     try
     {
         using var reader = new StreamReader(ctx.Request.Body);
         var readOpts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-        var body = JsonSerializer.Deserialize<UiState>(reader.ReadToEndAsync().Result, readOpts);
+        var body = JsonSerializer.Deserialize<UiState>(await reader.ReadToEndAsync(), readOpts);
         JsonWrite("ui-state.json", body ?? new UiState());
         return Results.Json(new { ok = true });
     }
@@ -808,13 +812,13 @@ app.MapGet("/api/default-config", () =>
 {
     return Results.Json(JsonRead<DefaultConfig>("dashboard-default.json", new DefaultConfig()));
 });
-app.MapPost("/api/default-config", (HttpContext ctx) =>
+app.MapPost("/api/default-config", async (HttpContext ctx) =>
 {
     try
     {
         using var reader = new StreamReader(ctx.Request.Body);
         var readOpts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-        var body = JsonSerializer.Deserialize<DefaultConfig>(reader.ReadToEndAsync().Result, readOpts);
+        var body = JsonSerializer.Deserialize<DefaultConfig>(await reader.ReadToEndAsync(), readOpts);
         JsonWrite("dashboard-default.json", body ?? new DefaultConfig());
         return Results.Json(new { ok = true });
     }
@@ -840,12 +844,12 @@ app.MapGet("/api/auto-start-opts", () =>
     }
     catch { return Results.Json(new { minimized = false }); }
 });
-app.MapPost("/api/auto-start-opts", (HttpContext ctx) =>
+app.MapPost("/api/auto-start-opts", async (HttpContext ctx) =>
 {
     try
     {
         using var reader = new StreamReader(ctx.Request.Body);
-        var body = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(reader.ReadToEndAsync().Result);
+        var body = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(await reader.ReadToEndAsync());
         if (body == null || !body.TryGetValue("minimized", out var v) || v.ValueKind != JsonValueKind.True && v.ValueKind != JsonValueKind.False)
             return Results.Json(new { ok = false, error = "需要 { minimized: bool }" });
         var minimized = v.GetBoolean();
@@ -866,12 +870,12 @@ app.MapGet("/api/auto-start", () =>
     }
     catch { return Results.Json(new { enabled = false }); }
 });
-app.MapPost("/api/auto-start", (HttpContext ctx) =>
+app.MapPost("/api/auto-start", async (HttpContext ctx) =>
 {
     try
     {
         using var reader = new StreamReader(ctx.Request.Body);
-        var body = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(reader.ReadToEndAsync().Result);
+        var body = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(await reader.ReadToEndAsync());
         if (body == null || !body.TryGetValue("enabled", out var enabledEl) || enabledEl.ValueKind != JsonValueKind.True && enabledEl.ValueKind != JsonValueKind.False)
             return Results.Json(new { ok = false, error = "需要 { enabled: bool }" });
         var enabled = enabledEl.GetBoolean();

@@ -48,7 +48,7 @@ export default function App() {
   }, []);
   // 持久化当前标签页
   useEffect(() => {
-    localStorage.setItem("douzhanzhe_active_tab", activeTab);
+    try { localStorage.setItem("douzhanzhe_active_tab", activeTab); } catch {}
   }, [activeTab]);
   // 同步主题类到 body，使 body { background: var(--bg) } 等 CSS 变量生效
   useEffect(() => { document.body.className = theme; }, [theme]);
