@@ -1,11 +1,11 @@
-# Changelog
+﻿# Changelog
 
 该项目所有重要变更均会记录在此文件中。
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
-## [1.3.0] — 2026-06-08
+## [1.2.0] — 2026-06-08
 
 ### 新增
 
