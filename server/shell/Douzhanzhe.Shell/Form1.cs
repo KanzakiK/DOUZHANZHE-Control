@@ -20,8 +20,8 @@ public partial class Form1 : Form
     public Form1()
     {
         Text = "斗战者控制台";
-        Width = 1500;
-        Height = 1200;
+        Width = 1280;
+        Height = 900;
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = Color.FromArgb(13, 17, 23); // 深色背景防白闪
         Icon = LoadAppIcon();
@@ -52,7 +52,15 @@ public partial class Form1 : Form
         _webView.CoreWebView2InitializationCompleted += (s, e) =>
         {
             if (_webView.CoreWebView2 != null)
+            {
                 _webView.CoreWebView2.Settings.AreDevToolsEnabled = false;
+
+                // WebView2 渲染进程崩溃时自动重新加载
+                _webView.CoreWebView2.ProcessFailed += (sender, args) =>
+                {
+                    try { _webView.Reload(); } catch { }
+                };
+            }
         };
         Controls.Add(_webView);
 
