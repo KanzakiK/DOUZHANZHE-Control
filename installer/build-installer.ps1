@@ -35,7 +35,7 @@ if ($Version) {
     Set-Content $Settings -Value $StText -NoNewline -Encoding UTF8
 
     # douzhanzhe-setup.iss
-    $IssFile = Join-Path $PSScriptRoot "douzhanzhe-setup.iss"
+    $IssFile = Join-Path $PSScriptRoot_Fallback "douzhanzhe-setup.iss"
     $IssText = Get-Content $IssFile -Raw -Encoding UTF8
     $IssText = $IssText -replace '(; 版本: )\d+\.\d+\.\d+', "`${1}$Version"
     $IssText = $IssText -replace '(#define MyAppVersion ")\d+\.\d+\.\d+(")', "`${1}$Version`${2}"
@@ -75,16 +75,16 @@ if (-not $SkipFrontend) {
 # ── 3. 发布 API ──
 if (-not $SkipPublish) {
     Write-Host "[3/6] 发布 .NET API..." -ForegroundColor Cyan
-    $ApiOut = Join-Path $global:Root "dist\publish\api"
+    $ApiOut = Join-Path $Root "dist\publish\api"
     if (Test-Path $ApiOut) { Remove-Item -Recurse -Force $ApiOut }
-    dotnet publish (Join-Path $global:Root "server\api\Douzhanzhe.API.csproj") `
+    dotnet publish (Join-Path $Root "server\api\Douzhanzhe.API.csproj") `
         -c Release -r win-x64 --self-contained false -o $ApiOut
     if ($LASTEXITCODE -ne 0) { exit 1 }
 
     Write-Host "[4/6] 发布 Shell..." -ForegroundColor Cyan
-    $ShellOut = Join-Path $global:Root "dist\publish\shell"
+    $ShellOut = Join-Path $Root "dist\publish\shell"
     if (Test-Path $ShellOut) { Remove-Item -Recurse -Force $ShellOut }
-    dotnet publish (Join-Path $global:Root "server\shell\Douzhanzhe.Shell\Douzhanzhe.Shell.csproj") `
+    dotnet publish (Join-Path $Root "server\shell\Douzhanzhe.Shell\Douzhanzhe.Shell.csproj") `
         -c Release -r win-x64 --self-contained false -o $ShellOut
     if ($LASTEXITCODE -ne 0) { exit 1 }
 } else {
@@ -94,9 +94,9 @@ if (-not $SkipPublish) {
 
 # ── 5. 合并 + 复制工具 ──
 Write-Host "[5/6] 合并发布产物..." -ForegroundColor Cyan
-$ApiDir = Join-Path $global:Root "dist\publish\api"
-$ShellDir = Join-Path $global:Root "dist\publish\shell"
-$ToolsDir = Join-Path $global:Root "server\tools"
+$ApiDir = Join-Path $Root "dist\publish\api"
+$ShellDir = Join-Path $Root "dist\publish\shell"
+$ToolsDir = Join-Path $Root "server\tools"
 
 # 复制 Shell �?API 目录
 Copy-Item -Path (Join-Path $ShellDir "*") -Destination $ApiDir -Recurse -Force
@@ -112,7 +112,7 @@ foreach ($f in $ToolFiles) {
     }
 }
 
-# 复制 sysinfo-ext.ps1（不�?publish 输出中，需手动复制�?$SysInfoPs1 = Join-Path $global:Root "server\api\sysinfo-ext.ps1"
+# 复制 sysinfo-ext.ps1（不�?publish 输出中，需手动复制�?$SysInfoPs1 = Join-Path $Root "server\api\sysinfo-ext.ps1"
 if (Test-Path $SysInfoPs1) {
     Copy-Item $SysInfoPs1 $ApiDir -Force
     Write-Host "  已复�? sysinfo-ext.ps1" -ForegroundColor Green
@@ -129,13 +129,13 @@ Write-Host "  合并完成，总大�? $([math]::Round($size, 1)) MB" -Foregrou
 
 # ── 6. 编译安装�?──
 Write-Host "[6/6] 编译 Inno Setup 安装�?.." -ForegroundColor Cyan
-$IssFile = Join-Path $PSScriptRoot "douzhanzhe-setup.iss"
+$IssFile = Join-Path $PSScriptRoot_Fallback "douzhanzhe-setup.iss"
 & $ISCC $IssFile
 if ($LASTEXITCODE -ne 0) {
     Write-Host "安装包编译失�?" -ForegroundColor Red; exit 1
 }
 
-$SetupFile = Get-ChildItem (Join-Path $global:Root "dist\installer") -Filter "*.exe" | Select-Object -First 1
+$SetupFile = Get-ChildItem (Join-Path $Root "dist\installer") -Filter "*.exe" | Select-Object -First 1
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Green
 Write-Host " 安装包已生成: $($SetupFile.Name)" -ForegroundColor Green
