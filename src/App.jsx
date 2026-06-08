@@ -53,8 +53,30 @@ export default function App() {
   // 同步主题类到 body，使 body { background: var(--bg) } 等 CSS 变量生效
   useEffect(() => { document.body.className = theme; }, [theme]);
 
+  // ── 自定义背景 ──
+  const [bg, setBg] = useState({ enabled: false, opacity: 50, maskColor: "black", hasImage: false, url: null });
+  const loadBg = useCallback(() => {
+    fetch("/api/background-opts").then(r => r.json()).then(d => {
+      setBg(prev => ({
+        enabled: !!d.enabled, opacity: d.opacity ?? 50, maskColor: d.maskColor || "black", hasImage: !!d.hasImage,
+        url: d.hasImage ? "/api/background?" + Date.now() : null,
+      }));
+    }).catch(() => {});
+  }, []);
+  useEffect(() => { loadBg(); window.addEventListener("dz-bg-update", loadBg); return () => window.removeEventListener("dz-bg-update", loadBg); }, [loadBg]);
+
+  const bgActive = bg.enabled && bg.hasImage && bg.url;
+  const maskAlpha = bgActive ? (1 - bg.opacity / 100).toFixed(2) : 0;
+  const maskBg = bgActive ? (bg.maskColor === "white" ? `rgba(255,255,255,${maskAlpha})` : `rgba(0,0,0,${maskAlpha})`) : "transparent";
+
   return (
-    <div className={`${theme} min-h-screen p-3 md:p-4`}>
+    <div className={`${theme} min-h-screen p-3 md:p-4`} style={bgActive ? { background: "transparent" } : undefined}>
+      {bgActive && (
+        <>
+          <div style={{ position: "fixed", inset: 0, zIndex: -2, backgroundImage: `url(${bg.url})`, backgroundSize: "cover", backgroundPosition: "center", backgroundRepeat: "no-repeat" }} />
+          <div style={{ position: "fixed", inset: 0, zIndex: -1, background: maskBg }} />
+        </>
+      )}
       <div className="max-w-[1750px] mx-auto grid grid-cols-1 md:grid-cols-[220px_1fr] gap-4">
         <aside className="rounded-2xl p-3 flex flex-col gap-4 md:sticky md:top-4 md:self-start md:max-h-[calc(100vh-2rem)]" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
           <div className="rounded-xl p-3" style={{ background: "var(--card-2)" }}>
@@ -125,7 +147,7 @@ export default function App() {
           {activeTab === "system" && <SystemInfoPanel />}
           {activeTab === "settings" && (
             <SettingsPanel settings={settings} setSettings={setSettings} uxtuPayload={uxtuPayload}
-              showSwitches={true} showKeyboard={true} showSummary={true} showCredits={true} showAutoStart={true} />
+              showSwitches={true} showKeyboard={true} showSummary={true} showCredits={true} showAutoStart={true} showBackground={true} />
           )}
           {activeTab === "fancurve" && <FanCurvePanel telemetry={telemetry} />}
         </main>

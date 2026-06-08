@@ -3,24 +3,26 @@ import Card from "../ui/Card";
 import SliderRow from "../ui/SliderRow";
 import SwitchRow from "../ui/SwitchRow";
 import { useToast } from "../ui/Toast";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
-export default function SettingsPanel({ settings, setSettings, uxtuPayload, showSwitches = true, showKeyboard = true, showSummary = true, showSmu = true, showAbout = true, showAutoStart = false }) {
+export default function SettingsPanel({ settings, setSettings, uxtuPayload, showSwitches = true, showKeyboard = true, showSummary = true, showSmu = true, showAbout = true, showAutoStart = false, showBackground = false }) {
   const toast = useToast();
-  const [autoStart, setAutoStart] = useState(null);
-  const [autoStartMinimized, setAutoStartMinimized] = useState(false);
+  const [autoStart, setAutoStart] = useState(() => localStorage.getItem("dz_autostart") === "1");
+  const [autoStartMinimized, setAutoStartMinimized] = useState(() => localStorage.getItem("dz_autostart_min") === "1");
   useEffect(() => {
     if (!showAutoStart) return;
     fetch("/api/auto-start")
       .then(r => r.json())
-      .then(d => setAutoStart(d.enabled))
-      .catch(() => setAutoStart(false));
+      .then(d => { setAutoStart(!!d.enabled); localStorage.setItem("dz_autostart", d.enabled ? "1" : "0"); })
+      .catch(() => {});
     fetch("/api/auto-start-opts")
       .then(r => r.json())
-      .then(d => setAutoStartMinimized(d.minimized === true))
+      .then(d => { const m = d.minimized === true; setAutoStartMinimized(m); localStorage.setItem("dz_autostart_min", m ? "1" : "0"); })
       .catch(() => {});
   }, [showAutoStart]);
   const toggleAutoStart = (v) => {
+    localStorage.setItem("dz_autostart", v ? "1" : "0");
+    setAutoStart(v);
     fetch("/api/auto-start", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -28,12 +30,14 @@ export default function SettingsPanel({ settings, setSettings, uxtuPayload, show
     })
       .then(r => r.json())
       .then(d => {
-        if (d.ok) { setAutoStart(v); toast?.(v ? "开机自启已开启" : "开机自启已关闭", "success"); }
-        else toast?.(d.error || "设置失败", "error");
+        if (d.ok) { toast?.(v ? "开机自启已开启" : "开机自启已关闭", "success"); }
+        else { setAutoStart(!v); localStorage.setItem("dz_autostart", !v ? "1" : "0"); toast?.(d.error || "设置失败", "error"); }
       })
-      .catch(() => toast?.("请求失败", "error"));
+      .catch(() => { setAutoStart(!v); localStorage.setItem("dz_autostart", !v ? "1" : "0"); toast?.("请求失败", "error"); });
   };
   const toggleAutoStartMinimized = (v) => {
+    localStorage.setItem("dz_autostart_min", v ? "1" : "0");
+    setAutoStartMinimized(v);
     fetch("/api/auto-start-opts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -41,11 +45,106 @@ export default function SettingsPanel({ settings, setSettings, uxtuPayload, show
     })
       .then(r => r.json())
       .then(d => {
-        if (d.ok) { setAutoStartMinimized(v); toast?.(v ? "开机自启最小化已开启" : "开机自启最小化已关闭", "success"); }
-        else toast?.(d.error || "设置失败", "error");
+        if (d.ok) { toast?.(v ? "开机自启最小化已开启" : "开机自启最小化已关闭", "success"); }
+        else { setAutoStartMinimized(!v); localStorage.setItem("dz_autostart_min", !v ? "1" : "0"); toast?.(d.error || "设置失败", "error"); }
       })
-      .catch(() => toast?.("请求失败", "error"));
+      .catch(() => { setAutoStartMinimized(!v); localStorage.setItem("dz_autostart_min", !v ? "1" : "0"); toast?.("请求失败", "error"); });
   };
+
+  // ── 自定义背景 ──
+  const fileInputRef = useRef(null);
+  const [bgEnabled, setBgEnabled] = useState(false);
+  const [bgOpacity, setBgOpacity] = useState(50);
+  const [bgMask, setBgMask] = useState("black");
+  const [bgHasImage, setBgHasImage] = useState(false);
+  const [bgPreview, setBgPreview] = useState(null);
+
+  useEffect(() => {
+    if (!showBackground) return;
+    fetch("/api/background-opts")
+      .then(r => r.json())
+      .then(d => {
+        setBgEnabled(!!d.enabled);
+        setBgOpacity(d.opacity ?? 50);
+        setBgMask(d.maskColor || "black");
+        setBgHasImage(!!d.hasImage);
+        if (d.hasImage) setBgPreview("/api/background?" + Date.now());
+      })
+      .catch(() => {});
+  }, [showBackground]);
+
+  const saveBgOpts = (patch) => {
+    fetch("/api/background-opts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    }).catch(() => {});
+  };
+
+  const handleBgToggle = (v) => {
+    setBgEnabled(v);
+    saveBgOpts({ enabled: v });
+    window.dispatchEvent(new CustomEvent("dz-bg-update"));
+  };
+
+  const handleBgOpacity = (v) => {
+    setBgOpacity(v);
+    saveBgOpts({ opacity: v });
+    window.dispatchEvent(new CustomEvent("dz-bg-update"));
+  };
+
+  const handleBgMask = (v) => {
+    setBgMask(v);
+    saveBgOpts({ maskColor: v });
+    window.dispatchEvent(new CustomEvent("dz-bg-update"));
+  };
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) { toast?.("图片不能超过 10MB", "error"); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result;
+      setBgPreview(dataUrl);
+      setBgHasImage(true);
+      fetch("/api/background", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: dataUrl }),
+      })
+        .then(r => r.json())
+        .then(d => {
+          if (d.ok) {
+            setBgEnabled(true);
+            saveBgOpts({ enabled: true });
+            toast?.("背景图片已设置", "success");
+            window.dispatchEvent(new CustomEvent("dz-bg-update"));
+          } else {
+            toast?.(d.error || "上传失败", "error");
+          }
+        })
+        .catch(() => toast?.("上传失败", "error"));
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  const handleBgDelete = () => {
+    fetch("/api/background", { method: "DELETE" })
+      .then(r => r.json())
+      .then(d => {
+        if (d.ok) {
+          setBgEnabled(false);
+          setBgHasImage(false);
+          setBgPreview(null);
+          toast?.("背景图片已移除", "success");
+          window.dispatchEvent(new CustomEvent("dz-bg-update"));
+        }
+      })
+      .catch(() => toast?.("操作失败", "error"));
+  };
+
   const toggleSetting = (key, value) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
     // C# HAL 支持的硬件控制走 /api/control
@@ -87,8 +186,56 @@ export default function SettingsPanel({ settings, setSettings, uxtuPayload, show
       {showAutoStart && (
         <Card title="开机自启" className="!p-3">
           <div className="space-y-1">
-            <SwitchRow label="开机自动启动" checked={autoStart === true} onChange={toggleAutoStart} />
+            <SwitchRow label="开机自动启动" checked={autoStart} onChange={toggleAutoStart} />
             <SwitchRow label="开机自启最小化" checked={autoStartMinimized} onChange={toggleAutoStartMinimized} />
+          </div>
+        </Card>
+      )}
+      {showBackground && (
+        <Card title="自定义背景" className="!p-3">
+          <div className="space-y-2">
+            <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp" onChange={handleFileSelect} className="hidden" />
+            <div className="flex gap-2">
+              <button onClick={() => fileInputRef.current?.click()}
+                className="flex-1 text-sm py-1.5 rounded-lg transition-colors"
+                style={{ background: "var(--card-2)", border: "1px solid var(--border)" }}>
+                选择图片
+              </button>
+              {bgHasImage && (
+                <button onClick={handleBgDelete}
+                  className="text-sm px-3 py-1.5 rounded-lg transition-colors"
+                  style={{ background: "var(--card-2)", border: "1px solid var(--border)", color: "var(--danger)" }}>
+                  移除
+                </button>
+              )}
+            </div>
+            {bgPreview && (
+              <div className="rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)", aspectRatio: "16/9" }}>
+                <img src={bgPreview} alt="背景预览" className="w-full h-full object-cover" />
+              </div>
+            )}
+            <SwitchRow label="启用背景" checked={bgEnabled} onChange={handleBgToggle} disabled={!bgHasImage} />
+            <SliderRow label="透明度" value={bgOpacity} min={0} max={100} step={5} unit="%"
+              onChange={handleBgOpacity} disabled={!bgEnabled} />
+            <div className="flex items-center justify-between py-1" style={{ opacity: bgEnabled ? 1 : 0.5 }}>
+              <span className="text-sm">遮罩颜色</span>
+              <div className="flex gap-1">
+                <button onClick={() => handleBgMask("black")} disabled={!bgEnabled}
+                  className="text-xs px-3 py-1 rounded-md transition-colors"
+                  style={{
+                    background: bgMask === "black" ? "var(--primary)" : "var(--card-2)",
+                    border: "1px solid var(--border)", cursor: bgEnabled ? "pointer" : "not-allowed",
+                    color: bgMask === "black" ? "#000" : "var(--text)",
+                  }}>黑色</button>
+                <button onClick={() => handleBgMask("white")} disabled={!bgEnabled}
+                  className="text-xs px-3 py-1 rounded-md transition-colors"
+                  style={{
+                    background: bgMask === "white" ? "var(--primary)" : "var(--card-2)",
+                    border: "1px solid var(--border)", cursor: bgEnabled ? "pointer" : "not-allowed",
+                    color: bgMask === "white" ? "#000" : "var(--text)",
+                  }}>白色</button>
+              </div>
+            </div>
           </div>
         </Card>
       )}

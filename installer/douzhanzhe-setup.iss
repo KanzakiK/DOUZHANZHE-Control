@@ -257,7 +257,7 @@ begin
           CreateDir(ConfigDir);
         ConfigFile := ConfigDir + '\auto-start-opts.json';
         if not FileExists(ConfigFile) then
-          SaveStringToFile(ConfigFile, '{"minimized":true}', False);
+          SaveStringToFile(ConfigFile, '{"enabled":true,"minimized":true}', False);
       end;
     end;
   end;
@@ -336,5 +336,6 @@ Filename: "{app}\{#MyAppExeName}"; Description: "启动 {#MyAppName}"; \
 [UninstallDelete]
 ; 清理运行时生成的文件
 Type: files; Name: "{app}\config\*.json"
+Type: files; Name: "{app}\config\background.*"
 Type: files; Name: "{app}\*.log"
 Type: files; Name: "{app}\crash.log"
