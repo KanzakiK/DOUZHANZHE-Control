@@ -1,5 +1,16 @@
 # Douzhanzhe Console
 
+> [!WARNING]
+> **⚠️ 风险声明 / Disclaimer**
+>
+> 本工具提供的部分功能涉及超出厂商预设范围的硬件参数调整（包括但不限于 CPU 功耗墙、温度墙、GPU 超频、EC 寄存器直写等）。**使用此类功能可能导致硬件损坏、系统不稳定、数据丢失，或影响厂商保修及售后服务。**
+>
+> 请在充分了解相关风险后自行决定是否使用。**因使用本工具造成的一切硬件损坏、系统故障、保修失效等后果，需由用户自行承担，本工具及其开发者不承担任何责任。**
+>
+> Some features of this tool involve hardware parameter adjustments beyond manufacturer defaults (including but not limited to CPU/GPU power limits, thermal thresholds, overclocking, and direct EC register writes). **These operations may cause hardware damage, system instability, data loss, or void your warranty.**
+>
+> **Use at your own risk.** The developers assume no liability for any hardware damage, system failure, or warranty issues resulting from the use of this tool.
+
 **斗战者控制台** — Lenovo Legion N176 2025 (宝龙达 OEM) 开源硬件控制面板。
 替代官方联想电脑管家，提供完整的硬件监控、性能调优和系统控制能力。
 
