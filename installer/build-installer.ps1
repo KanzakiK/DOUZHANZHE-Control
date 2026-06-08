@@ -9,7 +9,7 @@
 param(
     [switch]$SkipFrontend,
     [switch]$SkipPublish,
-    [string]$ISCC = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+    [string]$ISCC = "C:\Users\liufe\AppData\Local\Programs\Inno Setup 6\ISCC.exe"
 )
 
 $ErrorActionPreference = "Stop"
