@@ -251,14 +251,21 @@ begin
     begin
       if CreateAutoStartTask() then
       begin
-        // 同步写入自启配置，让前端 UI 开关状态一致
+        // 强制写入自启配置（覆盖安装时也更新），确保前端 UI 状态一致
         ConfigDir := ExpandConstant('{app}\config');
         if not DirExists(ConfigDir) then
           CreateDir(ConfigDir);
         ConfigFile := ConfigDir + '\auto-start-opts.json';
-        if not FileExists(ConfigFile) then
-          SaveStringToFile(ConfigFile, '{"enabled":true,"minimized":true}', False);
+        SaveStringToFile(ConfigFile, '{"enabled":true,"minimized":true}', False);
       end;
+    end
+    else
+    begin
+      // 用户取消勾选：删除计划任务并更新配置
+      ConfigDir := ExpandConstant('{app}\config');
+      ConfigFile := ConfigDir + '\auto-start-opts.json';
+      if FileExists(ConfigFile) then
+        SaveStringToFile(ConfigFile, '{"enabled":false,"minimized":true}', False);
     end;
   end;
 end;

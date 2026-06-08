@@ -887,13 +887,19 @@ app.MapGet("/api/auto-start", () =>
         {
             try
             {
+                // 等 2 秒再查，避免安装后 Task Scheduler 尚未注册完毕导致误判
+                Thread.Sleep(2000);
                 using var ts = new TaskService();
                 var actual = ts.RootFolder.AllTasks.Any(t => t.Name == "DouzhanzheControl");
-                if (actual != cachedEnabled)
+                // 二次确认：若缓存为 true 但首次未找到，再等 2 秒重试
+                if (!actual && cachedEnabled)
                 {
-                    var (_, min) = ReadAutoStartOpts();
-                    WriteAutoStartOpts(actual, min);
+                    Thread.Sleep(2000);
+                    actual = ts.RootFolder.AllTasks.Any(t => t.Name == "DouzhanzheControl");
                 }
+                var (curEnabled, min) = ReadAutoStartOpts();
+                if (actual != curEnabled)
+                    WriteAutoStartOpts(actual, min);
             }
             catch { /* 校验失败不影响本次响应 */ }
         });
