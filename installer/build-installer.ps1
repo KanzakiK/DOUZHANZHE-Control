@@ -14,10 +14,8 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$InstallerDir = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Definition }
-if (-not $InstallerDir -or $InstallerDir -eq '') { $InstallerDir = 'd:\DOUZHANZHE-Control\installer' }
-$global:Root = Split-Path -Parent $InstallerDir
-Write-Host "[DEBUG] InstallerDir=$InstallerDir Root=$($global:Root)" -ForegroundColor Yellow
+$Root = "d:\DOUZHANZHE-Control"
+$PSScriptRoot_Fallback = "d:\DOUZHANZHE-Control\installer"
 
 # ── 0. 版本号同步 ──
 if ($Version) {
