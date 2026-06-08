@@ -171,6 +171,40 @@ export const PARAM_RANGES = {
   ocMemOffsetMhz: { min: -200, max: 300 },
 };
 
+// ── 散热曲线 (Fan Curve) ──
+
+export async function fetchFanCurveStatus() {
+  const res = await fetch("/api/fan-curve/status");
+  if (!res.ok) throw new Error("Fan curve status returned " + res.status);
+  return res.json();
+}
+
+export async function saveFanCurve(points, intervalMs, hysteresisC) {
+  const res = await fetch("/api/fan-curve/save", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ points, intervalMs, hysteresisC }),
+  });
+  if (!res.ok) throw new Error("Fan curve save returned " + res.status);
+  return res.json();
+}
+
+export async function startFanCurve(intervalMs, hysteresisC) {
+  const res = await fetch("/api/fan-curve/start", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ intervalMs, hysteresisC }),
+  });
+  if (!res.ok) throw new Error("Fan curve start returned " + res.status);
+  return res.json();
+}
+
+export async function stopFanCurve() {
+  const res = await fetch("/api/fan-curve/stop", { method: "POST" });
+  if (!res.ok) throw new Error("Fan curve stop returned " + res.status);
+  return res.json();
+}
+
 export function clampParam(key, value) {
   const r = PARAM_RANGES[key];
   if (!r) return value;

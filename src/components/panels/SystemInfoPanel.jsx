@@ -19,7 +19,7 @@ export default function SystemInfoPanel() {
         .then(data => { setInfo(data); try { localStorage.setItem(LS_SYS_INFO, JSON.stringify(data)); } catch {} })
         .catch(() => setInfo({}));
     }
-    if (!ext || !ext.biosVersion) {
+    if (!ext || !ext.biosVersion || !ext.battDesign) {
       fetch("/api/system/info-ext")
         .then(r => r.json())
         .then(data => { setExt(data); try { localStorage.setItem(LS_SYS_EXT, JSON.stringify(data)); } catch {} })
@@ -34,26 +34,17 @@ export default function SystemInfoPanel() {
   return (
     <Card title="电脑配置" className="!p-5">
       <div className="space-y-4 text-sm">
-        {/* 型号 */}
-        <Section title="型号">
-          <Row label="品牌/型号" value={i.systemModel || loading} />
-        </Section>
-
-        {/* BIOS */}
-        <Section title="BIOS">
-          <Row label="版本" value={e.biosVersion || loading} />
-          <Row label="日期" value={e.biosDate || loading} />
+        {/* 主板 */}
+        <Section title="主板">
+          <Row label="型号" value={e.boardInfo || i.systemModel || loading} />
+          <Row label="BIOS 版本" value={e.biosVersion || loading} />
+          <Row label="BIOS 日期" value={e.biosDate || loading} />
         </Section>
 
         {/* 操作系统 */}
         <Section title="操作系统">
           <Row label="系统" value={e.osName || loading} />
           <Row label="版本号" value={e.osBuild || loading} />
-        </Section>
-
-        {/* 主板 */}
-        <Section title="主板">
-          <Row label="型号" value={e.boardInfo || loading} />
         </Section>
 
         {/* 处理器 */}
@@ -101,7 +92,11 @@ export default function SystemInfoPanel() {
         {/* 电池 */}
         <Section title="电池">
           <Row label="电量" value={e.battPercent != null && e.battPercent >= 0 ? e.battPercent + "%" : loading} />
-          <Row label="状态" value={e.battStatus || loading} />
+          <Row label="健康度" value={
+            e.battDesign > 0
+              ? `${e.battFull} mWh / ${e.battDesign} mWh（${(e.battFull / e.battDesign * 100).toFixed(2)}%）`
+              : loading
+          } />
         </Section>
       </div>
     </Card>

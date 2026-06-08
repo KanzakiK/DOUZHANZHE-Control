@@ -13,6 +13,7 @@ builder.Services.AddSingleton<GpuController>();
 builder.Services.AddSingleton<NvapiGpuController>();
 builder.Services.AddSingleton<CpuPowerController>();
 builder.Services.AddSingleton<WmiInterface>();
+builder.Services.AddSingleton<FanCurveService>();
 builder.Services.AddHostedService<TelemetryBackgroundService>();
 builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
     p.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader()));
@@ -435,6 +436,65 @@ app.MapGet("/api/fan/status", (WmiInterface wmi) =>
         var largeTarget = wmi.GetFanSpeed(0) * 100;
         var smallTarget = wmi.GetFanSpeed(1) * 100;
         return Results.Json(new { ok = true, manualEnabled, largeRpmTarget = (int)largeTarget, smallRpmTarget = (int)smallTarget });
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new { ok = false, error = ex.Message });
+    }
+});
+
+// ---- Fan Curve (自定义散热曲线) ----
+var _fanCurveSvc = app.Services.GetRequiredService<FanCurveService>();
+_fanCurveSvc.LoadConfig(); // 启动时加载已保存的曲线
+
+app.MapGet("/api/fan-curve/status", (FanCurveService svc) =>
+{
+    return Results.Json(new
+    {
+        ok = true,
+        active = svc.Active,
+        points = svc.Points.Select(p => new { temp = p.Temp, largeRpm = p.LargeRpm, smallRpm = p.SmallRpm }),
+    });
+});
+
+app.MapPost("/api/fan-curve/save", (FanCurveService svc, FanCurveSaveRequest req) =>
+{
+    try
+    {
+        if (req.Points == null || req.Points.Count < 2)
+            return Results.Json(new { ok = false, error = "至少需要 2 个曲线点" });
+        var points = req.Points.Select(p => new FanCurvePoint(p.Temp, p.LargeRpm, p.SmallRpm)).ToList();
+        svc.SetPoints(points, req.IntervalMs, req.HysteresisC);
+        svc.SaveConfig();
+        return Results.Json(new { ok = true });
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new { ok = false, error = ex.Message });
+    }
+});
+
+app.MapPost("/api/fan-curve/start", (FanCurveService svc, FanCurveStartRequest? req) =>
+{
+    try
+    {
+        var interval = req?.IntervalMs ?? 3000;
+        var hysteresis = req?.HysteresisC ?? 3;
+        svc.Start(interval, hysteresis);
+        return Results.Json(new { ok = true });
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new { ok = false, error = ex.Message });
+    }
+});
+
+app.MapPost("/api/fan-curve/stop", (FanCurveService svc) =>
+{
+    try
+    {
+        svc.Stop();
+        return Results.Json(new { ok = true });
     }
     catch (Exception ex)
     {
@@ -964,3 +1024,19 @@ public record DefaultConfig(string[]? Order, string[]? Hidden)
     public string[] Order { get; init; } = Order ?? Array.Empty<string>();
     public string[] Hidden { get; init; } = Hidden ?? Array.Empty<string>();
 }
+
+// ---- Fan Curve 请求模型 ----
+public record FanCurveSaveRequest(
+    [property: System.Text.Json.Serialization.JsonPropertyName("points")] List<FanCurvePointDto>? Points,
+    [property: System.Text.Json.Serialization.JsonPropertyName("intervalMs")] int? IntervalMs,
+    [property: System.Text.Json.Serialization.JsonPropertyName("hysteresisC")] int? HysteresisC
+);
+public record FanCurvePointDto(
+    [property: System.Text.Json.Serialization.JsonPropertyName("temp")] int Temp,
+    [property: System.Text.Json.Serialization.JsonPropertyName("largeRpm")] int LargeRpm,
+    [property: System.Text.Json.Serialization.JsonPropertyName("smallRpm")] int SmallRpm
+);
+public record FanCurveStartRequest(
+    [property: System.Text.Json.Serialization.JsonPropertyName("intervalMs")] int? IntervalMs,
+    [property: System.Text.Json.Serialization.JsonPropertyName("hysteresisC")] int? HysteresisC
+);

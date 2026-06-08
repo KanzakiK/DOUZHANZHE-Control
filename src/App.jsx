@@ -3,6 +3,7 @@ import PerformancePanel from "./components/panels/PerformancePanel";
 import SettingsPanel from "./components/panels/SettingsPanel";
 import TelemetryPanel from "./components/panels/TelemetryPanel";
 import SystemInfoPanel from "./components/panels/SystemInfoPanel";
+import FanCurvePanel from "./components/panels/FanCurvePanel";
 import Card from "./components/ui/Card";
 import Gauge from "./components/ui/Gauge";
 import SortableDashboard from "./components/SortableDashboard";
@@ -11,8 +12,8 @@ import { useControlState } from "./hooks/useControlState";
 import { MODE_PRESETS, FULL_PARAMS, dispatchFullMode } from "./services/uxtuAdapter";
 import { useCallback, useState, useEffect } from "react";
 
-const NAV_ITEMS = ["主页", "系统", "设置"];
-const NAV_TABS = { "主页": "dashboard", "系统": "system", "设置": "settings" };
+const NAV_ITEMS = ["主页", "散热曲线", "系统", "设置"];
+const NAV_TABS = { "主页": "dashboard", "散热曲线": "fancurve", "系统": "system", "设置": "settings" };
 const MODE_ITEMS = [
   { id: "silent", label: "安静模式" },
   { id: "office", label: "均衡模式" },
@@ -81,6 +82,7 @@ export default function App() {
             <SettingsPanel settings={settings} setSettings={setSettings} uxtuPayload={uxtuPayload}
               showSwitches={true} showKeyboard={true} showSummary={true} showCredits={true} showAutoStart={true} />
           )}
+          {activeTab === "fancurve" && <FanCurvePanel telemetry={telemetry} />}
           {activeTab === "dashboard" && (
           <Card title="模式选择" className="console-dock !p-3"
             action={<button onClick={() => {

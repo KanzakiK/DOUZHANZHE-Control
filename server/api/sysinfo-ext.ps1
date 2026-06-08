@@ -43,10 +43,24 @@ Get-CimInstance Win32_PhysicalMemory | ForEach-Object {
     $sticks += @{ sizeGB = $sizeGB; speed = $speed; manufacturer = $_.Manufacturer }
 }
 
-# Battery
+# Battery (wear from powercfg battery report)
 $batt = Get-CimInstance Win32_Battery
 $battPercent = if ($batt) { $batt.EstimatedChargeRemaining } else { -1 }
-$battStatus = if ($batt) { $batt.Status } else { '' }
+$battDesign = 0
+$battFull = 0
+try {
+    $battReport = Join-Path $env:TEMP 'dz_batt_report.html'
+    & powercfg /batteryreport /output $battReport 2>$null | Out-Null
+    Start-Sleep 1
+    if (Test-Path $battReport) {
+        $battHtml = Get-Content $battReport -Raw
+        $desMatch = [regex]::Match($battHtml, 'DESIGN CAPACITY.*?(\d[\d,]*)\s*mWh', 'Singleline,IgnoreCase')
+        $fulMatch = [regex]::Match($battHtml, 'FULL CHARGE CAPACITY.*?(\d[\d,]*)\s*mWh', 'Singleline,IgnoreCase')
+        if ($desMatch.Success) { $battDesign = [int]($desMatch.Groups[1].Value -replace ',','') }
+        if ($fulMatch.Success) { $battFull   = [int]($fulMatch.Groups[1].Value -replace ',','') }
+        Remove-Item $battReport -Force -ErrorAction SilentlyContinue
+    }
+} catch {}
 
 # Output JSON
 @{
@@ -60,5 +74,6 @@ $battStatus = if ($batt) { $batt.Status } else { '' }
     disks        = $disks
     sticks       = $sticks
     battPercent  = $battPercent
-    battStatus   = $battStatus
+    battDesign   = $battDesign
+    battFull     = $battFull
 } | ConvertTo-Json -Compress
