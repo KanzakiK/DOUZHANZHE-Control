@@ -226,7 +226,7 @@ export default function SortableDashboard({
           { id: 1, label: "集显模式" },
           { id: 2, label: "独显模式" },
         ];
-        const currentGpuMode = telemetry.gpuMode !== undefined ? parseInt(telemetry.gpuMode) : -1;
+        const currentGpuMode = telemetry.gpuMode != null ? parseInt(telemetry.gpuMode) : -1;
         return (
           <Card title="GPU 模式" className="!p-3">
             <div className="grid grid-cols-3 gap-2">

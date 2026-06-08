@@ -79,7 +79,7 @@ export default function FanCurvePanel({ telemetry }) {
   const [points, setPoints] = useState(DEFAULT_POINTS);
   const [curveActive, setCurveActive] = useState(false);
   const [selIdx, setSelIdx] = useState(-1);
-  const [interval, setInterval_] = useState(5);   // 秒
+  const [pollSec, setPollSec] = useState(5);   // 秒
   const [hysteresis, setHysteresis] = useState(3);  // °C
 
   // 拖拽状态
@@ -201,7 +201,7 @@ export default function FanCurvePanel({ telemetry }) {
 
   const handleSave = async () => {
     try {
-      const r = await saveFanCurve(points, interval * 1000, hysteresis);
+      const r = await saveFanCurve(points, pollSec * 1000, hysteresis);
       toast?.(r.ok ? "曲线已保存" : "保存失败: " + (r.error || ""), r.ok ? "success" : "error");
     } catch (e) {
       toast?.("保存失败: " + e.message, "error");
@@ -211,8 +211,8 @@ export default function FanCurvePanel({ telemetry }) {
   const handleApply = async () => {
     try {
       // 先保存再启用
-      await saveFanCurve(points, interval * 1000, hysteresis);
-      const r = await startFanCurve(interval * 1000, hysteresis);
+      await saveFanCurve(points, pollSec * 1000, hysteresis);
+      const r = await startFanCurve(pollSec * 1000, hysteresis);
       if (r.ok) {
         setCurveActive(true);
         toast?.("自定义散热曲线已启用", "success");
@@ -295,7 +295,7 @@ export default function FanCurvePanel({ telemetry }) {
             style={{ background: "var(--ok)", animation: "pulse 1.5s infinite" }}
           />
           <span style={{ color: "var(--ok)" }}>
-            自定义曲线运行中 · 间隔 {interval}s · 回差 {hysteresis}°C
+            自定义曲线运行中 · 间隔 {pollSec}s · 回差 {hysteresis}°C
             {hotspot ? ` · 当前热点 ${hotspot}°C` : ""}
           </span>
         </div>
@@ -421,8 +421,8 @@ export default function FanCurvePanel({ telemetry }) {
             <label className="text-xs flex items-center gap-1" style={{ color: "var(--muted)" }}>
               间隔
               <input
-                type="number" min={1} max={30} value={interval}
-                onChange={(e) => setInterval_(clamp(parseInt(e.target.value, 10) || 5, 1, 30))}
+                type="number" min={1} max={30} value={pollSec}
+                onChange={(e) => setPollSec(clamp(parseInt(e.target.value, 10) || 5, 1, 30))}
                 className="w-12 text-center rounded px-1 py-0.5 text-xs"
                 style={{ background: "var(--card-2)", border: "1px solid var(--border)", color: "var(--text)" }}
               />s
