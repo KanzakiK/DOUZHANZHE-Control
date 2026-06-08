@@ -13,6 +13,7 @@
 
 | 日期 | 会话主题 |
 |:-----|:--------|
+| 2026-06-08 | [CPU 频率控制 SwitchRow 样式统一](#2026-06-08-CPU-频率控制-SwitchRow-样式统一) |
 | 2026-06-08 | [桌面壳退出清理后端进程](#2026-06-08-桌面壳退出清理后端进程) |
 | 2026-06-07 | [NVAPI GPU 控制 + 蛟龙 KaronOC 超频引擎集成](#2026-06-07-NVAPI-GPU-控制-蛟龙-KaronOC-超频引擎集成) |
 | 2026-06-07 | [SMU修复+WinRing0自动加载+模式切换双发+部署修复](#2026-06-07-SMU修复WinRing0自动加载模式切换双发部署修复) |
@@ -26,7 +27,14 @@
 | 2026-06-06 | [docs 维护规则补全](#docs-维护规则补全) |
 | 2026-06-06 | [主记忆 §3/§4 追加近期摘要](#主记忆-34-追加近期摘要) |
 | 2026-06-06 | [Vite Dev Server 废弃 + 架构简化](#Vite-Dev-Server-废弃-架构简化) |
-| ... | [共 20 条](#完整列表) |
+| ... | [共 21 条](#完整列表) |
+
+---
+
+## 2026-06-08 (CPU 频率控制 SwitchRow 样式统一)
+- **问题**: PerformancePanel CPU 频率控制区三个开关（频率限制、关闭睿频、限制核心数）使用原生 `<input type="checkbox">`，样式丑陋
+- **修复**: 替换为 `SwitchRow` 组件，与系统开关（设置页）样式统一；SwitchRow 新增 `disabled` 参数（半透明+禁用点击）
+- **文件**: `src/components/panels/PerformancePanel.jsx` — 导入 SwitchRow，三个 checkbox 替换为 SwitchRow；`src/components/ui/SwitchRow.jsx` — 新增 disabled props
 
 ---
 

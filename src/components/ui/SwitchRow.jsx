@@ -1,13 +1,14 @@
-export default function SwitchRow({ label, checked, onChange }) {
+export default function SwitchRow({ label, checked, onChange, disabled = false }) {
   return (
-    <div className="flex items-center justify-between py-1">
+    <div className="flex items-center justify-between py-1" style={{ opacity: disabled ? 0.5 : 1 }}>
       <span className="text-sm">{label}</span>
       <button
-        onClick={() => onChange(!checked)}
+        onClick={() => !disabled && onChange(!checked)}
         className="w-12 h-7 rounded-full p-1 transition-all"
         style={{
           background: checked ? "var(--primary)" : "var(--card-2)",
           border: "1px solid var(--border)",
+          cursor: disabled ? "not-allowed" : "pointer",
         }}
       >
         <div

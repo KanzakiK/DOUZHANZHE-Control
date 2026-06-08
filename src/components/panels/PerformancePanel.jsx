@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { MODE_PRESETS, applyUxtuLimits, applySmuSet, applyHardwareControl, powerPlanHALMap, applyGpuControl, applyNvapiOverclock, applyNvapiThermalLimit, fetchNvapiStatus, fetchCpuPowerStatus, setCpuFreqLimit, setCpuTurbo, setCpuCoreLimitPercent, resetCpuPower } from "../../services/uxtuAdapter";
 import Card from "../ui/Card";
 import SliderRow from "../ui/SliderRow";
+import SwitchRow from "../ui/SwitchRow";
 import { useToast } from "../ui/Toast";
 
 const POWER_PLANS = [
@@ -161,7 +162,6 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
     return () => window.removeEventListener("gpu-oc-updated", handler);
   }, []);
 
-
   const update = useCallback((key) => (value) => {
     setUxtuParams((p) => ({ ...p, [key]: value }));
   }, [setUxtuParams]);
@@ -184,40 +184,23 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
     <>
       {showCpu && <Card title="CPU 频率控制" className="!p-3">
         <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <input type="checkbox" checked={uxtuParams.cpuFreqLimitEnabled}
-              onChange={(e) => {
-                const on = e.target.checked;
-                update("cpuFreqLimitEnabled")(on);
-                queueCpuFreq(on ? uxtuParams.cpuFreqLimitMhz : 0);
-              }}
-            disabled={paramsLocked}
-              className="accent-cyan-400" />
-            <span className="text-xs">频率限制</span>
-          </div>
+          <SwitchRow label="频率限制" checked={uxtuParams.cpuFreqLimitEnabled}
+            onChange={(on) => { update("cpuFreqLimitEnabled")(on); queueCpuFreq(on ? uxtuParams.cpuFreqLimitMhz : 0); }}
+            disabled={paramsLocked} />
           {uxtuParams.cpuFreqLimitEnabled && (
             <SliderRow label="最大频率" value={uxtuParams.cpuFreqLimitMhz}
               min={2000} max={5500} step={100} unit="MHz" onChange={(v) => { update("cpuFreqLimitMhz")(v); queueCpuFreq(v); }} />
           )}
-          <div className="flex items-center gap-2">
-            <input type="checkbox" checked={uxtuParams.cpuTurboDisabled}
-              onChange={async (e) => {
-                const disabled = e.target.checked;
-                update("cpuTurboDisabled")(disabled);
-                try { await setCpuTurbo(!disabled); }
-                catch (err) { console.error("CPU turbo toggle failed:", err); }
-              }}
-            disabled={paramsLocked}
-              className="accent-cyan-400" />
-            <span className="text-xs">关闭睿频</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <input type="checkbox" checked={uxtuParams.cpuCoreLimit > 0}
-              onChange={(e) => { const v = e.target.checked ? 8 : 0; update("cpuCoreLimit")(v); queueCoreLimit(v); }}
-              disabled={paramsLocked}
-              className="accent-cyan-400" />
-            <span className="text-xs">限制核心数</span>
-          </div>
+          <SwitchRow label="关闭睿频" checked={uxtuParams.cpuTurboDisabled}
+            onChange={async (disabled) => {
+              update("cpuTurboDisabled")(disabled);
+              try { await setCpuTurbo(!disabled); }
+              catch (err) { console.error("CPU turbo toggle failed:", err); }
+            }}
+            disabled={paramsLocked} />
+          <SwitchRow label="限制核心数" checked={uxtuParams.cpuCoreLimit > 0}
+            onChange={(on) => { const v = on ? 8 : 0; update("cpuCoreLimit")(v); queueCoreLimit(v); }}
+            disabled={paramsLocked} />
           {uxtuParams.cpuCoreLimit > 0 && (
             <SliderRow label="核心数" value={uxtuParams.cpuCoreLimit}
               min={2} max={14} step={2} unit="核" onChange={(v) => { update("cpuCoreLimit")(v); queueCoreLimit(v); }} disabled={paramsLocked} />

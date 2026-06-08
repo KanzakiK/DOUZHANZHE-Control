@@ -6,8 +6,8 @@
     "cpu-adjust",
     "cpu-power",
     "gpu-adjust",
-    "gpu-mode",
     "fan-info",
+    "gpu-mode",
     "mem-disk",
     "system-switches",
     "about"
