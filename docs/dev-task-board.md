@@ -49,15 +49,13 @@
 
 ## 🧭 二、后续版本
 
-### 后端- [x] **恢复预设按钮**: 模式选择 Card 右上角 `action` 按钮，恢复当前模式 CPU+GPU+风扇全量出厂值
-- [x] **模式切换滑块联动**: 切换模式时 `uxtuParams` 跟随 `MODE_PRESETS` 更新，滑块/开关同步跳转- [x] **GPU 核心频率超频**: KaronOC.dll (蛟龙引擎) P-State 偏移超频，已验证 core +150MHz / mem +300MHz
+### 后端
+- [x] **恢复预设按钮**: 模式选择 Card 右上角 `action` 按钮，恢复当前模式 CPU+GPU+风扇全量出厂值
+- [x] **模式切换滑块联动**: 切换模式时 `uxtuParams` 跟随 `MODE_PRESETS` 更新，滑块/开关同步跳转
+- [x] **GPU 核心频率超频**: KaronOC.dll (蛟龙引擎) P-State 偏移超频，已验证 core +150MHz / mem +300MHz
 - [x] **GPU 超频引擎集成**: NVAPI P/Invoke + KaronOC.dll 双层架构，状态读取 + 超频写入
 - [ ] **GPU 功耗墙**: ❌ nvidia-smi `--power-limit` 驱动限制不可用，需另寻路径
-- [ ] **CPU 性能控制**: 基于蛟龙控制台逆向发现，使用 Windows powercfg 实现 CPU 频率限制/关睿频/核心数限制（无需 SMU 驱动）
-  - 参考: `docs/reference-consoles.md` §2 CPU 控制技术逆向
-  - 后端新增 `CpuPowerController.cs`：封装 `Process.Start("powercfg", args)` 调用
-  - 新增 API: `POST /api/cpu/freq-limit`, `POST /api/cpu/turbo`, `POST /api/cpu/core-limit`
-  - 前端新增: CPU 频率限制滑块 / 关睿频开关 / 核心数百分比滑块
+- [x] **CPU 性能控制**: 基于 powercfg 实现 CPU 频率限制/关睿频/核心数限制（无需 SMU 驱动）
 - [ ] **五模式全量配置覆盖**: 安静/均衡/野兽/斗战/自定义各保存一套完整配置（风扇转速×2、CPU功耗墙/温度墙、GPU功耗墙/频率偏移），后端新增 GET|POST /api/mode-config 持久化接口
 - [x] **每模式独立参数记忆**: localStorage 按模式名隔离 key（`douzhanzhe_params_`+模式名），切换模式时恢复该模式上次调的值，点"恢复预设"才重置
 - [ ] **遥测扩展**: CPU/GPU 功率
@@ -65,14 +63,14 @@
   - CPU (ryzenadj `-i` 解析 SMU)
   - CPU 功率负载估算回退
 - [ ] **Debug 页 GPU 控制区**: 频率锁/超频/重置 + 当前频率/功耗显示
-- [ ] **前端 GPU 性能面板 (NVAPI 偏移模式)**: 将 nvidia-smi 绝对频率方案替换为 KaronOC P-State 偏移方案
-  - [ ] **核心频率滑块**: 绝对值(1000-3090 MHz) → 偏移量(-1000~+1000 MHz) → `POST /api/nvapi/overclock`
-  - [ ] **显存频率滑块**: 档位(0-3) → 偏移量(-1000~+3000 MHz) → `POST /api/nvapi/overclock`
-  - [ ] **删除**: 核心频率限制复选框 + 最大频率滑块 + 锁定核心频率复选框（P-State 偏移本身即上限调节，无需锁频）
-  - [ ] **重置 GPU 按钮**: `nvidia-smi reset-clocks` → `POST /api/nvapi/overclock {coreOffsetMhz:0, memOffsetMhz:0}`
-  - [ ] **新增 GPU 温度限制滑块**: `POST /api/nvapi/thermal-limit`（后端已验证可用）
+- [x] **前端 GPU 性能面板 (NVAPI + nvidia-smi 统一卡片)**: 核心频率(nvidia-smi lock) + 核心偏移(NVAPI P-State offset) + 显存频率档位 + 温度限制 + 重置按钮
+  - [x] **核心频率滑块**: nvidia-smi `--lock-gpu-clocks` 绝对频率 + 自动锁定重试机制
+  - [x] **核心偏移滑块**: NVAPI P-State 偏移量(-200~+300 MHz)，模式切换联动
+  - [x] **显存频率档位**: 自动/9001/11001/12001 MHz 四档
+  - [x] **GPU 温度限制滑块**: `POST /api/nvapi/thermal-limit`，模式切换联动(CustomEvent)
+  - [x] **重置 GPU 按钮**: 一键恢复核心频率/显存/偏移/温度限制到默认值
   - [ ] **GPU 功耗墙**: 暂不可用（笔记本 GPU NVAPI 返回全零），预留 UI 位置
-  - [ ] **不受影响**: CPU 全部控件 / 风扇控制 / 系统开关 / 遥测曲线 / GPU 模式切换 — 均走独立通道，无需改动
+  - [x] **不受影响**: CPU 全部控件 / 风扇控制 / 系统开关 / 遥测曲线 / GPU 模式切换 — 均走独立通道，无需改动
 - [ ] **SMU 监视器**: 值被覆盖时自动重发（替代 `readjustService.ps1`）
 - [ ] **跨平台/非管理员降级模式**（无 inpoutx64 时以 WMI/软件方式运行）
 - [ ] **Node.js 全部端点迁移到 C#**，砍掉 Node.js 后端
@@ -82,8 +80,8 @@
 ### 前端
 - [ ] **自建 OSD Toast**（前端全局 Toast，所有 POST /api/control 操作成功后弹出操作反馈，替代官方 BLDFnHotkeyUtility OSD）
 - [ ] **五维雷达图**可视化（CPU/GPU/内存/磁盘/风扇综合评分）
-- [ ] **模式独立配置管理**: 每个模式独立保存风扇/CPU/GPU参数，切换模式时全量写入
-- [ ] **恢复预设按钮**: 一键将当前模式的所有 CPU/GPU/风扇滑块重置为 MODE_PRESETS 出厂默认值（恢复后联动写入一次，确保用户实时看到效果）
+- [x] **模式独立配置管理**: 每个模式独立保存风扇/CPU/GPU参数，切换模式时全量写入
+- [x] **恢复预设按钮**: 一键将当前模式的所有 CPU/GPU/风扇滑块重置为 MODE_PRESETS 出厂默认值
 
 ### 其他
 - [x] **模式切换 SMU 双发**: 模式按钮点击时 EC 切换前后双发 SMU（防固件覆盖），温度墙/功耗墙实时生效
@@ -146,6 +144,9 @@
 - [x] Step G: WinRing0x64.dll 仍依赖于 SmuController（通过 ryzenadj.exe），DriverBridge 已全面移除对 WinRing0 的直接依赖
 - [x] SMU 写入验证: Dragon Range 地址确认 + ryzenadj 子进程写入 25W 功率墙成功
 - [x] Debug 页按钮: SMU 功率/温度设置按钮已整合 ✅
+- [x] **SMU BatchApply**: SmuController 批量方法，单次 ryzenadj 子进程调用替代多次串行调用（模式切换 2-3s → ~300ms）
+- [x] **CPU 性能控制后端**: CpuPowerController.cs 封装 powercfg，API: `POST /api/cpu/freq-limit`, `/api/cpu/turbo`, `/api/cpu/core-limit`, `/api/cpu/reset`
+- [x] **NVAPI 端点**: `GET /api/nvapi/status`, `POST /api/nvapi/overclock`, `POST /api/nvapi/thermal-limit`
 
 ### 后端 — GPU 控制 (nvidia-smi)
 - [x] **GpuController.cs (nvidia-smi 子进程封装)**: `POST /api/gpu/set` 统一接口
@@ -184,6 +185,11 @@
 - [x] **电压偏移持久化**: localStorage
 - [x] **隐藏系统开关冗余项**: 移除独显直连/集显模式/关闭OSD三个SwitchRow 键 `douzhanzhe_voltage_offset`，所有模式通用
 - [x] **非自定义模式 slider 闪跳修复**: fetch(/api/custom-params) 仅在 mode === "custom" 时覆盖 uxtuParams，其他模式保持 MODE_PRESETS
+- [x] **GPU 统一卡片**: 合并标准/超频模式为单一 GPU 调节卡片，核心频率(nvidia-smi lock) + 核心偏移(NVAPI offset) + 显存档位 + 温度限制，自动锁定 + 重试机制(gpuCmd 2 retries 300ms)
+- [x] **NVAPI 核心偏移模式联动**: MODE_PRESETS 加入 gpuCoreOffsetMhz，模式切换时 CustomEvent 同步 PerformancePanel 偏移滑块 + 异步下发 NVAPI
+- [x] **GPU 温度限制模式联动**: CustomEvent(`gpu-thermal-updated`) 乐观更新 UI + `applyNvapiThermalLimit` 异步下发
+- [x] **排序跳动修复**: SortableCard 高度锁定(800ms useLayoutEffect) + `break-inside: avoid` + localStorage 优先(跳过服务端覆盖)
+- [x] **SMU 死代码清理**: 移除 PerformancePanel 中未使用的 smuInfo/smuError 状态和 3 秒延迟 fetch
 
 ### 前端 — 系统功能
 - [x] 主题切换（4 套皮肤）
@@ -255,6 +261,7 @@
 - 2026-06-06: 风扇控制全栈后端 (C# HAL/API/Debug) + WriteEc 0x80→0x81 修复 + WaitEcReady 轮询
 - - 2026-06-06: 电源计划按钮修复 — PerformancePanel.jsx POWER_PLANS 添加 halValue，按钮点击实际下发 C# HAL
 - - 2026-06-06: 持久化修复 — 风扇滑块/电压偏移 localStorage, fetch 非 custom 模式不覆盖, uxtuParams 初始值改 MODE_PRESETS
+- 2026-06-08: GPU 统一卡片 + NVAPI 偏移模式联动 + SMU BatchApply + CPU 性能控制 + 排序跳动修复 + SMU 死代码清理
 
 ---
 
