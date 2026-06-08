@@ -5,6 +5,26 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
+## [1.2.0] — 2026-06-08
+
+### 新增
+
+- **自定义散热曲线**: 独立标签页，SVG 可视化温度-转速曲线编辑器，支持保存/加载/启停/恢复预设，后台 FanCurveService 定时执行 (FanCurvePanel.jsx + FanCurveService.cs)
+- **GPU 模式持久化**: 用户选择的 GPU 模式 (混合/集显/独显) 写入 `gpu-mode.json`，服务重启后自动通过 WMI 恢复，解决 EC 寄存器掉电重置问题
+
+### 变更
+
+- 散热曲线面板操作按钮和状态栏移至顶部，图表区域视觉更突出
+- 首页模式选择卡片移至仪表盘最上方，优先于所有功能卡片
+- 统一所有恢复按钮命名为"恢复预设"（原"重置 CPU 限制"、"重置 GPU"、"恢复默认"）
+- 更新默认仪表盘卡片排列顺序和隐藏列表 (useCardOrder.js)
+- README 重写为中英双语简洁实用风格
+
+### 仓库维护
+
+- `.gitignore` 新增忽略规则: `.qoder/`、`.instructions.md`、`_enum_dll_proj/`、`_lab/`、`_tmp_decompile/`、`_*.csx`、`docs/`、`server/api/config/*.json`、`.venv/`、`.github/`
+- 从 Git 跟踪中移除 158 个非源码文件（工具元数据、临时实验目录、开发文档、运行时配置等），磁盘文件保留不变
+
 ## [1.1.0] — 2026-06-05
 
 ### 新增

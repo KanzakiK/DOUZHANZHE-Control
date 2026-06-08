@@ -1,143 +1,118 @@
 # Douzhanzhe Console
 
 **斗战者控制台** — Lenovo Legion N176 2025 (宝龙达 OEM) 开源硬件控制面板。
-
 替代官方联想电脑管家，提供完整的硬件监控、性能调优和系统控制能力。
 
----
-
-## 功能
-
-| 类别 | 功能 | 状态 |
-|:-----|:-----|:----:|
-| 遥测 | CPU/GPU 占用率、温度、频率、显存、风扇转速实时监控 (WebSocket) | ✅ |
-| CPU 散热模式 | 静音/均衡/野兽/自定义 — EC ITSM 寄存器直写 | ✅ |
-| CPU 风扇 | 独立 EC 寄存器 `0x5F` 写入，精确 RPM/100 控制 | ✅ |
-| GPU 风扇 | 独立 EC 寄存器 `0x5B` 写入，精确 RPM/100 控制 | ✅ |
-| GPU 模式 | 混合/集显/独显 — WMI MiInterface 切换 | ✅ |
-| GPU 锁频 | nvidia-smi `--lock-gpu-clocks` 核心频率锁定 | ✅ |
-| GPU 遥测 | 温度、功率、频率 (nvidia-smi) | ✅ |
-| SMU 调优 | 功耗墙 (PPT)、温度墙 (TDC/EDC) — SmuController + RyzenAdj | ✅ |
-| SMU 探测 | SMU 固件握手 PROBE_OK 验证 | ✅ |
-| 键盘背光 | 0-3 级亮度 — 物理内存 `0xFE80049A` 直写 | ✅ |
-| FnLock | 功能键锁定切换 — WMI MiInterface 方法 11 | ✅ |
-| 电源计划 | Windows 电源方案切换 (powrprof.dll P/Invoke) | ✅ |
-| CapsLock/NumLock | Win32 keybd_event 模拟切换 | ✅ |
-| 自定义仪表盘 | @dnd-kit 拖拽排序、模块隐藏/显示 | ✅ |
-| 主题 | 赛博霓虹、极简现代、极客数据、机甲紫黑 | ✅ |
-| 状态持久化 | 本地 (localStorage) + 服务端 (JSON) 双重保障 | ✅ |
-| Debug 面板 | C# HAL `/debug` 内联 HTML，按钮/滑块直接测试硬件 | ✅ |
+**Douzhanzhe Console** — Open-source hardware control panel for Lenovo Legion N176 2025 (BaoLongDa OEM).
+A full-featured alternative to Lenovo Vantage for hardware monitoring, performance tuning, and system control.
 
 ---
 
-## 架构
+## 功能 Features
 
-```
-                       浏览器 (React SPA)
-                        :5173 Vite Dev / :3100 生产
-                           |
-                    C# HAL API (:3100)
-       ┌──────────────────────────────────┐
-       │  WmiInterface  (WMI MiInterface) │
-       │  DriverBridge  (inpoutx64 EC 直写)│
-       │  SmuController (RyzenAdj 子进程) │
-       │  WebSocket     (500ms 遥测推送)  │
-       │  Debug 页面    (内联 HTML 测试)  │
-       └──────────────────────────────────┘
-            |                |
-      Windows 内核       Node.js (:3099)
-      / 硬件             (可选：JSON 持久化)
-```
+**实时监控** — CPU/GPU 温度、频率、占用率、风扇转速、内存与磁盘，通过 WebSocket 每 500ms 推送。
 
-**C# HAL 三层架构**：
+**性能调优** — CPU 功耗墙/温度墙 (SMU via RyzenAdj)、GPU 功耗/超频偏移/锁频 (NVAPI + nvidia-smi)、四档模式预设一键切换。
 
-| 层 | 文件 | 职责 |
-|:---|:-----|:-----|
-| **DriverBridge** | `server/hal/DriverBridge.cs` | inpoutx64 P/Invoke 单例桥接 (Inp32/Out32/ReadPhys32/WritePhys32) |
-| **HAL** | `server/hal/HardwareAbstractionLayer.cs` | EC 寄存器语义化映射 (ThermalMode/FanControl/KbLight/CpuFan/GpuFan) |
-| **SMU** | `server/hal/SmuController.cs` | RyzenAdj 子进程封装 (Probe/SetPowerLimit/SetTempLimit) |
-| **API** | `server/api/Program.cs` | Minimal API 端点 + WebSocket 遥测推送 + Debug 页面 |
+**散热曲线** — 自定义温度-转速曲线编辑器，SVG 可视化预览，支持保存/加载/启停。
 
-> Node.js (`server/server.js`) 仅为可选辅助服务，提供 UI 配置 JSON 持久化。SMU、遥测、硬件控制全部在 C# HAL 完成。
+**GPU 模式** — 混合/集显/独显三档切换 (WMI MiInterface)，重启后自动恢复用户选择。
+
+**系统控制** — 键盘背光亮度、FnLock、电源计划、CapsLock/NumLock、风扇转速直写 (EC 寄存器)。
+
+**个性化** — @dnd-kit 拖拽排序仪表盘、模块隐藏/显示、四套主题皮肤。
 
 ---
 
-## 快速开始
+## 快速开始 Quick Start
 
-### 前置要求
+### 环境要求 Prerequisites
 
-| 工具 | 版本 | 验证 |
+| 工具 Tool | 版本 Version | 验证 Command |
 |:-----|:-----|:-----|
 | .NET SDK | 8.0 (net8.0-windows) | `dotnet --list-sdks` |
 | Node.js | >= 18 | `node --version` |
-| npm | >= 9 | `npm --version` |
 | OS | Windows 10/11 x64 | — |
-| 权限 | **管理员身份** | C# HAL + inpoutx64 需要 |
+| 权限 | **管理员身份** (Admin) | inpoutx64 + WMI 需要 |
 
-### 启动
+### 开发 Development
 
 ```powershell
-# 终端 1 — C# HAL API (唯一必需，必须管理员)
+# 1. 启动后端 API（必须管理员）
 cd server/api
 dotnet run --urls http://0.0.0.0:3100
-# Debug 面板: http://127.0.0.1:3100/debug
 
-# 终端 2 — Vite 前端
+# 2. 启动前端开发服务器
 npx vite --host 0.0.0.0 --port 5173
-
-# 终端 3 — Node.js 配置持久化 (可选)
-cd server && node server.js
 ```
 
-### 调试入口
+### 部署 Deployment
 
-| 地址 | 用途 |
-|:-----|:------|
-| `http://127.0.0.1:3100/debug` | C# HAL — 所有硬件控制按钮/滑块 (EC/WMI/SMU/Fan) |
-| `http://127.0.0.1:3100/api/health` | C# HAL 健康检查 |
-| `http://localhost:5173` | 前端 Vite 开发服务器 |
-| `http://127.0.0.1:3099` | Node.js 配置持久化服务 (不启动不影响核心功能) |
+```powershell
+# 构建前端 + 同步到后端 wwwroot
+.\deploy.ps1
 
----
+# 仅同步（跳过构建）
+.\deploy.ps1 -SkipBuild
 
-## 技术栈
+# 启动生产服务（管理员）
+cd server/api/bin/build
+dotnet Douzhanzhe.API.dll --urls=http://127.0.0.1:3100
+```
 
-| 层级 | 技术 | 许可证 |
-|:-----|:-----|:-------|
-| 前端 | React 19 + Vite 8 + Tailwind CSS 3 + @dnd-kit | MIT |
-| C# HAL | .NET 8 + Minimal API + WMI + inpoutx64 | MIT |
-| SMU | RyzenAdj (SmuController 子进程调用) | LGPL-3.0 |
-| 硬件直连 | inpoutx64 (ReadPhys32 / WritePhys32) | MIT |
-| EC 寄存器 | DSDT 反编译 + EC IO 端口 `0x62`/`0x66` | — |
-| GPU 控制 | nvidia-smi 锁频 + WMI GPUMode | Proprietary |
-| 配置持久化 | Node.js Express 5 (可选辅助服务) | MIT |
+生产模式访问 `http://127.0.0.1:3100`，Debug 面板在 `http://127.0.0.1:3100/debug`。
 
 ---
 
-## 文档
+## 技术栈 Tech Stack
 
-| 文档 | 说明 |
-|:-----|:------|
-| [整体架构](docs/dev-architecture.md) | 系统分层、Vite 代理、数据流 |
-| [后端架构](docs/dev-backend.md) | C# HAL 三层 + Node.js 辅助服务 |
-| [前端架构](docs/dev-frontend.md) | 组件树、状态管理、布局 |
-| [EC 寄存器地图](docs/dev-ec-map.md) | DSDT 反编译确认的完整 EC 寄存器表 (150+ 寄存器) |
-| [API 定义](docs/dev-api.md) | C# HAL + Node.js 所有端点 |
-| [任务看板](docs/dev-task-board.md) | 已完成 / 待开发 / Bug |
-| [官方控制台参考](docs/reference-consoles.md) | 斗战者/蛟龙 DLL 路径、WMI 功能对比 |
-| [会话归档](docs/session-archive.md) | 开发迭代日志 |
+| 层级 Layer | 技术 |
+|:-----|:-----|
+| 前端 Frontend | React 19 + Vite 8 + TailwindCSS 3 + @dnd-kit |
+| 后端 Backend | .NET 8 Minimal API + WMI + inpoutx64 |
+| SMU 控制 | RyzenAdj (子进程调用) |
+| GPU 控制 | nvidia-smi 锁频 + NVAPI 超频 + WMI 模式切换 |
+| EC 直写 | inpoutx64 (IO 端口 0x62/0x66) |
 
 ---
 
-## 参考项目
+## 项目结构 Structure
 
-- [Lenovo Legion Toolkit](https://github.com/BartoszCichecki/LenovoLegionToolkit) — 官方 LLT 开源实现 (本机宝龙达 OEM 模具不兼容)
+```
+DOUZHANZHE-Control/
+├── src/                        # React 前端
+│   ├── App.jsx                 # 主布局 + 标签页路由
+│   ├── components/
+│   │   ├── SortableDashboard   # 拖拽排序仪表盘
+│   │   ├── panels/             # 性能/散热曲线/遥测/系统/设置面板
+│   │   └── ui/                 # Card, Gauge, Toast 等通用组件
+│   ├── hooks/                  # useCardOrder, useControlState
+│   └── services/               # uxtuAdapter (API 通信)
+├── server/
+│   ├── api/                    # ASP.NET 8 后端
+│   │   ├── Program.cs          # Minimal API 端点 + WebSocket 遥测
+│   │   ├── WmiInterface.cs     # WMI MiInterface 硬件通信
+│   │   ├── FanCurveService.cs  # 散热曲线后台服务
+│   │   └── TelemetryBackgroundService.cs
+│   └── hal/                    # 硬件抽象层
+│       ├── DriverBridge.cs     # inpoutx64 P/Invoke
+│       ├── HardwareAbstractionLayer.cs  # EC 寄存器语义映射
+│       └── SmuController.cs    # RyzenAdj 子进程封装
+├── deploy.ps1                  # 一键构建部署脚本
+└── vite.config.js              # Vite 配置 + API 代理
+```
+
+---
+
+## 参考项目 References
+
+- [Lenovo Legion Toolkit](https://github.com/BartoszCichecki/LenovoLegionToolkit) — 开源 LLT 实现 (宝龙达 OEM 不兼容)
 - [Universal x86 Tuning Utility](https://github.com/JamesCJ60/Universal-x86-Tuning-Utility) — UXTU 通用调优工具
 - [RyzenAdj](https://github.com/FlyGoat/RyzenAdj) — AMD SMU 控制接口
 - [inpoutx64](https://www.highrez.co.uk/downloads/inpout32/) — 用户态物理内存/IO 访问
 
 ---
 
-## 许可证
+## 许可证 License
 
-GNU General Public License v3.0
+[GNU General Public License v3.0](LICENSE)
