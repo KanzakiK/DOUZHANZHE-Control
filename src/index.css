@@ -484,7 +484,7 @@ body {
 }
 
 /* ── 自定义背景激活时：侧边栏内部元素半透明 ── */
-.dz-bg-active .console-panel > div {
+.dz-bg-active .sidebar-brand {
   background: color-mix(in srgb, var(--card-2) 60%, transparent) !important;
 }
 .dz-bg-active .console-panel nav > button {
