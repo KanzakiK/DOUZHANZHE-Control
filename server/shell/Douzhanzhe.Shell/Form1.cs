@@ -153,7 +153,10 @@ public partial class Form1 : Form
             var logContent = "";
             try
             {
-                var logPath = Path.Combine(AppContext.BaseDirectory, "api-startup.log");
+                var logDir = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "Douzhanzhe Console");
+                var logPath = Path.Combine(logDir, "api-startup.log");
                 if (File.Exists(logPath))
                     logContent = System.Net.WebUtility.HtmlEncode(File.ReadAllText(logPath));
             }
@@ -282,7 +285,11 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
 
         var baseDir = AppContext.BaseDirectory;
         var apiExe = Path.Combine(baseDir, "Douzhanzhe.API.exe");
-        var logPath = Path.Combine(baseDir, "api-startup.log");
+        var logDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Douzhanzhe Console");
+        Directory.CreateDirectory(logDir);
+        var logPath = Path.Combine(logDir, "api-startup.log");
 
         void AppendLog(string msg) {
             try { File.AppendAllText(logPath, $"[{DateTime.Now:HH:mm:ss}] {msg}\n"); } catch { }
