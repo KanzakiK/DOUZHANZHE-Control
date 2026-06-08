@@ -14,8 +14,10 @@ if ($existing) {
 dotnet build "$root\Douzhanzhe.API.csproj" --force 2>&1 | Out-Null
 if ($LASTEXITCODE -ne 0) { Write-Host "Build failed!" -Foreground Red; exit 1 }
 
-# Copy build output to run dir (fresh copy every time)
-if (Test-Path $runDir) { Remove-Item "$runDir\*" -Recurse -Force }
+# Copy build output to run dir (fresh copy every time, preserve config/)
+if (Test-Path $runDir) {
+    Get-ChildItem "$runDir" -Force | Where-Object { $_.Name -ne 'config' } | Remove-Item -Recurse -Force
+}
 Copy-Item "$buildDir\*" $runDir -Recurse -Force
 
 

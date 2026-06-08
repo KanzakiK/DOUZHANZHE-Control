@@ -223,8 +223,8 @@ export default function SortableDashboard({
       case "gpu-mode": {
         const gpuModes = [
           { id: 0, label: "混合模式" },
-          { id: 1, label: "集显模式" },
-          { id: 2, label: "独显模式" },
+          { id: 1, label: "独显模式" },
+          { id: 2, label: "集显模式" },
         ];
         const currentGpuMode = telemetry.gpuMode != null ? parseInt(telemetry.gpuMode) : -1;
         return (
