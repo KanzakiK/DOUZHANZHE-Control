@@ -107,6 +107,7 @@ DOUZHANZHE-Control/
 ## 参考项目 References
 
 - [Lenovo Legion Toolkit](https://github.com/BartoszCichecki/LenovoLegionToolkit) — 开源 LLT 实现 (宝龙达 OEM 不兼容)
+- [BellatorFanControl](https://github.com/Aveare/BellatorFanControl) — 斗战者笔记本风扇控制与性能模式 GUI 工具
 - [Universal x86 Tuning Utility](https://github.com/JamesCJ60/Universal-x86-Tuning-Utility) — UXTU 通用调优工具
 - [RyzenAdj](https://github.com/FlyGoat/RyzenAdj) — AMD SMU 控制接口
 - [inpoutx64](https://www.highrez.co.uk/downloads/inpout32/) — 用户态物理内存/IO 访问
