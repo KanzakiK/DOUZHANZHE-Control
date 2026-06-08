@@ -249,6 +249,58 @@ export default function FanCurvePanel({ telemetry }) {
 
   return (
     <div className="space-y-4" style={{ maxWidth: 900 }}>
+      {/* ── 操作按钮 ── */}
+      <div className="flex gap-2 flex-wrap">
+        {curveActive ? (
+          <button
+            onClick={handleStop}
+            className="flex-1 text-sm rounded-lg px-3 py-2.5 transition"
+            style={{ background: "var(--danger)", color: "#fff" }}
+          >
+            停止曲线 · 恢复固件
+          </button>
+        ) : (
+          <button
+            onClick={handleApply}
+            className="flex-1 text-sm rounded-lg px-3 py-2.5 transition"
+            style={{ background: "var(--primary-2)", color: "#fff" }}
+          >
+            应用自定义曲线
+          </button>
+        )}
+        <button
+          onClick={handleSave}
+          className="text-sm rounded-lg px-3 py-2.5 transition"
+          style={{ border: "1px solid var(--border)", color: "var(--text)", background: "var(--card-2)" }}
+        >
+          保存配置
+        </button>
+        <button
+          onClick={handleReset}
+          className="text-sm rounded-lg px-3 py-2.5 transition"
+          style={{ border: "1px solid var(--warn)", color: "var(--warn)", background: "transparent" }}
+        >
+          恢复默认
+        </button>
+      </div>
+
+      {/* ── 状态栏 ── */}
+      {curveActive && (
+        <div
+          className="text-xs rounded-xl px-3 py-2 flex items-center gap-2"
+          style={{ background: "var(--card)", border: "1px solid var(--ok)" }}
+        >
+          <span
+            className="inline-block w-2 h-2 rounded-full"
+            style={{ background: "var(--ok)", animation: "pulse 1.5s infinite" }}
+          />
+          <span style={{ color: "var(--ok)" }}>
+            自定义曲线运行中 · 间隔 {interval}s · 回差 {hysteresis}°C
+            {hotspot ? ` · 当前热点 ${hotspot}°C` : ""}
+          </span>
+        </div>
+      )}
+
       {/* ── 曲线图 ── */}
       <Card
         title="散热曲线"
@@ -462,58 +514,6 @@ export default function FanCurvePanel({ telemetry }) {
           + 添加控制点
         </button>
       </Card>
-
-      {/* ── 操作按钮 ── */}
-      <div className="flex gap-2 flex-wrap">
-        {curveActive ? (
-          <button
-            onClick={handleStop}
-            className="flex-1 text-sm rounded-lg px-3 py-2.5 transition"
-            style={{ background: "var(--danger)", color: "#fff" }}
-          >
-            停止曲线 · 恢复固件
-          </button>
-        ) : (
-          <button
-            onClick={handleApply}
-            className="flex-1 text-sm rounded-lg px-3 py-2.5 transition"
-            style={{ background: "var(--primary-2)", color: "#fff" }}
-          >
-            应用自定义曲线
-          </button>
-        )}
-        <button
-          onClick={handleSave}
-          className="text-sm rounded-lg px-3 py-2.5 transition"
-          style={{ border: "1px solid var(--border)", color: "var(--text)", background: "var(--card-2)" }}
-        >
-          保存配置
-        </button>
-        <button
-          onClick={handleReset}
-          className="text-sm rounded-lg px-3 py-2.5 transition"
-          style={{ border: "1px solid var(--warn)", color: "var(--warn)", background: "transparent" }}
-        >
-          恢复默认
-        </button>
-      </div>
-
-      {/* ── 状态栏 ── */}
-      {curveActive && (
-        <div
-          className="text-xs rounded-xl px-3 py-2 flex items-center gap-2"
-          style={{ background: "var(--card)", border: "1px solid var(--ok)" }}
-        >
-          <span
-            className="inline-block w-2 h-2 rounded-full"
-            style={{ background: "var(--ok)", animation: "pulse 1.5s infinite" }}
-          />
-          <span style={{ color: "var(--ok)" }}>
-            自定义曲线运行中 · 间隔 {interval}s · 回差 {hysteresis}°C
-            {hotspot ? ` · 当前热点 ${hotspot}°C` : ""}
-          </span>
-        </div>
-      )}
 
       {/* 脉冲动画 (内联样式) */}
       <style>{`

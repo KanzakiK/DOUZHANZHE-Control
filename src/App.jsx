@@ -80,24 +80,7 @@ export default function App() {
             <ThemeSwitcher currentTheme={theme} onThemeChange={setTheme} />
           </div>
         </aside>
-        <main className="grid grid-rows-[1fr_auto] gap-4">
-          {activeTab === "dashboard" && (
-          <SortableDashboard
-            telemetry={telemetry} setTelemetry={setTelemetry}
-            settings={settings} setSettings={setSettings}
-            uxtuPayload={uxtuPayload}
-            uxtuParams={uxtuParams} setUxtuParams={setUxtuParams}
-            history={history}
-            editMode={editMode} setEditMode={setEditMode}
-            fanCurveActive={fanCurveActive}
-            onSwitchTab={setActiveTab} />
-          )}
-          {activeTab === "system" && <SystemInfoPanel />}
-          {activeTab === "settings" && (
-            <SettingsPanel settings={settings} setSettings={setSettings} uxtuPayload={uxtuPayload}
-              showSwitches={true} showKeyboard={true} showSummary={true} showCredits={true} showAutoStart={true} />
-          )}
-          {activeTab === "fancurve" && <FanCurvePanel telemetry={telemetry} />}
+        <main className="grid gap-4">
           {activeTab === "dashboard" && (
           <Card title="模式选择" className="console-dock !p-3"
             action={<button onClick={() => {
@@ -128,6 +111,23 @@ export default function App() {
             </div>
           </Card>
           )}
+          {activeTab === "dashboard" && (
+          <SortableDashboard
+            telemetry={telemetry} setTelemetry={setTelemetry}
+            settings={settings} setSettings={setSettings}
+            uxtuPayload={uxtuPayload}
+            uxtuParams={uxtuParams} setUxtuParams={setUxtuParams}
+            history={history}
+            editMode={editMode} setEditMode={setEditMode}
+            fanCurveActive={fanCurveActive}
+            onSwitchTab={setActiveTab} />
+          )}
+          {activeTab === "system" && <SystemInfoPanel />}
+          {activeTab === "settings" && (
+            <SettingsPanel settings={settings} setSettings={setSettings} uxtuPayload={uxtuPayload}
+              showSwitches={true} showKeyboard={true} showSummary={true} showCredits={true} showAutoStart={true} />
+          )}
+          {activeTab === "fancurve" && <FanCurvePanel telemetry={telemetry} />}
         </main>
       </div>
     </div>

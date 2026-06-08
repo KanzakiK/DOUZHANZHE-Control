@@ -56,6 +56,19 @@ void JsonWrite<T>(string fileName, T data)
     File.WriteAllText(tmpPath, json);
     File.Move(tmpPath, filePath, overwrite: true);
 }
+// ---- 启动时恢复 GPU 模式 ----
+{
+    var saved = JsonRead<Dictionary<string, int>>("gpu-mode.json", new Dictionary<string, int>());
+    if (saved.TryGetValue("gpuMode", out int mode) && mode >= 0 && mode <= 2)
+    {
+        var wmiStartup = app.Services.GetRequiredService<WmiInterface>();
+        if (wmiStartup.Available)
+        {
+            wmiStartup.SetGpuMode((byte)mode);
+            Console.WriteLine($"[Startup] GPU mode restored to {mode}");
+        }
+    }
+}
 app.Map("/ws", async (HttpContext ctx) =>
 {
     if (!ctx.WebSockets.IsWebSocketRequest)
@@ -228,6 +241,8 @@ app.MapPost("/api/control", (ControlRequest req, HardwareAbstractionLayer hal, W
                     var gpuVal = (byte)int.Clamp(req.Value, 0, 2);
                     if (!wmi.SetGpuMode(gpuVal))
                         return Results.Problem("WMI GPUMode failed", statusCode: 500);
+                    // 持久化用户选择的 GPU 模式，重启后自动恢复
+                    JsonWrite("gpu-mode.json", new { gpuMode = gpuVal });
                 }
                 break;
             case string t when t.StartsWith("ec_write:"):
