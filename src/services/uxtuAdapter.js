@@ -134,14 +134,48 @@ const FAN_RANGES = {
   custom: { largeMin: 2600, largeMax: 3500, smallMin: 5900, smallMax: 6900 },
 };
 
-// 完整模式预设：CPU + GPU 功耗 + 风扇 (11 字段)
+// 完整模式预设：全量参数快照 (22 字段)
+// 命名约定: oc*OffsetMhz = NVAPI P-State 超频偏移, gpu*FreqMhz = nvidia-smi 频率锁
 export const MODE_PRESETS = {
-  silent: { cpuTempLimitC: 75, cpuLongPptW: 35, cpuShortPptW: 45, cpuVoltageOffset: 0, cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 3000, cpuTurboDisabled: false, gpuPptLimitW: 60, gpuTempLimitC: 75, gpuCoreOffsetMhz: 0, gpuMemOffsetMhz: 0, fanLargeRpmTarget: 2200, fanSmallRpmTarget: 2000 },
-  office: { cpuTempLimitC: 80, cpuLongPptW: 55, cpuShortPptW: 70, cpuVoltageOffset: 0, cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 4500, cpuTurboDisabled: false, gpuPptLimitW: 75, gpuTempLimitC: 85, gpuCoreOffsetMhz: 0, gpuMemOffsetMhz: 0, fanLargeRpmTarget: 2900, fanSmallRpmTarget: 6400 },
-  gaming: { cpuTempLimitC: 95, cpuLongPptW: 120, cpuShortPptW: 140, cpuVoltageOffset: 0, cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 5500, cpuTurboDisabled: false, gpuPptLimitW: 115, gpuTempLimitC: 95, gpuCoreOffsetMhz: 200, gpuMemOffsetMhz: 0, fanLargeRpmTarget: 4300, fanSmallRpmTarget: 8000 },
-  beast:  { cpuTempLimitC: 88, cpuLongPptW: 85, cpuShortPptW: 100, cpuVoltageOffset: 0, cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 5000, cpuTurboDisabled: false, gpuPptLimitW: 100, gpuTempLimitC: 90, gpuCoreOffsetMhz: 100, gpuMemOffsetMhz: 0, fanLargeRpmTarget: 3500, fanSmallRpmTarget: 6900 },
-  custom: { cpuTempLimitC: 80, cpuLongPptW: 55, cpuShortPptW: 70, cpuVoltageOffset: 0, cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 4500, cpuTurboDisabled: false, gpuPptLimitW: 75, gpuTempLimitC: 85, gpuCoreOffsetMhz: 0, gpuMemOffsetMhz: 0, fanLargeRpmTarget: 2900, fanSmallRpmTarget: 6400 },
+  silent: { cpuTempLimitC: 75, cpuLongPptW: 35, cpuShortPptW: 45, cpuVoltageOffset: 0, cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 3000, cpuTurboDisabled: false, cpuCoreLimit: 0, cpuPowerPlan: "balance", gpuPptLimitW: 60, gpuTempLimitC: 75, gpuCoreFreqMhz: 2750, gpuMemFreqMhz: 0, gpuFreqLimitEnabled: false, gpuFreqLimitMhz: 2600, ocCoreOffsetMhz: 0, ocMemOffsetMhz: 0, fanLargeRpmTarget: 2200, fanSmallRpmTarget: 2000 },
+  office: { cpuTempLimitC: 80, cpuLongPptW: 55, cpuShortPptW: 70, cpuVoltageOffset: 0, cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 4500, cpuTurboDisabled: false, cpuCoreLimit: 0, cpuPowerPlan: "balance", gpuPptLimitW: 75, gpuTempLimitC: 85, gpuCoreFreqMhz: 2750, gpuMemFreqMhz: 0, gpuFreqLimitEnabled: false, gpuFreqLimitMhz: 2600, ocCoreOffsetMhz: 0, ocMemOffsetMhz: 0, fanLargeRpmTarget: 2900, fanSmallRpmTarget: 6400 },
+  gaming: { cpuTempLimitC: 95, cpuLongPptW: 120, cpuShortPptW: 140, cpuVoltageOffset: 0, cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 5500, cpuTurboDisabled: false, cpuCoreLimit: 0, cpuPowerPlan: "performance", gpuPptLimitW: 115, gpuTempLimitC: 95, gpuCoreFreqMhz: 2750, gpuMemFreqMhz: 0, gpuFreqLimitEnabled: false, gpuFreqLimitMhz: 2600, ocCoreOffsetMhz: 200, ocMemOffsetMhz: 0, fanLargeRpmTarget: 4300, fanSmallRpmTarget: 8000 },
+  beast:  { cpuTempLimitC: 88, cpuLongPptW: 85, cpuShortPptW: 100, cpuVoltageOffset: 0, cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 5000, cpuTurboDisabled: false, cpuCoreLimit: 0, cpuPowerPlan: "performance", gpuPptLimitW: 100, gpuTempLimitC: 90, gpuCoreFreqMhz: 2750, gpuMemFreqMhz: 0, gpuFreqLimitEnabled: false, gpuFreqLimitMhz: 2600, ocCoreOffsetMhz: 100, ocMemOffsetMhz: 0, fanLargeRpmTarget: 3500, fanSmallRpmTarget: 6900 },
+  custom: { cpuTempLimitC: 80, cpuLongPptW: 55, cpuShortPptW: 70, cpuVoltageOffset: 0, cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 4500, cpuTurboDisabled: false, cpuCoreLimit: 0, cpuPowerPlan: "balance", gpuPptLimitW: 75, gpuTempLimitC: 85, gpuCoreFreqMhz: 2750, gpuMemFreqMhz: 0, gpuFreqLimitEnabled: false, gpuFreqLimitMhz: 2600, ocCoreOffsetMhz: 0, ocMemOffsetMhz: 0, fanLargeRpmTarget: 2900, fanSmallRpmTarget: 6400 },
 };
+
+// 全量参数默认值 (兜底)
+export const FULL_PARAMS = {
+  cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 4500, cpuTurboDisabled: false,
+  cpuTempLimitC: 80, cpuCoreLimit: 0, cpuPowerPlan: "balance", cpuVoltageOffset: 0,
+  cpuLongPptW: 55, cpuShortPptW: 70,
+  gpuFreqLimitEnabled: false, gpuFreqLimitMhz: 2600, gpuCoreFreqMhz: 2750,
+  gpuMemFreqMhz: 0, gpuPptLimitW: 75, gpuTempLimitC: 85,
+  ocCoreOffsetMhz: 0, ocMemOffsetMhz: 0,
+  fanLargeRpmTarget: 2900, fanSmallRpmTarget: 6400,
+};
+
+// 参数合法范围 — 用于写入硬件前钳位
+export const PARAM_RANGES = {
+  cpuTempLimitC: { min: 60, max: 100 },
+  cpuLongPptW: { min: 15, max: 120 },
+  cpuShortPptW: { min: 15, max: 140 },
+  cpuVoltageOffset: { min: -30, max: 0 },
+  cpuFreqLimitMhz: { min: 2000, max: 5500 },
+  cpuCoreLimit: { min: 0, max: 14 },
+  gpuTempLimitC: { min: 60, max: 100 },
+  gpuPptLimitW: { min: 30, max: 150 },
+  gpuCoreFreqMhz: { min: 1000, max: 3100 },
+  gpuMemFreqMhz: { min: 0, max: 3 },
+  ocCoreOffsetMhz: { min: -200, max: 300 },
+  ocMemOffsetMhz: { min: -200, max: 300 },
+};
+
+export function clampParam(key, value) {
+  const r = PARAM_RANGES[key];
+  if (!r) return value;
+  return Math.max(r.min, Math.min(r.max, value));
+}
 
 export function getFanRange(mode) {
   return FAN_RANGES[mode] || FAN_RANGES.silent;
@@ -199,4 +233,90 @@ export async function resetCpuPower() {
   const res = await fetch("/api/cpu/reset", { method: "POST" });
   if (!res.ok) throw new Error("CPU reset returned " + res.status);
   return res.json();
+}
+
+// ── 全量模式下发 ──
+// 按正确写入顺序下发所有硬件参数:
+// 1. EC 散热模式 → 2. SMU 批量 → 3. GPU 频率(unlock→limit→lock) →
+// 4. NVAPI 超频+温度(并行) → 5. CPU powercfg → 6. 风扇 → 7. 500ms SMU 重发
+export async function dispatchFullMode(mode, params) {
+  const tv = thermalModeMap[mode];
+
+  // 1. EC 散热模式
+  if (tv !== null && tv !== undefined) {
+    applyHardwareControl("thermal_mode", tv).catch(e => console.warn("[EC] thermal_mode:", e));
+  }
+
+  // 2. SMU 批量写入 (后端提取 CPU 相关字段一次性下发)
+  await applyUxtuLimits({ chipset: "Ryzen 9 8940HX", profile: mode, params }).catch(
+    e => console.warn("[SMU] batch:", e)
+  );
+
+  // 3. GPU 频率控制 (nvidia-smi: unlock → limit → lock)
+  try {
+    await applyGpuControl("reset-clocks");
+    if (params.gpuFreqLimitEnabled && params.gpuCoreFreqMhz !== GPU_BASE_CLOCK) {
+      await applyGpuControl("limit-max", params.gpuCoreFreqMhz);
+      await applyGpuControl("lock-exact", params.gpuCoreFreqMhz);
+    }
+  } catch (e) { console.warn("[GPU] freq:", e); }
+
+  // GPU 显存频率
+  try {
+    const memMap = [0, 9001, 11001, 12001];
+    if (params.gpuMemFreqMhz === 0) {
+      await applyGpuControl("reset-memory-clocks");
+    } else {
+      await applyGpuControl("limit-memory", memMap[params.gpuMemFreqMhz]);
+    }
+  } catch (e) { console.warn("[GPU] memory:", e); }
+
+  // 4. NVAPI: 超频偏移 + 温度限制 (并行，互不依赖)
+  const thermalC = clampParam("gpuTempLimitC", params.gpuTempLimitC ?? 87);
+  Promise.all([
+    applyNvapiOverclock(params.ocCoreOffsetMhz ?? 0, params.ocMemOffsetMhz ?? 0).catch(
+      e => console.warn("[NVAPI] OC:", e)
+    ),
+    applyNvapiThermalLimit(thermalC).catch(
+      e => console.warn("[NVAPI] thermal:", e)
+    ),
+  ]);
+
+  // 5. CPU powercfg: 频率限制 / 睿频 / 核心数 / 电源计划
+  setCpuFreqLimit(params.cpuFreqLimitEnabled ? params.cpuFreqLimitMhz : 0).catch(
+    e => console.warn("[CPU] freq:", e)
+  );
+  setCpuTurbo(!params.cpuTurboDisabled).catch(
+    e => console.warn("[CPU] turbo:", e)
+  );
+  if (params.cpuCoreLimit > 0) {
+    setCpuCoreLimitPercent(Math.round(params.cpuCoreLimit / 16 * 100)).catch(
+      e => console.warn("[CPU] core-limit:", e)
+    );
+  } else {
+    setCpuCoreLimitPercent(100).catch(() => {});
+  }
+  const ppHal = powerPlanHALMap[params.cpuPowerPlan];
+  if (ppHal !== undefined) {
+    applyHardwareControl("power_plan", ppHal).catch(
+      e => console.warn("[CPU] power-plan:", e)
+    );
+  }
+
+  // 6. 风扇目标转速
+  fetch("/api/fan/set-target", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      largeRpm: params.fanLargeRpmTarget ?? 2900,
+      smallRpm: params.fanSmallRpmTarget ?? 6400,
+    }),
+  }).catch(e => console.warn("[Fan]:", e));
+
+  // 7. 500ms 后重发 SMU，防止 EC 刷预设覆盖用户参数
+  setTimeout(() => {
+    applyUxtuLimits({ chipset: "Ryzen 9 8940HX", profile: mode, params })
+      .then(r => console.log("[SMU] re-send OK:", r))
+      .catch(e => console.warn("[SMU] re-send failed:", e));
+  }, 500);
 }

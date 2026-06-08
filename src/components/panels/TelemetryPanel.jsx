@@ -17,7 +17,7 @@ function makeSeries(base, count = 36, jitter = 10, min = 0, max = 100) {
   });
 }
 
-export default function TelemetryPanel({ telemetry, setTelemetry, settings, setSettings, uxtuPayload, fanLargeRpmTarget, fanSmallRpmTarget, setFanLargeRpmTarget, setFanSmallRpmTarget, history }) {
+export default function TelemetryPanel({ telemetry, setTelemetry, settings, setSettings, uxtuPayload, uxtuParams, setUxtuParams, history }) {
   const fanRange = getFanRange(settings?.mode || "silent");
   const cpuSeries = history.cpu;
   const gpuSeries = history.gpu;
@@ -69,12 +69,12 @@ export default function TelemetryPanel({ telemetry, setTelemetry, settings, setS
               </div>
               <SliderRow
                 label="大风扇目标转速"
-                value={fanLargeRpmTarget}
+                value={uxtuParams?.fanLargeRpmTarget ?? 2900}
                 min={fanRange.largeMin}
                 max={fanRange.largeMax}
                 step={100}
                 unit="RPM"
-                onChange={(value) => setFanLargeRpmTarget(value)}
+                onChange={(value) => setUxtuParams(p => ({ ...p, fanLargeRpmTarget: value }))}
               />
               <Gauge
                 label="大风扇负载"
@@ -100,12 +100,12 @@ export default function TelemetryPanel({ telemetry, setTelemetry, settings, setS
               </div>
               <SliderRow
                 label="小风扇目标转速"
-                value={fanSmallRpmTarget}
+                value={uxtuParams?.fanSmallRpmTarget ?? 6400}
                 min={fanRange.smallMin}
                 max={fanRange.smallMax}
                 step={100}
                 unit="RPM"
-                onChange={(value) => setFanSmallRpmTarget(value)}
+                onChange={(value) => setUxtuParams(p => ({ ...p, fanSmallRpmTarget: value }))}
               />
               <Gauge
                 label="小风扇负载"

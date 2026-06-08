@@ -8,8 +8,8 @@ import Gauge from "./components/ui/Gauge";
 import SortableDashboard from "./components/SortableDashboard";
 import { ToastProvider, useToast } from "./components/ui/Toast";
 import { useControlState } from "./hooks/useControlState";
-import { MODE_PRESETS, applyUxtuLimits, applyHardwareControl, applyGpuControl, applyNvapiThermalLimit, applyNvapiOverclock, thermalModeMap } from "./services/uxtuAdapter";
-import { useCallback, useState, useEffect, useRef } from "react";
+import { MODE_PRESETS, FULL_PARAMS, dispatchFullMode } from "./services/uxtuAdapter";
+import { useCallback, useState, useEffect } from "react";
 
 const NAV_ITEMS = ["主页", "系统", "设置"];
 const NAV_TABS = { "主页": "dashboard", "系统": "system", "设置": "settings" };
@@ -25,7 +25,7 @@ export default function App() {
   const onCustomSaveResult = useCallback((ok) => {
     toast?.(ok ? "自定义参数已保存" : "自定义参数保存失败", ok ? "success" : "error");
   }, [toast]);
-  const { theme, setTheme, telemetry, setTelemetry, uxtuParams, setUxtuParams, settings, setSettings, uxtuPayload, fanLargeRpmTarget, fanSmallRpmTarget, setFanLargeRpmTarget, setFanSmallRpmTarget, history } =
+  const { theme, setTheme, telemetry, setTelemetry, uxtuParams, setUxtuParams, settings, setSettings, uxtuPayload, history } =
     useControlState(onCustomSaveResult);
   const [activeTab, setActiveTab] = useState(() => {
     try { return localStorage.getItem("douzhanzhe_active_tab") || "dashboard"; }
@@ -73,8 +73,6 @@ export default function App() {
             settings={settings} setSettings={setSettings}
             uxtuPayload={uxtuPayload}
             uxtuParams={uxtuParams} setUxtuParams={setUxtuParams}
-            fanLargeRpmTarget={fanLargeRpmTarget} fanSmallRpmTarget={fanSmallRpmTarget}
-            setFanLargeRpmTarget={setFanLargeRpmTarget} setFanSmallRpmTarget={setFanSmallRpmTarget}
             history={history}
             editMode={editMode} setEditMode={setEditMode} />
           )}
@@ -87,18 +85,12 @@ export default function App() {
           <Card title="模式选择" className="console-dock !p-3"
             action={<button onClick={() => {
               const mode = settings.mode;
-              localStorage.removeItem("douzhanzhe_params_" + mode);
-              const preset = MODE_PRESETS[mode] || {};
-              const merged = { ...uxtuParams, ...preset };
-              setUxtuParams(merged);
-              setFanLargeRpmTarget(preset.fanLargeRpmTarget ?? 2200);
-              setFanSmallRpmTarget(preset.fanSmallRpmTarget ?? 4100);
-              // 重置 GPU 频率到驱动默认值（预设表不含 GPU 频率）
-              applyGpuControl("reset-clocks").catch(() => {});
-              applyGpuControl("reset-memory-clocks").catch(() => {});
-              setUxtuParams(prev => ({ ...prev, gpuFreqLimitEnabled: false, gpuFreqLocked: false, gpuCoreFreqMhz: 2750, gpuMemFreqMhz: 0, gpuFreqLimitMhz: 2600 }));
-              applyUxtuLimits({ chipset: uxtuPayload.chipset, profile: uxtuPayload.profile, params: merged }).then(r => {
-                toast?.(r.message || "已恢复预设值", "success");
+              const cleanPreset = { ...FULL_PARAMS, ...(MODE_PRESETS[mode] || {}) };
+              // 同步写入 localStorage，确保刷新前数据已落盘
+              localStorage.setItem("douzhanzhe_params_" + mode, JSON.stringify(cleanPreset));
+              setUxtuParams(cleanPreset);
+              dispatchFullMode(mode, cleanPreset).then(() => {
+                toast?.("已恢复预设值", "success");
               }).catch(err => {
                 toast?.(`恢复失败: ${err.message}`, "error");
               });
@@ -110,25 +102,8 @@ export default function App() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               {MODE_ITEMS.map((mode) => (
                 <button key={mode.id} onClick={() => {
-                setSettings((prev) => ({ ...prev, mode: mode.id }));
-                const tv = thermalModeMap[mode.id];
-                const buildParams = (mid) => { try { var s = JSON.parse(localStorage.getItem("douzhanzhe_params_" + mid) || "null"); return s || MODE_PRESETS[mid] || {}; } catch { return MODE_PRESETS[mid] || {}; } };
-                var p = buildParams(mode.id);
-                // GPU 温度限制: 立即乐观更新 UI + 异步下发
-                var gpuTemp = Math.min(p.gpuTempLimitC || 75, 87);
-                window.dispatchEvent(new CustomEvent("gpu-thermal-updated", { detail: gpuTemp }));
-                applyNvapiThermalLimit(gpuTemp).catch(function(e){});
-                // GPU 核心/显存偏移: 乐观更新 UI + 异步下发
-                var coreOff = p.gpuCoreOffsetMhz || 0;
-                var memOff = p.gpuMemOffsetMhz || 0;
-                window.dispatchEvent(new CustomEvent("gpu-oc-updated", { detail: { core: coreOff, mem: memOff } }));
-                applyNvapiOverclock(coreOff, memOff).catch(function(e){});
-                // SMU + EC 散热模式
-                applyUxtuLimits({ chipset: "Ryzen 9 8940HX", profile: mode.id, params: p }).catch(function(e){});
-                if (tv !== null && tv !== undefined) applyHardwareControl("thermal_mode", tv).catch(function(e){});
-                // 500ms 后重发 SMU，防止 EC 刷预设覆盖
-                setTimeout(function() { applyUxtuLimits({ chipset: "Ryzen 9 8940HX", profile: mode.id, params: buildParams(mode.id) }).then(function(r){console.log("[SMU] mode switch write:", r)}).catch(function(e){console.warn("[SMU] mode switch failed:", e)}); }, 500);
-              }}
+                  setSettings(prev => ({ ...prev, mode: mode.id }));
+                }}
                   className="text-xs md:text-sm rounded-lg px-2 py-3 transition-all"
                   style={{ border: "1px solid var(--border)", background: settings.mode === mode.id ? "var(--primary-2)" : "var(--card-2)", color: settings.mode === mode.id ? "#ffffff" : "var(--text)", boxShadow: settings.mode === mode.id ? "0 0 24px rgba(167, 139, 250, 0.35)" : "none" }}
                 >{mode.label}</button>

@@ -137,6 +137,46 @@ app.MapGet("/api/system/info", (HardwareAbstractionLayer hal) =>
         diskTotalGB = hal.DiskTotalGB,
     });
 });
+
+// Extended system info (BIOS/OS/disks/memory sticks/GPU driver) — single PowerShell call
+var _sysInfoExtCache = "";
+var _sysInfoExtTime = DateTime.MinValue;
+app.MapGet("/api/system/info-ext", () =>
+{
+    if ((DateTime.UtcNow - _sysInfoExtTime).TotalSeconds < 60 && !string.IsNullOrEmpty(_sysInfoExtCache))
+        return Results.Content(_sysInfoExtCache, "application/json");
+    try
+    {
+        var scriptPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "sysinfo-ext.ps1");
+        if (!File.Exists(scriptPath))
+            scriptPath = Path.Combine(Directory.GetCurrentDirectory(), "sysinfo-ext.ps1");
+        using var p = new System.Diagnostics.Process
+        {
+            StartInfo = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "powershell",
+                Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\"",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                CreateNoWindow = true
+            }
+        };
+        p.Start();
+        if (!p.WaitForExit(8000)) { p.Kill(); return Results.Json(new { error = "timeout" }); }
+        var json = p.StandardOutput.ReadToEnd().Trim();
+        if (!string.IsNullOrEmpty(json))
+        {
+            _sysInfoExtCache = json;
+            _sysInfoExtTime = DateTime.UtcNow;
+        }
+        return Results.Content(_sysInfoExtCache, "application/json");
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new { error = ex.Message });
+    }
+});
+
 app.MapGet("/api/health", (HardwareAbstractionLayer hal) =>
 {
     return Results.Json(new

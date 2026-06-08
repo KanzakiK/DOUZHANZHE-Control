@@ -1,13 +1,25 @@
 import { useState, useEffect } from "react";
 import Card from "../ui/Card";
 
+const LS_SYS_INFO = "douzhanzhe_sys_info";
+
 export default function SystemInfoPanel() {
-  const [info, setInfo] = useState(null);
+  const [info, setInfo] = useState(() => {
+    try {
+      const raw = localStorage.getItem(LS_SYS_INFO);
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  });
 
   useEffect(() => {
+    // 已有缓存则不重复请求，系统配置不会变
+    if (info && info.cpuName) return;
     fetch("/api/system/info")
-      .then((r) => r.json())
-      .then(setInfo)
+      .then(r => r.json())
+      .then(data => {
+        setInfo(data);
+        try { localStorage.setItem(LS_SYS_INFO, JSON.stringify(data)); } catch {}
+      })
       .catch(() => setInfo({}));
   }, []);
 

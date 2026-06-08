@@ -106,8 +106,8 @@ export default function SettingsPanel({ settings, setSettings, uxtuPayload, show
           <p className="mt-2"><span className="font-semibold">开发者：</span>KanzakiK</p>
           <p><span className="font-semibold">开源协议：</span>GNU General Public License v3.0</p>
           <p><span className="font-semibold">GitHub：</span>
-            <a href="https://github.com/KanzakiK/douzhanzhe-console" target="_blank" rel="noopener noreferrer"
-              style={{ color: "var(--primary)" }}>KanzakiK/douzhanzhe-console</a>
+            <a href="https://github.com/KanzakiK/DOUZHANZHE-Control" target="_blank" rel="noopener noreferrer"
+              style={{ color: "var(--primary)" }}>KanzakiK/DOUZHANZHE-Control</a>
           </p>
         </div>
       </Card>)}

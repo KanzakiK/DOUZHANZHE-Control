@@ -1,5 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { MODE_PRESETS, applyUxtuLimits, applySmuSet, applyHardwareControl, powerPlanHALMap, applyGpuControl, applyNvapiOverclock, applyNvapiThermalLimit, fetchNvapiStatus, fetchCpuPowerStatus, setCpuFreqLimit, setCpuTurbo, setCpuCoreLimitPercent, resetCpuPower } from "../../services/uxtuAdapter";
+import {
+  MODE_PRESETS, applyUxtuLimits, applySmuSet, applyHardwareControl,
+  powerPlanHALMap, applyGpuControl, applyNvapiOverclock, applyNvapiThermalLimit,
+  fetchNvapiStatus, fetchCpuPowerStatus, setCpuFreqLimit, setCpuTurbo,
+  setCpuCoreLimitPercent, resetCpuPower, GPU_BASE_CLOCK,
+} from "../../services/uxtuAdapter";
 import Card from "../ui/Card";
 import SliderRow from "../ui/SliderRow";
 import SwitchRow from "../ui/SwitchRow";
@@ -11,22 +16,30 @@ const POWER_PLANS = [
   { id: "performance", label: "最佳性能", halValue: powerPlanHALMap.performance },
 ];
 
-export default function PerformancePanel({ settings, setSettings, uxtuParams, setUxtuParams, uxtuPayload, onApplied, showCpu = true, showGpu = true, showPower = true, telemetry }) {
+export default function PerformancePanel({
+  settings, setSettings, uxtuParams, setUxtuParams,
+  uxtuPayload, onApplied, showCpu = true, showGpu = true,
+  showPower = true, telemetry, editMode = false,
+}) {
   const toast = useToast();
   const [isApplying, setIsApplying] = useState(false);
   const [applyMessage, setApplyMessage] = useState("");
   const [cpuPowerStatus, setCpuPowerStatus] = useState(null);
-  const [ocCoreOffset, setOcCoreOffset] = useState(0);
-  const [ocMemOffset, setOcMemOffset] = useState(0);
-  const [thermalLimit, setThermalLimit] = useState(87);
+
+  // GPU 频率锁定状态 (本组件内 ref，非持久化)
   const gpuFreqLocked = useRef(false);
+  const latestParamsRef = useRef(uxtuParams);
+  latestParamsRef.current = uxtuParams;
+
+  // 所有去抖 timer refs
   const smuTimer = useRef(null);
-  const ocCoreTimer = useRef(null);
-  const ocMemTimer = useRef(null);
+  const cpuFreqTimer = useRef(null); // 修复: 之前未声明
+  const coreTimer = useRef(null);
+  const ocTimer = useRef(null);
   const thermalTimer = useRef(null);
   const gpuCoreTimer = useRef(null);
 
-  // 带重试的命令下发
+  // ── 带重试的 GPU 命令 ──
   async function gpuCmd(action, value, retries = 2) {
     for (let i = 0; i <= retries; i++) {
       try {
@@ -35,11 +48,11 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
       } catch (err) {
         if (i === retries) throw err;
       }
-      await new Promise((r) => setTimeout(r, 300));
+      await new Promise(r => setTimeout(r, 300));
     }
   }
 
-  // 核心频率下发: 如果已锁定则先解锁→下发→重新锁定
+  // GPU 核心频率: unlock → limit → lock
   async function applyGpuCoreFreq(mhz) {
     if (gpuFreqLocked.current) {
       await gpuCmd("reset-clocks").catch(() => {});
@@ -63,6 +76,7 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
     }, 600);
   }
 
+  // SMU 单参数去抖 (600ms)
   function queueSmu(parameter, valueM) {
     clearTimeout(smuTimer.current);
     smuTimer.current = setTimeout(async () => {
@@ -70,40 +84,41 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
       catch (err) { console.error("SMU set failed:", err); }
     }, 600);
   }
-  const coreTimer = useRef(null);
+
+  // SMU 批量下发 (重置卡片时使用，单次调用发送全部 CPU 参数)
+  function applySmuBatch(p) {
+    return Promise.all([
+      applySmuSet("temp_limit", p.cpuTempLimitC).catch(e => console.warn("SMU temp:", e)),
+      applySmuSet("co_all", p.cpuVoltageOffset).catch(e => console.warn("SMU co:", e)),
+      applySmuSet("power_limit", p.cpuLongPptW).catch(e => console.warn("SMU power:", e)),
+      applySmuSet("short_power_limit", p.cpuShortPptW).catch(e => console.warn("SMU short:", e)),
+    ]);
+  }
+
   function queueCoreLimit(coreCount) {
     clearTimeout(coreTimer.current);
     coreTimer.current = setTimeout(async () => {
       try {
-        // powercfg 路径: 核心数 → 百分比 (基于 16 物理核)
         const percent = coreCount > 0 ? Math.round(coreCount / 16 * 100) : 100;
         await setCpuCoreLimitPercent(percent);
-      }
-      catch (err) { console.error("Core limit failed:", err); }
+      } catch (err) { console.error("Core limit failed:", err); }
     }, 600);
   }
-  function queueOcCore(offset) {
-    clearTimeout(ocCoreTimer.current);
-    ocCoreTimer.current = setTimeout(async () => {
+
+  // 统一 NVAPI OC 去抖: 读取最新 core + mem 偏移一起下发
+  function queueOc() {
+    clearTimeout(ocTimer.current);
+    ocTimer.current = setTimeout(async () => {
       try {
-        await applyNvapiOverclock(offset, 0);
+        const p = latestParamsRef.current;
+        await applyNvapiOverclock(p.ocCoreOffsetMhz ?? 0, p.ocMemOffsetMhz ?? 0);
         if (gpuFreqLocked.current) {
-          await gpuCmd("lock-exact", uxtuParams.gpuCoreFreqMhz).catch(() => {});
+          await gpuCmd("lock-exact", p.gpuCoreFreqMhz).catch(() => {});
         }
-      } catch (err) { console.error("NVAPI OC core failed:", err); }
+      } catch (err) { console.error("NVAPI OC failed:", err); }
     }, 600);
   }
-  function queueOcMem(offset) {
-    clearTimeout(ocMemTimer.current);
-    ocMemTimer.current = setTimeout(async () => {
-      try {
-        await applyNvapiOverclock(ocCoreOffset, offset);
-        if (gpuFreqLocked.current) {
-          await gpuCmd("lock-exact", uxtuParams.gpuCoreFreqMhz).catch(() => {});
-        }
-      } catch (err) { console.error("NVAPI OC mem failed:", err); }
-    }, 600);
-  }
+
   function queueThermal(tempC) {
     clearTimeout(thermalTimer.current);
     thermalTimer.current = setTimeout(async () => {
@@ -111,59 +126,25 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
       catch (err) { console.error("NVAPI thermal limit failed:", err); }
     }, 600);
   }
+
   const paramsLocked = false;
 
-  // 加载 CPU 电源控制状态 (powercfg)
+  // 加载 CPU 电源控制状态 (仅读取显示，不覆盖 uxtuParams — 信任 localStorage)
   useEffect(() => {
     fetchCpuPowerStatus()
-      .then((s) => {
-        if (s.ok) {
-          setCpuPowerStatus(s);
-          // 从实际系统状态同步到 UI
-          setUxtuParams((p) => ({
-            ...p,
-            cpuFreqLimitEnabled: s.freqLimitMhz > 0,
-            cpuFreqLimitMhz: s.freqLimitMhz > 0 ? s.freqLimitMhz : p.cpuFreqLimitMhz,
-            cpuTurboDisabled: !s.turboEnabled,
-          }));
-        }
-      })
-      .catch((err) => console.warn("CPU power status load failed:", err));
+      .then(s => { if (s.ok) setCpuPowerStatus(s); })
+      .catch(err => console.warn("CPU power status load failed:", err));
   }, []);
 
-  // 加载 NVAPI 状态 (当前偏移/温度限制)
+  // 加载 NVAPI 状态 (仅读取显示，不覆盖 uxtuParams)
   useEffect(() => {
     fetchNvapiStatus()
-      .then((s) => {
-        if (s.ok) {
-          setOcCoreOffset(s.coreOffsetMhz || 0);
-          setOcMemOffset(s.memOffsetMhz || 0);
-          if (s.thermalLimitC > 0) setThermalLimit(s.thermalLimitC);
-        }
-      })
-      .catch((err) => console.warn("NVAPI status load failed:", err));
-  }, []);
-
-  // 监听散热模式切换联动的 GPU 温度限制更新
-  useEffect(() => {
-    const handler = (e) => setThermalLimit(e.detail);
-    window.addEventListener("gpu-thermal-updated", handler);
-    return () => window.removeEventListener("gpu-thermal-updated", handler);
-  }, []);
-
-  // 监听模式切换联动的 GPU 核心/显存偏移更新
-  useEffect(() => {
-    const handler = (e) => {
-      const { core, mem } = e.detail;
-      if (core !== undefined) setOcCoreOffset(core);
-      if (mem !== undefined) setOcMemOffset(mem);
-    };
-    window.addEventListener("gpu-oc-updated", handler);
-    return () => window.removeEventListener("gpu-oc-updated", handler);
+      .then(s => { if (s.ok) setCpuPowerStatus(prev => prev ? { ...prev, nvapi: s } : { nvapi: s }); })
+      .catch(err => console.warn("NVAPI status load failed:", err));
   }, []);
 
   const update = useCallback((key) => (value) => {
-    setUxtuParams((p) => ({ ...p, [key]: value }));
+    setUxtuParams(p => ({ ...p, [key]: value }));
   }, [setUxtuParams]);
 
   async function handleApply() {
@@ -182,14 +163,42 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
 
   return (
     <>
-      {showCpu && <Card title="CPU 频率控制" className="!p-3">
+      {showCpu && <Card title="CPU 频率控制" className="!p-3"
+        action={!editMode && <button onClick={async () => {
+          try {
+            await resetCpuPower();
+            const mode = settings?.mode || "office";
+            setUxtuParams(p => {
+              const next = {
+                ...p,
+                cpuFreqLimitEnabled: false,
+                cpuTurboDisabled: false,
+                cpuCoreLimit: 0,
+                cpuPowerPlan: "balance",
+              };
+              try { localStorage.setItem("douzhanzhe_params_" + mode, JSON.stringify(next)); } catch {}
+              return next;
+            });
+            setCpuPowerStatus(s => s ? { ...s, turboEnabled: true, freqLimitMhz: 0, coreLimitPercent: 100 } : s);
+            setCpuCoreLimitPercent(100).catch(() => {});
+            applyHardwareControl("power_plan", powerPlanHALMap.balance).catch(() => {});
+            toast?.("CPU 限制已重置", "success");
+          } catch (err) {
+            toast?.("重置失败: " + err.message, "error");
+          }
+        }}
+          className="text-xs px-2 py-1 rounded-lg"
+          style={{ border: "1px solid var(--warn)", color: "var(--warn)", background: "transparent" }}
+        >重置 CPU 限制</button>}
+      >
         <div className="space-y-3">
           <SwitchRow label="频率限制" checked={uxtuParams.cpuFreqLimitEnabled}
             onChange={(on) => { update("cpuFreqLimitEnabled")(on); queueCpuFreq(on ? uxtuParams.cpuFreqLimitMhz : 0); }}
             disabled={paramsLocked} />
           {uxtuParams.cpuFreqLimitEnabled && (
             <SliderRow label="最大频率" value={uxtuParams.cpuFreqLimitMhz}
-              min={2000} max={5500} step={100} unit="MHz" onChange={(v) => { update("cpuFreqLimitMhz")(v); queueCpuFreq(v); }} />
+              min={2000} max={5500} step={100} unit="MHz"
+              onChange={(v) => { update("cpuFreqLimitMhz")(v); queueCpuFreq(v); }} />
           )}
           <SwitchRow label="关闭睿频" checked={uxtuParams.cpuTurboDisabled}
             onChange={async (disabled) => {
@@ -203,25 +212,9 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
             disabled={paramsLocked} />
           {uxtuParams.cpuCoreLimit > 0 && (
             <SliderRow label="核心数" value={uxtuParams.cpuCoreLimit}
-              min={2} max={14} step={2} unit="核" onChange={(v) => { update("cpuCoreLimit")(v); queueCoreLimit(v); }} disabled={paramsLocked} />
+              min={2} max={14} step={2} unit="核"
+              onChange={(v) => { update("cpuCoreLimit")(v); queueCoreLimit(v); }} disabled={paramsLocked} />
           )}
-          <div className="flex gap-2 pt-1">
-            <button onClick={async () => {
-              try {
-                await resetCpuPower();
-                update("cpuFreqLimitEnabled")(false);
-                update("cpuTurboDisabled")(false);
-                update("cpuCoreLimit")(0);
-                setCpuPowerStatus((s) => s ? { ...s, turboEnabled: true, freqLimitMhz: 0, coreLimitPercent: 100 } : s);
-                toast?.("CPU 限制已重置", "success");
-              } catch (err) {
-                toast?.("重置失败: " + err.message, "error");
-              }
-            }}
-              className="text-xs px-3 py-1.5 rounded-lg cursor-pointer"
-              style={{ border: "1px solid var(--warn)", color: "var(--warn)", background: "transparent" }}
-            >重置 CPU 限制</button>
-          </div>
           <div>
             <p className="text-xs mb-1" style={{ color: "var(--muted)" }}>电源管理</p>
             <div className="flex gap-1">
@@ -238,32 +231,90 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
             </div>
           </div>
         </div>
-      </Card>
-      }
+      </Card>}
 
-      {showPower && <Card title="CPU 功耗与温度" className="!p-3">
+      {showPower && <Card title="CPU 功耗与温度" className="!p-3"
+        action={!editMode && <button onClick={() => {
+          const mode = settings?.mode || "silent";
+          const preset = MODE_PRESETS[mode] || {};
+          setUxtuParams(p => {
+            const next = {
+              ...p,
+              cpuTempLimitC: preset.cpuTempLimitC ?? 75,
+              cpuVoltageOffset: preset.cpuVoltageOffset ?? 0,
+              cpuLongPptW: preset.cpuLongPptW ?? 35,
+              cpuShortPptW: preset.cpuShortPptW ?? 45,
+            };
+            try { localStorage.setItem("douzhanzhe_params_" + mode, JSON.stringify(next)); } catch {}
+            return next;
+          });
+          applySmuBatch({
+            cpuTempLimitC: preset.cpuTempLimitC ?? 75,
+            cpuVoltageOffset: preset.cpuVoltageOffset ?? 0,
+            cpuLongPptW: preset.cpuLongPptW ?? 35,
+            cpuShortPptW: preset.cpuShortPptW ?? 45,
+          });
+          toast?.("已恢复当前模式预设", "success");
+        }}
+          className="text-xs px-2 py-1 rounded-lg"
+          style={{ border: "1px solid var(--warn)", color: "var(--warn)", background: "transparent" }}
+        >恢复预设</button>}
+      >
         <div className="space-y-3">
           <SliderRow label="温度墙" value={uxtuParams.cpuTempLimitC}
-            min={60} max={100} unit="°C" onChange={(v) => { update("cpuTempLimitC")(v); queueSmu("temp_limit", v); }} disabled={paramsLocked} />
+            min={60} max={100} unit="°C"
+            onChange={(v) => { update("cpuTempLimitC")(v); queueSmu("temp_limit", v); }} disabled={paramsLocked} />
           <SliderRow label="电压调节(降压)" value={uxtuParams.cpuVoltageOffset}
-            min={-30} max={0} step={1} unit="mV" onChange={(v) => { update("cpuVoltageOffset")(v); queueSmu("co_all", v); }} disabled={paramsLocked} />
+            min={-30} max={0} step={1} unit="mV"
+            onChange={(v) => { update("cpuVoltageOffset")(v); queueSmu("co_all", v); }} disabled={paramsLocked} />
           <SliderRow label="长时功耗" value={uxtuParams.cpuLongPptW}
-            min={15} max={120} unit="W" onChange={(v) => { update("cpuLongPptW")(v); queueSmu("power_limit", v); }} disabled={paramsLocked} />
+            min={15} max={120} unit="W"
+            onChange={(v) => { update("cpuLongPptW")(v); queueSmu("power_limit", v); }} disabled={paramsLocked} />
           <SliderRow label="短时功耗" value={uxtuParams.cpuShortPptW}
-            min={15} max={140} unit="W" onChange={(v) => { update("cpuShortPptW")(v); queueSmu("short_power_limit", v); }} disabled={paramsLocked} />
+            min={15} max={140} unit="W"
+            onChange={(v) => { update("cpuShortPptW")(v); queueSmu("short_power_limit", v); }} disabled={paramsLocked} />
         </div>
-      </Card>
-      }
+      </Card>}
 
-{showGpu && <Card title="GPU 调节" className="!p-3">
+      {showGpu && <Card title="GPU 调节" className="!p-3"
+        action={!editMode && <button onClick={async () => {
+          gpuFreqLocked.current = false;
+          await gpuCmd("reset-clocks").catch(() => {});
+          await gpuCmd("reset-memory-clocks").catch(() => {});
+          try { await applyNvapiOverclock(0, 0); }
+          catch (err) { console.error("NVAPI OC reset failed:", err); }
+          const mode = settings?.mode || "silent";
+          const preset = MODE_PRESETS[mode] || {};
+          const thermalDefault = preset.gpuTempLimitC ?? 87;
+          setUxtuParams(p => {
+            const next = {
+              ...p,
+              gpuCoreFreqMhz: GPU_BASE_CLOCK,
+              gpuMemFreqMhz: 0,
+              gpuFreqLimitEnabled: false,
+              ocCoreOffsetMhz: 0,
+              ocMemOffsetMhz: 0,
+              gpuTempLimitC: thermalDefault,
+            };
+            // 同步落盘，防止刷新前 effect 未执行
+            try { localStorage.setItem("douzhanzhe_params_" + mode, JSON.stringify(next)); } catch {}
+            return next;
+          });
+          await applyNvapiThermalLimit(thermalDefault);
+          toast?.("GPU 已重置", "success");
+        }}
+          className="text-xs px-2 py-1 rounded-lg"
+          style={{ border: "1px solid var(--warn)", color: "var(--warn)", background: "transparent" }}
+        >重置 GPU</button>}
+      >
         <div className="space-y-3">
           <SliderRow label="核心频率" value={uxtuParams.gpuCoreFreqMhz}
             min={1000} max={3100} step={50} unit="MHz"
             onChange={(v) => { update("gpuCoreFreqMhz")(v); queueGpuCore(v); }} />
-          <SliderRow label="核心偏移" value={ocCoreOffset}
+          <SliderRow label="核心偏移" value={uxtuParams.ocCoreOffsetMhz ?? 0}
             min={-200} max={300} step={25} unit="MHz"
-            displayValue={(ocCoreOffset >= 0 ? "+" : "") + ocCoreOffset}
-            onChange={(v) => { setOcCoreOffset(v); queueOcCore(v); }} />
+            displayValue={((uxtuParams.ocCoreOffsetMhz ?? 0) >= 0 ? "+" : "") + (uxtuParams.ocCoreOffsetMhz ?? 0)}
+            onChange={(v) => { update("ocCoreOffsetMhz")(v); queueOc(); }} />
           <SliderRow label="显存频率" value={uxtuParams.gpuMemFreqMhz}
             min={0} max={3} step={1} unit=" MHz"
             displayValue={["自动", "9001", "11001", "12001"][uxtuParams.gpuMemFreqMhz] || ""}
@@ -273,33 +324,11 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
               if (v === 0) await gpuCmd("reset-memory-clocks");
               else await gpuCmd("limit-memory", map[v]);
             }} />
-          <SliderRow label="温度限制" value={thermalLimit}
+          <SliderRow label="温度限制" value={uxtuParams.gpuTempLimitC ?? 87}
             min={60} max={100} step={1} unit="°C"
-            onChange={(v) => { setThermalLimit(v); queueThermal(v); }} />
-          <div className="flex gap-2 pt-1">
-            <button onClick={async () => {
-              gpuFreqLocked.current = false;
-              await gpuCmd("reset-clocks").catch(() => {});
-              await gpuCmd("reset-memory-clocks").catch(() => {});
-              setOcCoreOffset(0);
-              try { await applyNvapiOverclock(0, 0); }
-              catch (err) { console.error("NVAPI OC reset failed:", err); }
-              update("gpuCoreFreqMhz")(2750);
-              update("gpuMemFreqMhz")(0);
-              // 从 NVAPI 读取默认温度限制并同步
-              try {
-                const s = await fetchNvapiStatus();
-                if (s.ok) {
-                  if (s.thermalDefaultC > 0) setThermalLimit(s.thermalDefaultC);
-                  await applyNvapiThermalLimit(s.thermalDefaultC || 87);
-                }
-              } catch {}
-            }}
-              className="text-xs px-3 py-1.5 rounded-lg cursor-pointer"
-              style={{ border: "1px solid var(--warn)", color: "var(--warn)", background: "transparent" }}
-            >重置 GPU</button>
-          </div>
+            onChange={(v) => { update("gpuTempLimitC")(v); queueThermal(v); }} />
         </div>
-      </Card>}</>
+      </Card>}
+    </>
   );
 }

@@ -1,9 +1,12 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { mockTelemetry } from "../data/mockTelemetry";
-import { createTelemetrySocket, MODE_PRESETS, applyUxtuLimits } from "../services/uxtuAdapter";
+import {
+  createTelemetrySocket, MODE_PRESETS, FULL_PARAMS, dispatchFullMode,
+} from "../services/uxtuAdapter";
 
 const LS_THEME = "douzhanzhe_theme";
 const LS_SETTINGS = "douzhanzhe_settings";
+const LS_PARAMS_PREFIX = "douzhanzhe_params_";
 const API_CUSTOM_PARAMS = "/api/custom-params";
 
 function loadFromLS(key, defaultValue) {
@@ -21,174 +24,53 @@ function saveToLS(key, value) {
   } catch { /* quota exceeded etc */ }
 }
 
-
-
 export function useControlState(onSaveResult) {
   const onSaveRef = useRef(onSaveResult);
   onSaveRef.current = onSaveResult;
+
+  // ── Theme ──
   const [theme, setTheme] = useState(() => loadFromLS(LS_THEME, "theme-mech-violet"));
+
+  // ── Telemetry + History ──
   const [telemetry, setTelemetry] = useState(mockTelemetry);
   const lastTickRef = useRef(null);
-
-  // 遥测历史数据 — 用于实时负载曲线
   const MAX_HISTORY = 60;
-  const [history, setHistory] = useState({
-    cpu: [],
-    gpu: [],
-    fan: [],
-    cpuTemp: [],
-    gpuTemp: [],
-  });
-
-  // 每次 telemetry 更新时追加到历史
+  const [history, setHistory] = useState({ cpu: [], gpu: [], fan: [], cpuTemp: [], gpuTemp: [] });
   const prevTelemetryRef = useRef(telemetry);
   useEffect(() => {
     if (prevTelemetryRef.current === telemetry) return;
     prevTelemetryRef.current = telemetry;
-    setHistory((prev) => {
-      const cpu = [...prev.cpu, telemetry.cpuUsage].slice(-MAX_HISTORY);
-      const gpu = [...prev.gpu, telemetry.gpuUsage].slice(-MAX_HISTORY);
-      const fan = [...prev.fan, telemetry.fanLargeRpm].slice(-MAX_HISTORY);
-      const cpuTemp = [...prev.cpuTemp, telemetry.cpuTemp].slice(-MAX_HISTORY);
-      const gpuTemp = [...prev.gpuTemp, telemetry.gpuTemp].slice(-MAX_HISTORY);
-      return { cpu, gpu, fan, cpuTemp, gpuTemp };
-    });
+    setHistory((prev) => ({
+      cpu: [...prev.cpu, telemetry.cpuUsage].slice(-MAX_HISTORY),
+      gpu: [...prev.gpu, telemetry.gpuUsage].slice(-MAX_HISTORY),
+      fan: [...prev.fan, telemetry.fanLargeRpm].slice(-MAX_HISTORY),
+      cpuTemp: [...prev.cpuTemp, telemetry.cpuTemp].slice(-MAX_HISTORY),
+      gpuTemp: [...prev.gpuTemp, telemetry.gpuTemp].slice(-MAX_HISTORY),
+    }));
   }, [telemetry]);
 
-  const defaultParams = {
-    cpuFreqLimitEnabled: false,
-    cpuFreqLimitMhz: 4500,
-    cpuTurboDisabled: false,
-    cpuTempLimitC: 90,
-    cpuCoreLimit: 0,
-    cpuPowerPlan: "balance",
-    cpuVoltageOffset: 0,
-    cpuLongPptW: 65,
-    cpuShortPptW: 85,
-    gpuFreqLimitEnabled: false,
-    gpuFreqLimitMhz: 2600,
-    gpuCoreFreqMhz: 2750,
-    gpuMemFreqMhz: 1,
-    gpuFreqLocked: false,
-    gpuPptLimitW: 115,
-    gpuTempLimitC: 87,
-  };
-  const [uxtuParams, setUxtuParams] = useState(() => {
-    const saved = loadFromLS(LS_SETTINGS, { mode: "office" });
-    // 恢复 localStorage 中保存的电压偏移等通用参数
-    const savedVoltage = loadFromLS("douzhanzhe_voltage_offset", undefined);
-    const preset = MODE_PRESETS[saved.mode];
-    const base = preset ? { ...defaultParams, ...preset } : defaultParams;
-    if (savedVoltage !== undefined) base.cpuVoltageOffset = savedVoltage;
-    return base;
-  });
-  const [paramsLoaded, setParamsLoaded] = useState(false);
-
-  // 启动时从服务端加载自定义参数（仅自定义模式下应用）
-  useEffect(() => {
-    fetch(API_CUSTOM_PARAMS)
-      .then((r) => r.json())
-      .then((data) => {
-        if (data && Object.keys(data).length > 0) {
-          // Normalize gpuMemFreqMhz from old MHz values to index 0-3
-          if (data.gpuMemFreqMhz !== undefined && (data.gpuMemFreqMhz > 3 || data.gpuMemFreqMhz < 0)) {
-            data.gpuMemFreqMhz = 1;
-          }
-          // 仅在自定义模式下应用服务端保存的参数，其他模式走 MODE_PRESETS
-          setUxtuParams((prev) => {
-            const mode = loadFromLS(LS_SETTINGS, { mode: "office" }).mode;
-            if (mode === "custom") return { ...prev, ...data };
-            return prev;
-          });
-        }
-      })
-      .catch(() => {})
-      .finally(() => setParamsLoaded(true));
-  }, []);
-
-  const [fanLargeRpmTarget, setFanLargeRpmTarget] = useState(() => loadFromLS("douzhanzhe_fan_large", 2200));
-  const [fanSmallRpmTarget, setFanSmallRpmTarget] = useState(() => loadFromLS("douzhanzhe_fan_small", 4100));
-
-  // 风扇目标转速变化时保存到 localStorage + 调用 C# API（去抖 600ms）
-  const fanTimerRef = useRef(null);
-  useEffect(() => {
-    saveToLS("douzhanzhe_fan_large", fanLargeRpmTarget);
-    saveToLS("douzhanzhe_fan_small", fanSmallRpmTarget);
-    clearTimeout(fanTimerRef.current);
-    fanTimerRef.current = setTimeout(() => {
-      fetch("/api/fan/set-target", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ largeRpm: fanLargeRpmTarget, smallRpm: fanSmallRpmTarget }),
-      }).catch(() => {});
-    }, 600);
-    return () => clearTimeout(fanTimerRef.current);
-  }, [fanLargeRpmTarget, fanSmallRpmTarget]);
-
+  // ── Settings (含 mode) ──
   const [settings, setSettings] = useState(() => loadFromLS(LS_SETTINGS, {
-    mode: "office",
-    dGpuDirect: true,
-    fanBoost: false,
-    numLock: true,
-    capsLock: false,
-    fnLock: false,
-    touchpadLock: false,
-    osdDisabled: false,
-    kbBrightnessLevel: 0,
+    mode: "office", dGpuDirect: true, fanBoost: false,
+    numLock: true, capsLock: false, fnLock: false,
+    touchpadLock: false, osdDisabled: false, kbBrightnessLevel: 0,
   }));
 
-  // 持久化 theme 和 settings 到 localStorage
+  // ── uxtuParams: 唯一全量参数状态 (包含 CPU/GPU/风扇所有可控字段) ──
+  const [uxtuParams, setUxtuParams] = useState(() => {
+    const mode = loadFromLS(LS_SETTINGS, { mode: "office" }).mode;
+    const saved = loadFromLS(LS_PARAMS_PREFIX + mode, null);
+    const preset = MODE_PRESETS[mode] || {};
+    return { ...FULL_PARAMS, ...preset, ...(saved || {}) };
+  });
+
+  const [paramsLoaded, setParamsLoaded] = useState(false);
+
+  // 持久化 theme + settings
   useEffect(() => { saveToLS(LS_THEME, theme); }, [theme]);
   useEffect(() => { saveToLS(LS_SETTINGS, settings); }, [settings]);
 
-  // 自定义参数持久化到服务端（去抖 1s）— 仅在自定义模式下保存
-  // 同时将电压偏移持久化到 localStorage（所有模式通用）
-  const saveTimerRef = useRef(null);
-  useEffect(() => {
-    saveToLS("douzhanzhe_voltage_offset", uxtuParams.cpuVoltageOffset);
-    if (!paramsLoaded || settings.mode !== "custom") return;
-    clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => {
-      const payload = {
-        ...uxtuParams,
-        fanLargeRpmTarget,
-        fanSmallRpmTarget,
-      };
-      fetch(API_CUSTOM_PARAMS, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
-        .then((r) => {
-          if (r.ok) onSaveRef.current?.(true);
-          else onSaveRef.current?.(false);
-        })
-        .catch(() => onSaveRef.current?.(false));
-    }, 1000);
-    return () => clearTimeout(saveTimerRef.current);
-  }, [uxtuParams, paramsLoaded, fanLargeRpmTarget, fanSmallRpmTarget, settings.mode]);
-
-  const uxtuPayload = useMemo(
-    () => ({
-      chipset: "Ryzen 9 8940HX",
-      profile: settings.mode,
-      params: uxtuParams,
-    }),
-    [settings.mode, uxtuParams]
-  );
-
-  // 每模式独立参数记忆: 参数变化时保存到当前模式 key
-  const LS_PARAMS_PREFIX = "douzhanzhe_params_";
-  const prevParamsRef = useRef({ uxtuParams, fanLargeRpmTarget, fanSmallRpmTarget });
-  useEffect(() => {
-    if (settings.mode === "custom") return;
-    const p = prevParamsRef.current;
-    if (p.uxtuParams === uxtuParams && p.fanLargeRpmTarget === fanLargeRpmTarget && p.fanSmallRpmTarget === fanSmallRpmTarget) return;
-    prevParamsRef.current = { uxtuParams, fanLargeRpmTarget, fanSmallRpmTarget };
-    saveToLS(LS_PARAMS_PREFIX + settings.mode, { ...uxtuParams, fanLargeRpmTarget, fanSmallRpmTarget });
-  }, [uxtuParams, fanLargeRpmTarget, fanSmallRpmTarget, settings.mode]);
-
-  // 模式切换: 保存当前参数到旧模式 → 加载新模式记忆 (或 fallback MODE_PRESETS)
+  // ── 模式切换: 保存旧参数 → 加载新参数 → dispatchFullMode 全量下发 ──
   const prevModeRef = useRef(settings.mode);
   useEffect(() => {
     const prevMode = prevModeRef.current;
@@ -196,159 +78,171 @@ export function useControlState(onSaveResult) {
     prevModeRef.current = currentMode;
     if (prevMode === currentMode) return;
 
-    // 保存当前参数到旧模式 key（在加载新模式之前）
+    // 保存当前参数到旧模式 localStorage key
     if (prevMode !== "custom") {
-      const synced = { ...uxtuParams, fanLargeRpmTarget, fanSmallRpmTarget };
-      saveToLS(LS_PARAMS_PREFIX + prevMode, synced);
+      saveToLS(LS_PARAMS_PREFIX + prevMode, uxtuParams);
     }
 
     // 切换到自定义模式 → 从服务端加载
     if (currentMode === "custom") {
       if (paramsLoaded) {
         fetch(API_CUSTOM_PARAMS)
-          .then((r) => r.json())
-          .then((data) => {
+          .then(r => r.json())
+          .then(data => {
             if (data && Object.keys(data).length > 0) {
-              const { fanLargeRpmTarget: f1, fanSmallRpmTarget: f2, ...rest } = data;
-              setUxtuParams(rest);
-              if (f1 !== undefined) setFanLargeRpmTarget(f1);
-              if (f2 !== undefined) setFanSmallRpmTarget(f2);
+              if (data.gpuMemFreqMhz !== undefined && (data.gpuMemFreqMhz > 3 || data.gpuMemFreqMhz < 0)) {
+                data.gpuMemFreqMhz = 1;
+              }
+              setUxtuParams(prev => ({ ...prev, ...data }));
             }
           })
           .catch(() => {});
       }
+      // 仍然下发当前参数到硬件
+      dispatchFullMode(currentMode, uxtuParams);
       return;
     }
 
+    // 加载新模式: localStorage → MODE_PRESETS → FULL_PARAMS 兜底
     const saved = loadFromLS(LS_PARAMS_PREFIX + currentMode, null);
-    if (saved) {
-      const { fanLargeRpmTarget: fl, fanSmallRpmTarget: fs, ...rest } = saved;
-      setUxtuParams((prev) => ({ ...prev, ...rest }));
-      if (fl !== undefined) setFanLargeRpmTarget(fl);
-      if (fs !== undefined) setFanSmallRpmTarget(fs);
-      // 模式切换时自动下发用户保存的自定义参数到 SMU
-      applyUxtuLimits({ chipset: "Ryzen 9 8940HX", profile: currentMode, params: rest }).catch(e => console.error("[SMU] 模式切换下发失败:", e));
-    } else {
-      const preset = MODE_PRESETS[currentMode];
-      if (!preset) return;
-      setUxtuParams((prev) => ({ ...prev, ...preset }));
-      setFanLargeRpmTarget(preset.fanLargeRpmTarget);
-      setFanSmallRpmTarget(preset.fanSmallRpmTarget);
-      // 模式切换时自动下发 MODE_PRESETS 预设到 SMU
-      applyUxtuLimits({ chipset: "Ryzen 9 8940HX", profile: currentMode, params: preset }).catch(e => console.error("[SMU] 模式切换预设下发失败:", e));
-    }
+    const preset = MODE_PRESETS[currentMode] || {};
+    const newParams = { ...FULL_PARAMS, ...preset, ...(saved || {}) };
+    setUxtuParams(newParams);
+
+    // 全量硬件下发 (含写入顺序保证)
+    dispatchFullMode(currentMode, newParams);
   }, [settings.mode]);
 
-  // 连接后端 WebSocket 获取真实硬件遥测；后端不可用时退回到 mock
-  const [backendOnline, setBackendOnline] = useState(false);
+  // ── 每模式 localStorage 持久化 (非自定义模式, 参数变化时保存) ──
+  const prevParamsRef = useRef(uxtuParams);
+  useEffect(() => {
+    if (!paramsLoaded) return; // 跳过首次渲染，避免覆盖已保存数据
+    if (settings.mode === "custom") return;
+    if (prevParamsRef.current === uxtuParams) return;
+    prevParamsRef.current = uxtuParams;
+    saveToLS(LS_PARAMS_PREFIX + settings.mode, uxtuParams);
+  }, [uxtuParams, settings.mode, paramsLoaded]);
 
+  // ── 自定义模式: 服务端 + localStorage 持久化 (去抖 1s) ──
+  const saveTimerRef = useRef(null);
+  useEffect(() => {
+    if (!paramsLoaded || settings.mode !== "custom") return;
+    saveToLS(LS_PARAMS_PREFIX + "custom", uxtuParams);
+    clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      fetch(API_CUSTOM_PARAMS, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(uxtuParams),
+      })
+        .then(r => { onSaveRef.current?.(r.ok); })
+        .catch(() => onSaveRef.current?.(false));
+    }, 1000);
+    return () => clearTimeout(saveTimerRef.current);
+  }, [uxtuParams, paramsLoaded, settings.mode]);
+
+  // ── 启动时从服务端加载自定义参数 (仅自定义模式) ──
+  useEffect(() => {
+    const mode = loadFromLS(LS_SETTINGS, { mode: "office" }).mode;
+    if (mode !== "custom") {
+      setParamsLoaded(true);
+      return;
+    }
+    fetch(API_CUSTOM_PARAMS)
+      .then(r => r.json())
+      .then(data => {
+        if (data && Object.keys(data).length > 0) {
+          if (data.gpuMemFreqMhz !== undefined && (data.gpuMemFreqMhz > 3 || data.gpuMemFreqMhz < 0)) {
+            data.gpuMemFreqMhz = 1;
+          }
+          setUxtuParams(prev => ({ ...prev, ...data }));
+        }
+      })
+      .catch(() => {})
+      .finally(() => setParamsLoaded(true));
+  }, []);
+
+  // ── 风扇目标转速去抖下发 (600ms) ──
+  const fanTimerRef = useRef(null);
+  useEffect(() => {
+    clearTimeout(fanTimerRef.current);
+    fanTimerRef.current = setTimeout(() => {
+      fetch("/api/fan/set-target", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          largeRpm: uxtuParams.fanLargeRpmTarget ?? 2900,
+          smallRpm: uxtuParams.fanSmallRpmTarget ?? 6400,
+        }),
+      }).catch(() => {});
+    }, 600);
+    return () => clearTimeout(fanTimerRef.current);
+  }, [uxtuParams.fanLargeRpmTarget, uxtuParams.fanSmallRpmTarget]);
+
+  // ── uxtuPayload (用于手动下发按钮) ──
+  const uxtuPayload = useMemo(
+    () => ({ chipset: "Ryzen 9 8940HX", profile: settings.mode, params: uxtuParams }),
+    [settings.mode, uxtuParams]
+  );
+
+  // ── WebSocket 遥测 ──
+  const [backendOnline, setBackendOnline] = useState(false);
   useEffect(() => {
     const ws = createTelemetrySocket(
       (data) => {
         setBackendOnline(true);
-        setTelemetry((prev) => ({
-          ...prev,           // 保留 cpuUsage, memoryUsage 等完整字段
-          ...data,           // WebSocket 新数据覆盖温度/风扇等实时字段
-        }));
+        setTelemetry(prev => ({ ...prev, ...data }));
       },
       () => setBackendOnline(false)
     );
     return () => ws.close();
   }, []);
 
-  // 后端不可用时，使用 mock 模拟数据
+  // ── Mock 模拟 (后端不可用时) ──
   useEffect(() => {
     if (backendOnline) return;
-    if (lastTickRef.current === null) {
-      lastTickRef.current = Date.now();
-    }
+    if (lastTickRef.current === null) lastTickRef.current = Date.now();
 
     const timer = setInterval(() => {
       const now = Date.now();
       const dt = Math.max(0.5, Math.min(3, (now - (lastTickRef.current || Date.now())) / 1000));
       lastTickRef.current = now;
 
-      setTelemetry((prev) => {
-        // 风扇实际转速：向目标转速缓慢趋近
-        const fanLargeRpm = Math.round(
-          prev.fanLargeRpm + (fanLargeRpmTarget - prev.fanLargeRpm) * 0.1 * dt
-        );
-        const fanSmallRpm = Math.round(
-          prev.fanSmallRpm + (fanSmallRpmTarget - prev.fanSmallRpm) * 0.1 * dt
-        );
-
+      setTelemetry(prev => {
+        const fanLargeRpm = Math.round(prev.fanLargeRpm + (uxtuParams.fanLargeRpmTarget - prev.fanLargeRpm) * 0.1 * dt);
+        const fanSmallRpm = Math.round(prev.fanSmallRpm + (uxtuParams.fanSmallRpmTarget - prev.fanSmallRpm) * 0.1 * dt);
         const fanLargePct = prev.fanLargeMax > 0 ? fanLargeRpm / prev.fanLargeMax : 0;
         const fanSmallPct = prev.fanSmallMax > 0 ? fanSmallRpm / prev.fanSmallMax : 0;
         const cooling = 0.4 * fanLargePct + 0.25 * fanSmallPct;
-
-        const modeBias =
-          settings.mode === "silent"
-            ? -0.12
-            : settings.mode === "office"
-              ? -0.05
-              : settings.mode === "gaming"
-                ? 0.05
-                : settings.mode === "beast"
-                  ? 0.14
-                  : 0.0;
-
-        const cpuPptNorm = uxtuParams.cpuLongPptW / 120;
-        const gpuPptNorm = uxtuParams.gpuPptLimitW / 180;
-
-        const cpuTargetUsage = Math.max(5, Math.min(95, 25 + cpuPptNorm * 55 + modeBias * 100));
-        const gpuTargetUsage = Math.max(2, Math.min(95, 15 + gpuPptNorm * 55 + modeBias * 80));
-
-        const drift = (target, current, strength) =>
-          current + (target - current) * strength * dt + (Math.random() - 0.5) * 1.5;
-
+        const modeBias = settings.mode === "silent" ? -0.12 : settings.mode === "office" ? -0.05 : settings.mode === "gaming" ? 0.05 : settings.mode === "beast" ? 0.14 : 0;
+        const cpuTargetUsage = Math.max(5, Math.min(95, 25 + (uxtuParams.cpuLongPptW / 120) * 55 + modeBias * 100));
+        const gpuTargetUsage = Math.max(2, Math.min(95, 15 + (uxtuParams.gpuPptLimitW / 180) * 55 + modeBias * 80));
+        const drift = (target, current, strength) => current + (target - current) * strength * dt + (Math.random() - 0.5) * 1.5;
         const nextCpuUsage = drift(cpuTargetUsage, prev.cpuUsage, 0.18);
         const nextGpuUsage = drift(gpuTargetUsage, prev.gpuUsage, 0.16);
-
-        const nextCpuFreq = Math.max(0.6, prev.cpuFreq + (nextCpuUsage - prev.cpuUsage) * 0.02);
-        const nextGpuFreq = Math.max(0.4, prev.gpuFreq + (nextGpuUsage - prev.gpuUsage) * 0.03);
-
-        const cpuTempTarget = uxtuParams.cpuTempLimitC - cooling * 12;
-        const gpuTempTarget = uxtuParams.gpuTempLimitC - cooling * 10;
-
-        const nextCpuTemp = drift(cpuTempTarget, prev.cpuTemp, 0.10);
-        const nextGpuTemp = drift(gpuTempTarget, prev.gpuTemp, 0.09);
-
-        const nextMemoryUsage = Math.max(1, Math.min(99, prev.memoryUsage + (Math.random() - 0.5) * 0.8));
-        const nextDiskUsage = Math.max(1, Math.min(99, prev.diskUsage + (Math.random() - 0.5) * 0.6));
-
         return {
           ...prev,
           cpuUsage: Math.round(nextCpuUsage),
-          cpuFreq: Number(nextCpuFreq.toFixed(2)),
-          cpuTemp: Math.round(nextCpuTemp),
+          cpuFreq: Number(Math.max(0.6, prev.cpuFreq + (nextCpuUsage - prev.cpuUsage) * 0.02).toFixed(2)),
+          cpuTemp: Math.round(drift(uxtuParams.cpuTempLimitC - cooling * 12, prev.cpuTemp, 0.10)),
           gpuUsage: Math.round(nextGpuUsage),
-          gpuFreq: Number(nextGpuFreq.toFixed(2)),
-          gpuTemp: Math.round(nextGpuTemp),
-          memoryUsage: Math.round(nextMemoryUsage),
-          diskUsage: Math.round(nextDiskUsage),
-          fanLargeRpm,
-          fanSmallRpm,
+          gpuFreq: Number(Math.max(0.4, prev.gpuFreq + (nextGpuUsage - prev.gpuUsage) * 0.03).toFixed(2)),
+          gpuTemp: Math.round(drift(uxtuParams.gpuTempLimitC - cooling * 10, prev.gpuTemp, 0.09)),
+          memoryUsage: Math.round(Math.max(1, Math.min(99, prev.memoryUsage + (Math.random() - 0.5) * 0.8))),
+          diskUsage: Math.round(Math.max(1, Math.min(99, prev.diskUsage + (Math.random() - 0.5) * 0.6))),
+          fanLargeRpm, fanSmallRpm,
         };
       });
     }, 1000);
-
     return () => clearInterval(timer);
-  }, [settings.mode, uxtuParams.cpuLongPptW, uxtuParams.cpuTempLimitC, uxtuParams.gpuPptLimitW, uxtuParams.gpuTempLimitC, backendOnline]);
+  }, [settings.mode, uxtuParams, backendOnline]);
 
   return {
-    theme,
-    setTheme,
-    telemetry,
-    setTelemetry,
-    uxtuParams,
-    setUxtuParams,
-    settings,
-    setSettings,
+    theme, setTheme,
+    telemetry, setTelemetry,
+    uxtuParams, setUxtuParams,
+    settings, setSettings,
     uxtuPayload,
-    fanLargeRpmTarget,
-    fanSmallRpmTarget,
-    setFanLargeRpmTarget,
-    setFanSmallRpmTarget,
     history,
   };
 }

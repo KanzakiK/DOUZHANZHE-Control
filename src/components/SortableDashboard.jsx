@@ -18,7 +18,7 @@ import Sparkline from "./ui/Sparkline";
 import SortableCard from "./ui/SortableCard";
 import PerformancePanel from "./panels/PerformancePanel";
 import SettingsPanel from "./panels/SettingsPanel";
-import { getFanRange, applyHardwareControl } from "../services/uxtuAdapter";
+import { getFanRange, applyHardwareControl, MODE_PRESETS } from "../services/uxtuAdapter";
 import { useCardOrder } from "./../hooks/useCardOrder";
 import { useToast } from "./ui/Toast";
 
@@ -39,9 +39,7 @@ const CARD_MAP = {
 export default function SortableDashboard({
   telemetry, setTelemetry, settings, setSettings,
   uxtuPayload, uxtuParams, setUxtuParams,
-  fanLargeRpmTarget, fanSmallRpmTarget,
-  setFanLargeRpmTarget, setFanSmallRpmTarget, history,
-  editMode, setEditMode,
+  history, editMode, setEditMode,
 }) {
   const toast = useToast();
   const onSyncResult = useCallback((ok) => {
@@ -133,8 +131,28 @@ export default function SortableDashboard({
         );
       case "fan-info":
         const fanRange = getFanRange(settings?.mode || "silent");
+        const toast = useToast();
         return (
-          <Card title="风扇信息">
+          <Card title="风扇信息"
+            action={!editMode && <button onClick={() => {
+              const mode = settings?.mode || "silent";
+              const preset = MODE_PRESETS[mode] || {};
+              setUxtuParams(p => {
+                const next = {
+                  ...p,
+                  fanLargeRpmTarget: preset.fanLargeRpmTarget ?? 2200,
+                  fanSmallRpmTarget: preset.fanSmallRpmTarget ?? 4100,
+                };
+                try { localStorage.setItem("douzhanzhe_params_" + mode, JSON.stringify(next)); } catch {}
+                return next;
+              });
+              const modeName = mode === "silent" ? "安静" : mode === "office" ? "均衡" : mode === "gaming" ? "斗战" : mode === "beast" ? "野兽" : "自定义";
+              toast?.(`已恢复${modeName}模式风扇预设`, "success");
+            }}
+              className="text-xs px-2 py-1 rounded-lg"
+              style={{ border: "1px solid var(--warn)", color: "var(--warn)", background: "transparent" }}
+            >恢复预设</button>}
+          >
             <div className="space-y-3">
               <div className="space-y-1">
                 <div className="flex items-center justify-between mb-2">
@@ -145,9 +163,9 @@ export default function SortableDashboard({
                     >⊙</span>
                   )}
                 </div>
-                <SliderRow label="大风扇目标转速" value={fanLargeRpmTarget}
+                <SliderRow label="大风扇目标转速" value={uxtuParams.fanLargeRpmTarget ?? 2900}
                   min={fanRange.largeMin} max={fanRange.largeMax} step={100} unit="RPM"
-                  onChange={(v) => setFanLargeRpmTarget(v)}/>
+                  onChange={(v) => setUxtuParams(p => ({ ...p, fanLargeRpmTarget: v }))}/>
                 <Gauge label="大风扇负载" value={Math.round((telemetry.fanLargeRpm / Math.max(1, telemetry.fanLargeMax)) * 100)}/>
               </div>
               <div className="space-y-1">
@@ -159,9 +177,9 @@ export default function SortableDashboard({
                     >⊙</span>
                   )}
                 </div>
-                <SliderRow label="小风扇目标转速" value={fanSmallRpmTarget}
+                <SliderRow label="小风扇目标转速" value={uxtuParams.fanSmallRpmTarget ?? 6400}
                   min={fanRange.smallMin} max={fanRange.smallMax} step={100} unit="RPM"
-                  onChange={(v) => setFanSmallRpmTarget(v)}/>
+                  onChange={(v) => setUxtuParams(p => ({ ...p, fanSmallRpmTarget: v }))}/>
                 <Gauge label="小风扇负载" value={Math.round((telemetry.fanSmallRpm / Math.max(1, telemetry.fanSmallMax)) * 100)}/>
               </div>
               {/* 风扇负载曲线已隐藏 — EC 16 位竞态导致心电图问题 */}
@@ -169,11 +187,11 @@ export default function SortableDashboard({
           </Card>
         );
       case "cpu-adjust":
-        return <PerformancePanel showGpu={false} showPower={false} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} uxtuPayload={uxtuPayload}/>;
+        return <PerformancePanel showCpu={true} showGpu={false} showPower={false} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} uxtuPayload={uxtuPayload} editMode={editMode}/>;
       case "cpu-power":
-        return <PerformancePanel showCpu={false} showGpu={false} showPower={true} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} uxtuPayload={uxtuPayload}/>;
+        return <PerformancePanel showCpu={false} showGpu={false} showPower={true} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} uxtuPayload={uxtuPayload} editMode={editMode}/>;
       case "gpu-adjust":
-        return <PerformancePanel showCpu={false} showPower={false} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} uxtuPayload={uxtuPayload}/>;
+        return <PerformancePanel showCpu={false} showPower={false} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} uxtuPayload={uxtuPayload} editMode={editMode}/>;
       case "keyboard-light":
         return <SettingsPanel settings={settings} setSettings={setSettings} uxtuPayload={uxtuPayload} showSwitches={false} showKeyboard={true} showSummary={false} showSmu={false} showAbout={false}/>;
       case "system-switches":

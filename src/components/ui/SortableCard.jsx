@@ -1,11 +1,12 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useRef, useLayoutEffect, useState } from "react";
+import { useRef, useLayoutEffect, useState, useEffect } from "react";
 
 export default function SortableCard({ id, children, editMode, onHide }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
   const wrapperRef = useRef(null);
   const [lockedHeight, setLockedHeight] = useState(null);
+  const [dragWidth, setDragWidth] = useState(null);
 
   // 首次渲染后延迟锁定高度，防止异步数据加载导致 CSS columns 重新平衡
   useLayoutEffect(() => {
@@ -17,6 +18,15 @@ export default function SortableCard({ id, children, editMode, onHide }) {
     return () => clearTimeout(timer);
   }, []);
 
+  // 开始拖动时锁定宽度，防止 transform 脱离 columns 流后被拉伸
+  useLayoutEffect(() => {
+    if (isDragging && wrapperRef.current) {
+      setDragWidth(wrapperRef.current.offsetWidth);
+    } else if (!isDragging) {
+      setDragWidth(null);
+    }
+  }, [isDragging]);
+
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -24,6 +34,8 @@ export default function SortableCard({ id, children, editMode, onHide }) {
     position: "relative",
     breakInside: "avoid",
     minHeight: lockedHeight ? `${lockedHeight}px` : undefined,
+    width: dragWidth ? `${dragWidth}px` : undefined,
+    flexShrink: 0,
   };
 
   return (
