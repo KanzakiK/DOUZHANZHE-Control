@@ -72,11 +72,11 @@ public class TelemetryBackgroundService : BackgroundService
                 {
                     cpuUsage = _hal.CpuUsage,
                     cpuTemp,
-                    cpuFreq = Math.Round(_hal.CpuFreq, 1),
+                    cpuFreq = Math.Round(_hal.CpuFreq, 2),
                     cpuCores = _hal.CpuCores,
                     gpuUsage = _hal.GpuUsage,
                     gpuTemp,
-                    gpuFreq = Math.Round(_hal.GpuFreq, 1),
+                    gpuFreq = Math.Round(_hal.GpuFreq, 2),
                     gpuVram = _hal.GpuVram,
                     gpuVramUsed = _hal.GpuVramUsed,
                     gpuMemMhz = _hal.GpuMemMhz,
