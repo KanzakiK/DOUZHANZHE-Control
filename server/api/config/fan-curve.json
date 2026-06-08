@@ -1,6 +1,11 @@
 {
   "points": [
     {
+      "temp": 40,
+      "largeRpm": 1900,
+      "smallRpm": 1700
+    },
+    {
       "temp": 50,
       "largeRpm": 2200,
       "smallRpm": 2000
@@ -39,6 +44,21 @@
       "temp": 85,
       "largeRpm": 4300,
       "smallRpm": 8000
+    },
+    {
+      "temp": 90,
+      "largeRpm": 4400,
+      "smallRpm": 8200
+    },
+    {
+      "temp": 95,
+      "largeRpm": 4400,
+      "smallRpm": 8200
+    },
+    {
+      "temp": 100,
+      "largeRpm": 4400,
+      "smallRpm": 8200
     }
   ],
   "intervalMs": 5000,
