@@ -133,19 +133,28 @@ a{{color:#58a6ff}}</style></head><body>
 
         if (!apiReady)
         {
+            // 读取 API 启动日志
+            var logContent = "";
+            try
+            {
+                var logPath = Path.Combine(AppContext.BaseDirectory, "api-startup.log");
+                if (File.Exists(logPath))
+                    logContent = System.Net.WebUtility.HtmlEncode(File.ReadAllText(logPath));
+            }
+            catch { }
+
             // API 未响应 — 显示错误页面
-            var errorHtml = @"<!DOCTYPE html><html><head><meta charset='utf-8'><title>Error</title>
-<style>body{background:#0d1117;color:#c9d1d9;font:16px/1.6 system-ui;padding:40px;max-width:700px;margin:0 auto}
-h1{color:#f85149;font-size:20px}p{color:#8b949e}code{background:#161b22;padding:2px 8px;border-radius:4px}
-a{color:#58a6ff}</style></head><body>
+            var errorHtml = $@"<!DOCTYPE html><html><head><meta charset='utf-8'><title>Error</title>
+<style>body{{background:#0d1117;color:#c9d1d9;font:16px/1.6 system-ui;padding:40px;max-width:700px;margin:0 auto}}
+h1{{color:#f85149;font-size:20px}}p{{color:#8b949e}}code{{background:#161b22;padding:2px 8px;border-radius:4px}}
+a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:16px;overflow:auto;color:#f0883e;font-size:13px;margin-top:16px}}</style></head><body>
 <h1>后端服务未响应</h1>
 <p>斗战者控制台后端 API 在 30 秒内未能启动。请检查：</p>
 <p>1. 安装目录下的 <code>Douzhanzhe.API.exe</code> 是否存在<br>
 2. 端口 3100 是否被其他程序占用<br>
 3. 是否已安装 <a href='https://dotnet.microsoft.com/download/dotnet/8.0'>.NET 8 Desktop Runtime</a></p>
+{(string.IsNullOrEmpty(logContent) ? "" : $"<p style='color:#c9d1d9;margin-top:24px'>启动日志（请截图反馈）：</p><pre>{logContent}</pre>")}
 </body></html>";
-            var tmpHtml = Path.Combine(Path.GetTempPath(), "douzhanzhe_api_error.html");
-            File.WriteAllText(tmpHtml, errorHtml);
             _webView.NavigateToString(errorHtml);
             return;
         }
@@ -257,8 +266,26 @@ a{color:#58a6ff}</style></head><body>
 
         var baseDir = AppContext.BaseDirectory;
         var apiExe = Path.Combine(baseDir, "Douzhanzhe.API.exe");
-        if (!File.Exists(apiExe)) return;
+        var logPath = Path.Combine(baseDir, "api-startup.log");
 
+        void AppendLog(string msg) {
+            try { File.AppendAllText(logPath, $"[{DateTime.Now:HH:mm:ss}] {msg}\n"); } catch { }
+        }
+
+        try { File.WriteAllText(logPath, $"[{DateTime.Now:HH:mm:ss}] API startup begin\n[{DateTime.Now:HH:mm:ss}] BaseDir: {baseDir}\n"); } catch { }
+
+        if (!File.Exists(apiExe))
+        {
+            AppendLog($"ERROR: Douzhanzhe.API.exe not found at {apiExe}");
+            // 列出目录内容帮助排查
+            try {
+                var files = Directory.GetFiles(baseDir, "*.exe");
+                AppendLog($"EXE files in {baseDir}: {string.Join(", ", files.Select(Path.GetFileName))}");
+            } catch { }
+            return;
+        }
+
+        AppendLog($"Starting: {apiExe}");
         try
         {
             var psi = new ProcessStartInfo(apiExe)
@@ -267,11 +294,41 @@ a{color:#58a6ff}</style></head><body>
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 WindowStyle = ProcessWindowStyle.Hidden,
-                Arguments = "--urls=http://127.0.0.1:3100"
+                Arguments = "--urls=http://127.0.0.1:3100",
+                RedirectStandardError = true,
+                RedirectStandardOutput = true
             };
-            Process.Start(psi);
+            var proc = Process.Start(psi);
+            if (proc == null)
+            {
+                AppendLog("ERROR: Process.Start returned null");
+                return;
+            }
+            AppendLog($"PID: {proc.Id}");
+
+            // 等 2 秒检查进程是否立即崩溃
+            Thread.Sleep(2000);
+            if (proc.HasExited)
+            {
+                AppendLog($"ERROR: Process exited immediately with code {proc.ExitCode}");
+                try {
+                    var stderr = proc.StandardError.ReadToEnd();
+                    if (!string.IsNullOrEmpty(stderr))
+                        AppendLog($"STDERR: {stderr[..Math.Min(stderr.Length, 2000)]}");
+                    var stdout = proc.StandardOutput.ReadToEnd();
+                    if (!string.IsNullOrEmpty(stdout))
+                        AppendLog($"STDOUT: {stdout[..Math.Min(stdout.Length, 2000)]}");
+                } catch { }
+            }
+            else
+            {
+                AppendLog("Process running, waiting for port...");
+            }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            AppendLog($"ERROR: {ex.GetType().Name}: {ex.Message}");
+        }
     }
 
     /// <summary>
