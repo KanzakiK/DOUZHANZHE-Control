@@ -1,6 +1,7 @@
 using Microsoft.Web.WebView2.WinForms;
 using Microsoft.Web.WebView2.Core;
 using System.Diagnostics;
+using System.Text.Json;
 
 namespace Douzhanzhe.Shell;
 
@@ -11,6 +12,8 @@ public partial class Form1 : Form
     private ContextMenuStrip _trayMenu;
     private bool _closeToTray = true;
 
+    private static readonly string _winStatePath = Path.Combine(AppContext.BaseDirectory, "config", "window-state.json");
+
     private static Icon LoadAppIcon()
     {
         try { return Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? SystemIcons.Application; }
@@ -20,11 +23,14 @@ public partial class Form1 : Form
     public Form1()
     {
         Text = "斗战者控制台";
-        Width = 1280;
-        Height = 900;
+        Width = 1500;
+        Height = 1200;
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = Color.FromArgb(13, 17, 23); // 深色背景防白闪
         Icon = LoadAppIcon();
+
+        // 恢复上次关闭时的窗口尺寸和位置
+        RestoreWindowState();
 
         FormClosing += Form1_FormClosing;
         Resize += Form1_Resize;
@@ -114,6 +120,10 @@ public partial class Form1 : Form
             e.Cancel = true;
             Hide();
             _trayIcon.ShowBalloonTip(3000, "斗战者控制台", "程序仍在后台运行，双击托盘图标恢复窗口。", ToolTipIcon.Info);
+        }
+        else
+        {
+            SaveWindowState();
         }
     }
 
@@ -220,6 +230,82 @@ public partial class Form1 : Form
                 Arguments = "--urls=http://127.0.0.1:3100"
             };
             Process.Start(psi);
+        }
+        catch { }
+    }
+
+    /// <summary>
+    /// 恢复上次关闭时的窗口尺寸、位置和最大化状态
+    /// </summary>
+    private void RestoreWindowState()
+    {
+        try
+        {
+            if (!File.Exists(_winStatePath)) return;
+            var json = File.ReadAllText(_winStatePath);
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            int w = root.TryGetProperty("width", out var wv) ? wv.GetInt32() : 0;
+            int h = root.TryGetProperty("height", out var hv) ? hv.GetInt32() : 0;
+            int x = root.TryGetProperty("x", out var xv) ? xv.GetInt32() : int.MinValue;
+            int y = root.TryGetProperty("y", out var yv) ? yv.GetInt32() : int.MinValue;
+            bool max = root.TryGetProperty("maximized", out var mv) && mv.GetBoolean();
+
+            if (w > 100 && h > 100)
+            {
+                Width = w;
+                Height = h;
+            }
+
+            if (x != int.MinValue && y != int.MinValue)
+            {
+                // 验证保存的位置仍在某个屏幕可见范围内
+                var pt = new Point(x, y);
+                bool onScreen = false;
+                foreach (var scr in Screen.AllScreens)
+                {
+                    var r = scr.WorkingArea;
+                    if (r.Contains(pt) || r.IntersectsWith(new Rectangle(x, y, Math.Max(w, 200), Math.Max(h, 200))))
+                    {
+                        onScreen = true;
+                        break;
+                    }
+                }
+                if (onScreen)
+                {
+                    StartPosition = FormStartPosition.Manual;
+                    Location = new Point(x, y);
+                }
+            }
+
+            if (max)
+                WindowState = FormWindowState.Maximized;
+        }
+        catch { }
+    }
+
+    /// <summary>
+    /// 保存当前窗口尺寸、位置和最大化状态到配置文件
+    /// </summary>
+    private void SaveWindowState()
+    {
+        try
+        {
+            var dir = Path.GetDirectoryName(_winStatePath)!;
+            if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+
+            // 如果窗口最大化，保存 RestoreBounds（恢复前的尺寸）
+            var bounds = WindowState == FormWindowState.Maximized ? RestoreBounds : new Rectangle(Location, Size);
+            var data = new
+            {
+                width = bounds.Width,
+                height = bounds.Height,
+                x = bounds.X,
+                y = bounds.Y,
+                maximized = WindowState == FormWindowState.Maximized
+            };
+            File.WriteAllText(_winStatePath, JsonSerializer.Serialize(data));
         }
         catch { }
     }

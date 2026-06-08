@@ -54,23 +54,36 @@ export default function App() {
   useEffect(() => { document.body.className = theme; }, [theme]);
 
   // ── 自定义背景 ──
-  const [bg, setBg] = useState({ enabled: false, opacity: 50, maskColor: "black", hasImage: false, url: null });
-  const loadBg = useCallback(() => {
+  const [bg, setBg] = useState(() => {
+    try {
+      const raw = localStorage.getItem("dz_bg");
+      if (raw) { const p = JSON.parse(raw); return { ...p, url: p.hasImage ? "/api/background?" + Date.now() : null }; }
+    } catch {}
+    return { enabled: false, opacity: 50, maskColor: "black", hasImage: false, url: null };
+  });
+  useEffect(() => {
     fetch("/api/background-opts").then(r => r.json()).then(d => {
-      setBg(prev => ({
-        enabled: !!d.enabled, opacity: d.opacity ?? 50, maskColor: d.maskColor || "black", hasImage: !!d.hasImage,
-        url: d.hasImage ? "/api/background?" + Date.now() : null,
-      }));
+      const cfg = { enabled: !!d.enabled, opacity: d.opacity ?? 50, maskColor: d.maskColor || "black", hasImage: !!d.hasImage };
+      localStorage.setItem("dz_bg", JSON.stringify(cfg));
+      setBg({ ...cfg, url: d.hasImage ? "/api/background?" + Date.now() : null });
     }).catch(() => {});
   }, []);
-  useEffect(() => { loadBg(); window.addEventListener("dz-bg-update", loadBg); return () => window.removeEventListener("dz-bg-update", loadBg); }, [loadBg]);
+  const updateBg = useCallback((patch) => {
+    setBg(prev => {
+      const next = { ...prev, ...patch };
+      const { url, ...cfg } = next;
+      localStorage.setItem("dz_bg", JSON.stringify(cfg));
+      if (patch.hasImage !== undefined) next.url = patch.hasImage ? "/api/background?" + Date.now() : null;
+      return next;
+    });
+  }, []);
 
   const bgActive = bg.enabled && bg.hasImage && bg.url;
   const maskAlpha = bgActive ? (1 - bg.opacity / 100).toFixed(2) : 0;
   const maskBg = bgActive ? (bg.maskColor === "white" ? `rgba(255,255,255,${maskAlpha})` : `rgba(0,0,0,${maskAlpha})`) : "transparent";
 
   return (
-    <div className={`${theme} min-h-screen p-3 md:p-4`} style={bgActive ? { background: "transparent" } : undefined}>
+    <div className={`${theme} min-h-screen p-3 md:p-4${bgActive ? " dz-bg-active" : ""}`} style={bgActive ? { background: "transparent" } : undefined}>
       {bgActive && (
         <>
           <div style={{ position: "fixed", inset: 0, zIndex: -2, backgroundImage: `url(${bg.url})`, backgroundSize: "cover", backgroundPosition: "center", backgroundRepeat: "no-repeat" }} />
@@ -78,7 +91,7 @@ export default function App() {
         </>
       )}
       <div className="max-w-[1750px] mx-auto grid grid-cols-1 md:grid-cols-[220px_1fr] gap-4">
-        <aside className="rounded-2xl p-3 flex flex-col gap-4 md:sticky md:top-4 md:self-start md:max-h-[calc(100vh-2rem)]" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+        <aside className="rounded-2xl p-3 flex flex-col gap-4 md:sticky md:top-4 md:self-start md:max-h-[calc(100vh-2rem)] console-panel" style={{ background: bgActive ? "rgba(15,23,42,0.6)" : "var(--card)", border: "1px solid var(--border)", backdropFilter: bgActive ? "blur(16px)" : undefined, WebkitBackdropFilter: bgActive ? "blur(16px)" : undefined }}>
           <div className="rounded-xl p-3" style={{ background: "var(--card-2)" }}>
             <p className="text-xs uppercase tracking-widest" style={{ color: "var(--muted)" }}>DOUZHANZHE</p>
             <p className="text-sm font-semibold mt-1">Douzhanzhe Console</p>
@@ -147,7 +160,8 @@ export default function App() {
           {activeTab === "system" && <SystemInfoPanel />}
           {activeTab === "settings" && (
             <SettingsPanel settings={settings} setSettings={setSettings} uxtuPayload={uxtuPayload}
-              showSwitches={true} showKeyboard={true} showSummary={true} showCredits={true} showAutoStart={true} showBackground={true} />
+              showSwitches={true} showKeyboard={true} showSummary={true} showCredits={true} showAutoStart={true}
+              showBackground={true} bg={bg} updateBg={updateBg} />
           )}
           {activeTab === "fancurve" && <FanCurvePanel telemetry={telemetry} />}
         </main>

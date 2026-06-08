@@ -5,7 +5,7 @@ import SwitchRow from "../ui/SwitchRow";
 import { useToast } from "../ui/Toast";
 import { useState, useEffect, useRef } from "react";
 
-export default function SettingsPanel({ settings, setSettings, uxtuPayload, showSwitches = true, showKeyboard = true, showSummary = true, showSmu = true, showAbout = true, showAutoStart = false, showBackground = false }) {
+export default function SettingsPanel({ settings, setSettings, uxtuPayload, showSwitches = true, showKeyboard = true, showSummary = true, showSmu = true, showAbout = true, showAutoStart = false, showBackground = false, bg, updateBg }) {
   const toast = useToast();
   const [autoStart, setAutoStart] = useState(() => localStorage.getItem("dz_autostart") === "1");
   const [autoStartMinimized, setAutoStartMinimized] = useState(() => localStorage.getItem("dz_autostart_min") === "1");
@@ -53,50 +53,35 @@ export default function SettingsPanel({ settings, setSettings, uxtuPayload, show
 
   // ── 自定义背景 ──
   const fileInputRef = useRef(null);
-  const [bgEnabled, setBgEnabled] = useState(false);
-  const [bgOpacity, setBgOpacity] = useState(50);
-  const [bgMask, setBgMask] = useState("black");
-  const [bgHasImage, setBgHasImage] = useState(false);
-  const [bgPreview, setBgPreview] = useState(null);
+  const bgEnabled = bg?.enabled ?? false;
+  const bgOpacity = bg?.opacity ?? 50;
+  const bgMask = bg?.maskColor ?? "black";
+  const bgHasImage = bg?.hasImage ?? false;
+  const bgPreview = bg?.url ?? null;
 
-  useEffect(() => {
-    if (!showBackground) return;
-    fetch("/api/background-opts")
-      .then(r => r.json())
-      .then(d => {
-        setBgEnabled(!!d.enabled);
-        setBgOpacity(d.opacity ?? 50);
-        setBgMask(d.maskColor || "black");
-        setBgHasImage(!!d.hasImage);
-        if (d.hasImage) setBgPreview("/api/background?" + Date.now());
-      })
-      .catch(() => {});
-  }, [showBackground]);
-
-  const saveBgOpts = (patch) => {
-    fetch("/api/background-opts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patch),
-    }).catch(() => {});
+  const saveBgOpts = async (patch) => {
+    try {
+      await fetch("/api/background-opts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+    } catch { /* ignore */ }
   };
 
-  const handleBgToggle = (v) => {
-    setBgEnabled(v);
-    saveBgOpts({ enabled: v });
-    window.dispatchEvent(new CustomEvent("dz-bg-update"));
+  const handleBgToggle = async (v) => {
+    updateBg({ enabled: v });
+    await saveBgOpts({ enabled: v });
   };
 
-  const handleBgOpacity = (v) => {
-    setBgOpacity(v);
-    saveBgOpts({ opacity: v });
-    window.dispatchEvent(new CustomEvent("dz-bg-update"));
+  const handleBgOpacity = async (v) => {
+    updateBg({ opacity: v });
+    await saveBgOpts({ opacity: v });
   };
 
-  const handleBgMask = (v) => {
-    setBgMask(v);
-    saveBgOpts({ maskColor: v });
-    window.dispatchEvent(new CustomEvent("dz-bg-update"));
+  const handleBgMask = async (v) => {
+    updateBg({ maskColor: v });
+    await saveBgOpts({ maskColor: v });
   };
 
   const handleFileSelect = (e) => {
@@ -106,8 +91,7 @@ export default function SettingsPanel({ settings, setSettings, uxtuPayload, show
     const reader = new FileReader();
     reader.onload = () => {
       const dataUrl = reader.result;
-      setBgPreview(dataUrl);
-      setBgHasImage(true);
+      updateBg({ hasImage: true, url: dataUrl, enabled: true });
       fetch("/api/background", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -116,10 +100,7 @@ export default function SettingsPanel({ settings, setSettings, uxtuPayload, show
         .then(r => r.json())
         .then(d => {
           if (d.ok) {
-            setBgEnabled(true);
-            saveBgOpts({ enabled: true });
             toast?.("背景图片已设置", "success");
-            window.dispatchEvent(new CustomEvent("dz-bg-update"));
           } else {
             toast?.(d.error || "上传失败", "error");
           }
@@ -130,19 +111,17 @@ export default function SettingsPanel({ settings, setSettings, uxtuPayload, show
     e.target.value = "";
   };
 
-  const handleBgDelete = () => {
-    fetch("/api/background", { method: "DELETE" })
-      .then(r => r.json())
-      .then(d => {
-        if (d.ok) {
-          setBgEnabled(false);
-          setBgHasImage(false);
-          setBgPreview(null);
-          toast?.("背景图片已移除", "success");
-          window.dispatchEvent(new CustomEvent("dz-bg-update"));
-        }
-      })
-      .catch(() => toast?.("操作失败", "error"));
+  const handleBgDelete = async () => {
+    try {
+      const r = await fetch("/api/background", { method: "DELETE" });
+      const d = await r.json();
+      if (d.ok) {
+        updateBg({ enabled: false, hasImage: false, url: null });
+        toast?.("背景图片已移除", "success");
+      }
+    } catch {
+      toast?.("操作失败", "error");
+    }
   };
 
   const toggleSetting = (key, value) => {

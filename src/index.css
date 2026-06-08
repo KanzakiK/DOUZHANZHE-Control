@@ -458,3 +458,26 @@ body {
   background: linear-gradient(90deg, transparent, var(--primary-2), transparent);
   opacity: 0.85;
 }
+
+/* ── 卡片基础样式 ── */
+.dz-card {
+  background: var(--card);
+}
+
+/* ── 自定义背景激活时：卡片半透明 + 毛玻璃 ── */
+.dz-bg-active .dz-card {
+  background: rgba(15, 23, 42, 0.6) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+/* ── 自定义背景激活时：侧边栏内部元素半透明 ── */
+.dz-bg-active .console-panel > div {
+  background: rgba(15, 23, 42, 0.5) !important;
+}
+.dz-bg-active .console-panel nav > button {
+  background: rgba(15, 23, 42, 0.5) !important;
+}
+.dz-bg-active .console-panel nav > button[style*="#fff"] {
+  background: rgba(100, 80, 200, 0.7) !important;
+}
