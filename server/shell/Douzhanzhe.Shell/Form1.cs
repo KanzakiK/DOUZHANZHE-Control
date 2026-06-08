@@ -1,5 +1,6 @@
 using Microsoft.Web.WebView2.WinForms;
 using Microsoft.Web.WebView2.Core;
+using System.Diagnostics;
 
 namespace Douzhanzhe.Shell;
 
@@ -123,7 +124,42 @@ public partial class Form1 : Form
         _closeToTray = false;
         _trayIcon.Visible = false;
         _trayIcon.Dispose();
+
+        // 杀掉后端 API 进程（:3100），避免孤儿进程
+        KillProcessOnPort(3100);
+
         Application.Exit();
+    }
+
+    private void KillProcessOnPort(int port)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo("netstat", "-ano")
+            {
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            using var p = Process.Start(psi);
+            if (p == null) return;
+
+            var output = p.StandardOutput.ReadToEnd();
+            p.WaitForExit();
+
+            foreach (var line in output.Split('\n'))
+            {
+                if (line.Contains($":{port}") && line.Contains("LISTENING"))
+                {
+                    var parts = line.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length > 0 && int.TryParse(parts[^1], out var pid) && pid > 0)
+                    {
+                        try { Process.GetProcessById(pid).Kill(); } catch { }
+                    }
+                }
+            }
+        }
+        catch { }
     }
 
     protected override void Dispose(bool disposing)

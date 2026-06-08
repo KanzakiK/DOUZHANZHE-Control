@@ -13,7 +13,7 @@
 | 服务 | 端口 | 技术 | 职责 |
 |------|------|------|------|
 | C# HAL API | :3100 | .NET 8 Minimal API | 遥测、硬件控制、WebSocket、SMU、Debug、配置持久化、开机自启 |
-| Douzhanzhe.Shell | — | WinForms + WebView2 | 桌面壳，系统托盘最小化；`server/shell/` |
+| Douzhanzhe.Shell | — | WinForms + WebView2 | 桌面壳，系统托盘最小化，退出时自动杀掉后端 API 进程（`KillProcessOnPort(3100)`）；`server/shell/` |
 
 ### Vite 代理分流（已废弃）
 

@@ -13,6 +13,7 @@
 
 | 日期 | 会话主题 |
 |:-----|:--------|
+| 2026-06-08 | [桌面壳退出清理后端进程](#2026-06-08-桌面壳退出清理后端进程) |
 | 2026-06-07 | [NVAPI GPU 控制 + 蛟龙 KaronOC 超频引擎集成](#2026-06-07-NVAPI-GPU-控制-蛟龙-KaronOC-超频引擎集成) |
 | 2026-06-07 | [SMU修复+WinRing0自动加载+模式切换双发+部署修复](#2026-06-07-SMU修复WinRing0自动加载模式切换双发部署修复) |
 | 2026-06-07 | [GSD 流程清理](#GSD-流程清理) |
@@ -26,6 +27,13 @@
 | 2026-06-06 | [主记忆 §3/§4 追加近期摘要](#主记忆-34-追加近期摘要) |
 | 2026-06-06 | [Vite Dev Server 废弃 + 架构简化](#Vite-Dev-Server-废弃-架构简化) |
 | ... | [共 20 条](#完整列表) |
+
+---
+
+## 2026-06-08 (桌面壳退出清理后端进程)
+- **问题**: Shell 退出（托盘右键"退出"）只调用 `Application.Exit()`，后端 API 进程 (:3100) 成为孤儿继续运行
+- **修复**: `ExitApp()` 新增 `KillProcessOnPort(3100)` 调用，通过 `netstat -ano` 找到监听端口的 PID 并 Kill
+- **文件**: `server/shell/Douzhanzhe.Shell/Form1.cs` — 新增 `KillProcessOnPort(int port)` 方法 + `using System.Diagnostics`
 
 ---
 
