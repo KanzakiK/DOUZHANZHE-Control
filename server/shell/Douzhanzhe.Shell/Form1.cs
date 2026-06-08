@@ -69,6 +69,9 @@ public partial class Form1 : Form
             Hide();
         }
 
+        // 启动后端 API（如果尚未运行）
+        StartApiIfNotRunning();
+
         // 先初始化 WebView2
         await _webView.EnsureCoreWebView2Async();
 
@@ -158,6 +161,52 @@ public partial class Form1 : Form
                     }
                 }
             }
+        }
+        catch { }
+    }
+
+    private bool IsPortListening(int port)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo("netstat", "-ano")
+            {
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            using var p = Process.Start(psi);
+            if (p == null) return false;
+            var output = p.StandardOutput.ReadToEnd();
+            p.WaitForExit();
+            foreach (var line in output.Split('\n'))
+            {
+                if (line.Contains($":{port}") && line.Contains("LISTENING"))
+                    return true;
+            }
+        }
+        catch { }
+        return false;
+    }
+
+    private void StartApiIfNotRunning()
+    {
+        if (IsPortListening(3100)) return;
+
+        var baseDir = AppContext.BaseDirectory;
+        var apiExe = Path.Combine(baseDir, "Douzhanzhe.API.exe");
+        if (!File.Exists(apiExe)) return;
+
+        try
+        {
+            var psi = new ProcessStartInfo(apiExe)
+            {
+                WorkingDirectory = baseDir,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                WindowStyle = ProcessWindowStyle.Hidden
+            };
+            Process.Start(psi);
         }
         catch { }
     }
