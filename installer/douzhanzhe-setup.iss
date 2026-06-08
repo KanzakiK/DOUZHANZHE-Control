@@ -21,6 +21,10 @@
 #define DotNetRuntimeUrl "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/8.0.27/windowsdesktop-runtime-8.0.27-win-x64.exe"
 #define DotNetRuntimeFileName "windowsdesktop-runtime-8.0.27-win-x64.exe"
 
+; ASP.NET Core 8 Runtime x64 下载链接
+#define AspNetRuntimeUrl "https://builds.dotnet.microsoft.com/dotnet/aspnetcore/Runtime/8.0.16/dotnet-hosting-8.0.16-win.exe"
+#define AspNetRuntimeFileName "dotnet-hosting-8.0.16-win.exe"
+
 ; WebView2 Evergreen Bootstrapper
 #define WebView2Url "https://go.microsoft.com/fwlink/p/?LinkId=2124703"
 #define WebView2FileName "MicrosoftEdgeWebview2Setup.exe"
@@ -54,6 +58,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 var
   DownloadPage: TDownloadWizardPage;
   NeedDotNet: Boolean;
+  NeedAspNetCore: Boolean;
   NeedWebView2: Boolean;
 
 function IsDotNet8DesktopInstalled(): Boolean;
@@ -102,18 +107,51 @@ begin
     if Version <> '' then begin Result := True; Exit; end;
 end;
 
+function IsAspNetCore8Installed(): Boolean;
+var
+  Installed: Cardinal;
+  Version: String;
+  FindRec: TFindRec;
+  AspNetDir: String;
+begin
+  Result := False;
+
+  // 检查注册表: Hosting Bundle 或独立 ASP.NET Core Runtime 会写入此键
+  if RegQueryDWordValue(HKLM64, 'SOFTWARE\dotnet\Setup\InstalledVersions\x64', 'Microsoft.AspNetCore.App', Installed) then
+    if Installed = 1 then begin Result := True; Exit; end;
+
+  // 磁盘文件回退 — 扫描 8.0.* 子目录
+  AspNetDir := ExpandConstant('{commonpf}\dotnet\shared\Microsoft.AspNetCore.App');
+  if FindFirst(AspNetDir + '\*', FindRec) then
+  begin
+    repeat
+      if (FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY <> 0) and
+         (Length(FindRec.Name) > 2) and (FindRec.Name[1] = '8') and (FindRec.Name[2] = '.') then
+      begin
+        Result := True;
+        Break;
+      end;
+    until not FindNext(FindRec);
+    FindClose(FindRec);
+  end;
+end;
+
 procedure InitializeWizard();
 begin
   NeedDotNet := not IsDotNet8DesktopInstalled();
+  NeedAspNetCore := not IsAspNetCore8Installed();
   NeedWebView2 := not IsWebView2Installed();
 
-  if NeedDotNet or NeedWebView2 then
+  if NeedDotNet or NeedAspNetCore or NeedWebView2 then
   begin
     DownloadPage := CreateDownloadPage(SetupMessage(msgWizardPreparing), SetupMessage(msgPreparingDesc), nil);
     DownloadPage.ShowBaseNameInsteadOfUrl := True;
 
     if NeedDotNet then
       DownloadPage.Add('{#DotNetRuntimeUrl}', '{#DotNetRuntimeFileName}', '');
+
+    if NeedAspNetCore then
+      DownloadPage.Add('{#AspNetRuntimeUrl}', '{#AspNetRuntimeFileName}', '');
 
     if NeedWebView2 then
       DownloadPage.Add('{#WebView2Url}', '{#WebView2FileName}', '');
@@ -149,6 +187,17 @@ begin
         if not Exec(RuntimePath, '/install /quiet /norestart', '', SW_SHOW, ewWaitUntilTerminated, ResultCode) then
           SuppressibleMsgBox('安装 .NET 8 运行时失败 (错误码: ' + IntToStr(ResultCode) + ')。' + #13#10 +
                              '请手动从 https://dotnet.microsoft.com/download/dotnet/8.0 下载安装。',
+                             mbError, MB_OK, IDOK);
+      end;
+
+      // 安装 ASP.NET Core 8 Runtime (Hosting Bundle 包含 ASP.NET Core + .NET Runtime)
+      if NeedAspNetCore then
+      begin
+        DownloadPage.SetText('正在安装 ASP.NET Core 运行时...', '');
+        RuntimePath := ExpandConstant('{tmp}\{#AspNetRuntimeFileName}');
+        if not Exec(RuntimePath, '/install /quiet /norestart', '', SW_SHOW, ewWaitUntilTerminated, ResultCode) then
+          SuppressibleMsgBox('安装 ASP.NET Core 运行时失败 (错误码: ' + IntToStr(ResultCode) + ')。' + #13#10 +
+                             '请手动从 https://dotnet.microsoft.com/download/dotnet/8.0 下载安装 Hosting Bundle。',
                              mbError, MB_OK, IDOK);
       end;
 
