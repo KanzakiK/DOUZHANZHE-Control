@@ -127,10 +127,31 @@ if (Test-Path $SysInfoPs1) {
 }
 
 $size = (Get-ChildItem -Recurse $ApiDir | Measure-Object -Property Length -Sum).Sum / 1MB
-Write-Host "  合并完成，总大�? $([math]::Round($size, 1)) MB" -ForegroundColor Green
+Write-Host "  合并完成，总大小：$([math]::Round($size, 1)) MB" -ForegroundColor Green
 
-# ── 6. 编译安装�?──
-Write-Host "[6/6] 编译 Inno Setup 安装�?.." -ForegroundColor Cyan
+# ── 5.5. 验证前端版本号 ──
+Write-Host "[5.5/6] 验证前端版本号..." -ForegroundColor Cyan
+$WwwRoot = Join-Path $ApiDir "wwwroot"
+$JsFile = Get-ChildItem (Join-Path $WwwRoot "assets") -Filter "index-*.js" | Select-Object -First 1
+if ($JsFile) {
+    $JsContent = Get-Content $JsFile.FullName -Raw -Encoding UTF8
+    if ($JsContent -match 'Douzhanzhe Console v(\d+\.\d+\.\d+)') {
+        $DetectedVersion = $matches[1]
+        if ($Version -and $DetectedVersion -ne $Version) {
+            Write-Host "  错误：前端版本号 $DetectedVersion 与预期 $Version 不一致！" -ForegroundColor Red
+            exit 1
+        }
+        Write-Host "  前端版本号：v$DetectedVersion ✅" -ForegroundColor Green
+    } else {
+        Write-Host "  警告：未在前端文件中找到版本号" -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "  错误：未找到前端 index.js 文件" -ForegroundColor Red
+    exit 1
+}
+
+# ── 6. 编译安装?──
+Write-Host "[6/6] 编译 Inno Setup 安装?.." -ForegroundColor Cyan
 $IssFile = Join-Path $PSScriptRoot_Fallback "douzhanzhe-setup.iss"
 & $ISCC $IssFile
 if ($LASTEXITCODE -ne 0) {
