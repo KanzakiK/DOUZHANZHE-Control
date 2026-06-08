@@ -87,13 +87,31 @@ public partial class Form1 : Form
         StartApiIfNotRunning();
 
         // 初始化 WebView2 — 用户数据目录放在 %LOCALAPPDATA% 下，避免 Program Files 写入权限问题
+        var userDataDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Douzhanzhe Console", "WebView2");
+
+        // 启动时清除旧缓存（防止前端更新后 WebView2 缓存旧版本）
+        try
+        {
+            if (Directory.Exists(userDataDir))
+            {
+                // 删除缓存子目录，但保留根目录结构
+                var cacheDirs = new[] { "Cache", "Code Cache", "GPUCache", "Service Worker", "Storage" };
+                foreach (var sub in cacheDirs)
+                {
+                    var dir = Path.Combine(userDataDir, sub);
+                    if (Directory.Exists(dir))
+                        Directory.Delete(dir, true);
+                }
+            }
+        }
+        catch { /* 清除缓存失败不影响启动 */ }
+
         bool webViewOk = false;
         string webViewError = "";
         try
         {
-            var userDataDir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "Douzhanzhe Console", "WebView2");
             var envTask = CoreWebView2Environment.CreateAsync(null, userDataDir);
             // 15 秒超时，防止初始化卡死
             if (await System.Threading.Tasks.Task.WhenAny(envTask, System.Threading.Tasks.Task.Delay(15000)) == envTask)
