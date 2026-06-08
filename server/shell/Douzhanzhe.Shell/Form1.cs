@@ -87,29 +87,45 @@ public partial class Form1 : Form
         StartApiIfNotRunning();
 
         // 初始化 WebView2 — 用户数据目录放在 %LOCALAPPDATA% 下，避免 Program Files 写入权限问题
+        bool webViewOk = false;
         try
         {
             var userDataDir = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "Douzhanzhe Console", "WebView2");
-            var env = await CoreWebView2Environment.CreateAsync(null, userDataDir);
-            await _webView.EnsureCoreWebView2Async(env);
+            var envTask = CoreWebView2Environment.CreateAsync(null, userDataDir);
+            // 15 秒超时，防止初始化卡死
+            if (await System.Threading.Tasks.Task.WhenAny(envTask, System.Threading.Tasks.Task.Delay(15000)) == envTask)
+            {
+                var env = await envTask;
+                var initTask = _webView.EnsureCoreWebView2Async(env);
+                if (await System.Threading.Tasks.Task.WhenAny(initTask, System.Threading.Tasks.Task.Delay(15000)) == initTask)
+                {
+                    await initTask; // 传播可能的异常
+                    webViewOk = true;
+                }
+            }
         }
-        catch (Exception ex)
+        catch { }
+
+        if (!webViewOk)
         {
-            // WebView2 初始化失败 — 用内置 HTML 显示错误信息
+            // WebView2 初始化失败或超时 — 用 WinForms Label 显示错误
             _webView.Dispose();
-            var errorHtml = $@"<!DOCTYPE html><html><head><meta charset='utf-8'><title>Error</title>
-<style>body{{background:#0d1117;color:#c9d1d9;font:16px/1.6 system-ui;padding:40px;max-width:700px;margin:0 auto}}
-h1{{color:#f85149;font-size:20px}}pre{{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:16px;overflow:auto;color:#f0883e}}
-a{{color:#58a6ff}}</style></head><body>
-<h1>WebView2 初始化失败</h1>
-<p>界面引擎无法启动，请确认已安装 <a href='https://developer.microsoft.com/zh-cn/microsoft-edge/webview2/'>Microsoft Edge WebView2 Runtime</a>。</p>
-<pre>{System.Net.WebUtility.HtmlEncode(ex.Message)}</pre>
-</body></html>";
-            var tmpHtml = Path.Combine(Path.GetTempPath(), "douzhanzhe_error.html");
-            File.WriteAllText(tmpHtml, errorHtml);
-            Controls.Add(new WebBrowser { Dock = DockStyle.Fill, Url = new Uri(tmpHtml) });
+            var lbl = new Label
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Color.FromArgb(13, 17, 23),
+                ForeColor = Color.FromArgb(201, 209, 217),
+                Font = new Font("Microsoft YaHei UI", 14f),
+                Padding = new Padding(40),
+                AutoSize = false,
+                Text = "界面引擎初始化失败\n\n" +
+                       "请确认已安装 Microsoft Edge WebView2 Runtime：\n" +
+                       "https://developer.microsoft.com/zh-cn/microsoft-edge/webview2/\n\n" +
+                       "安装后重启本程序即可。"
+            };
+            Controls.Add(lbl);
             return;
         }
 
