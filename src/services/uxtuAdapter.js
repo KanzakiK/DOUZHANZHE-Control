@@ -136,11 +136,11 @@ const FAN_RANGES = {
 
 // 完整模式预设：CPU + GPU 功耗 + 风扇 (11 字段)
 export const MODE_PRESETS = {
-  silent: { cpuTempLimitC: 75, cpuLongPptW: 35, cpuShortPptW: 45, cpuVoltageOffset: 0, cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 3000, cpuTurboDisabled: false, gpuPptLimitW: 60, gpuTempLimitC: 75, fanLargeRpmTarget: 2200, fanSmallRpmTarget: 2000 },
-  office: { cpuTempLimitC: 80, cpuLongPptW: 55, cpuShortPptW: 70, cpuVoltageOffset: 0, cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 4500, cpuTurboDisabled: false, gpuPptLimitW: 75, gpuTempLimitC: 85, fanLargeRpmTarget: 2900, fanSmallRpmTarget: 6400 },
-  gaming: { cpuTempLimitC: 95, cpuLongPptW: 120, cpuShortPptW: 140, cpuVoltageOffset: 0, cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 5500, cpuTurboDisabled: false, gpuPptLimitW: 115, gpuTempLimitC: 95, fanLargeRpmTarget: 4300, fanSmallRpmTarget: 8000 },
-  beast:  { cpuTempLimitC: 88, cpuLongPptW: 85, cpuShortPptW: 100, cpuVoltageOffset: 0, cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 5000, cpuTurboDisabled: false, gpuPptLimitW: 100, gpuTempLimitC: 90, fanLargeRpmTarget: 3500, fanSmallRpmTarget: 6900 },
-  custom: { cpuTempLimitC: 80, cpuLongPptW: 55, cpuShortPptW: 70, cpuVoltageOffset: 0, cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 4500, cpuTurboDisabled: false, gpuPptLimitW: 75, gpuTempLimitC: 85, fanLargeRpmTarget: 2900, fanSmallRpmTarget: 6400 },
+  silent: { cpuTempLimitC: 75, cpuLongPptW: 35, cpuShortPptW: 45, cpuVoltageOffset: 0, cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 3000, cpuTurboDisabled: false, gpuPptLimitW: 60, gpuTempLimitC: 75, gpuCoreOffsetMhz: 0, gpuMemOffsetMhz: 0, fanLargeRpmTarget: 2200, fanSmallRpmTarget: 2000 },
+  office: { cpuTempLimitC: 80, cpuLongPptW: 55, cpuShortPptW: 70, cpuVoltageOffset: 0, cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 4500, cpuTurboDisabled: false, gpuPptLimitW: 75, gpuTempLimitC: 85, gpuCoreOffsetMhz: 0, gpuMemOffsetMhz: 0, fanLargeRpmTarget: 2900, fanSmallRpmTarget: 6400 },
+  gaming: { cpuTempLimitC: 95, cpuLongPptW: 120, cpuShortPptW: 140, cpuVoltageOffset: 0, cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 5500, cpuTurboDisabled: false, gpuPptLimitW: 115, gpuTempLimitC: 95, gpuCoreOffsetMhz: 200, gpuMemOffsetMhz: 0, fanLargeRpmTarget: 4300, fanSmallRpmTarget: 8000 },
+  beast:  { cpuTempLimitC: 88, cpuLongPptW: 85, cpuShortPptW: 100, cpuVoltageOffset: 0, cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 5000, cpuTurboDisabled: false, gpuPptLimitW: 100, gpuTempLimitC: 90, gpuCoreOffsetMhz: 100, gpuMemOffsetMhz: 0, fanLargeRpmTarget: 3500, fanSmallRpmTarget: 6900 },
+  custom: { cpuTempLimitC: 80, cpuLongPptW: 55, cpuShortPptW: 70, cpuVoltageOffset: 0, cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 4500, cpuTurboDisabled: false, gpuPptLimitW: 75, gpuTempLimitC: 85, gpuCoreOffsetMhz: 0, gpuMemOffsetMhz: 0, fanLargeRpmTarget: 2900, fanSmallRpmTarget: 6400 },
 };
 
 export function getFanRange(mode) {

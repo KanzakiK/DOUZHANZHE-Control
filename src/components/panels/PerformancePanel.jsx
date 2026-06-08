@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { MODE_PRESETS, applyUxtuLimits, applySmuSet, applyHardwareControl, powerPlanHALMap, applyGpuControl, applyNvapiOverclock, applyNvapiThermalLimit, fetchNvapiStatus, fetchSmuInfo, fetchCpuPowerStatus, setCpuFreqLimit, setCpuTurbo, setCpuCoreLimitPercent, resetCpuPower } from "../../services/uxtuAdapter";
+import { MODE_PRESETS, applyUxtuLimits, applySmuSet, applyHardwareControl, powerPlanHALMap, applyGpuControl, applyNvapiOverclock, applyNvapiThermalLimit, fetchNvapiStatus, fetchCpuPowerStatus, setCpuFreqLimit, setCpuTurbo, setCpuCoreLimitPercent, resetCpuPower } from "../../services/uxtuAdapter";
 import Card from "../ui/Card";
 import SliderRow from "../ui/SliderRow";
 import { useToast } from "../ui/Toast";
@@ -14,8 +14,6 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
   const toast = useToast();
   const [isApplying, setIsApplying] = useState(false);
   const [applyMessage, setApplyMessage] = useState("");
-  const [smuInfo, setSmuInfo] = useState(null);
-  const [smuError, setSmuError] = useState(false);
   const [cpuPowerStatus, setCpuPowerStatus] = useState(null);
   const [ocCoreOffset, setOcCoreOffset] = useState(0);
   const [ocMemOffset, setOcMemOffset] = useState(0);
@@ -114,18 +112,6 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
   }
   const paramsLocked = false;
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchSmuInfo()
-        .then((data) => {
-          if (data.ok) setSmuInfo(data.data);
-          setSmuError(false);
-        })
-        .catch(() => setSmuError(true));
-    }, 3000);
-    return () => clearTimeout(timer);
-  }, []);
-
   // 加载 CPU 电源控制状态 (powercfg)
   useEffect(() => {
     fetchCpuPowerStatus()
@@ -162,6 +148,17 @@ export default function PerformancePanel({ settings, setSettings, uxtuParams, se
     const handler = (e) => setThermalLimit(e.detail);
     window.addEventListener("gpu-thermal-updated", handler);
     return () => window.removeEventListener("gpu-thermal-updated", handler);
+  }, []);
+
+  // 监听模式切换联动的 GPU 核心/显存偏移更新
+  useEffect(() => {
+    const handler = (e) => {
+      const { core, mem } = e.detail;
+      if (core !== undefined) setOcCoreOffset(core);
+      if (mem !== undefined) setOcMemOffset(mem);
+    };
+    window.addEventListener("gpu-oc-updated", handler);
+    return () => window.removeEventListener("gpu-oc-updated", handler);
   }, []);
 
 

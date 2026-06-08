@@ -8,7 +8,7 @@ import Gauge from "./components/ui/Gauge";
 import SortableDashboard from "./components/SortableDashboard";
 import { ToastProvider, useToast } from "./components/ui/Toast";
 import { useControlState } from "./hooks/useControlState";
-import { MODE_PRESETS, applyUxtuLimits, applyHardwareControl, applyGpuControl, applyNvapiThermalLimit, thermalModeMap } from "./services/uxtuAdapter";
+import { MODE_PRESETS, applyUxtuLimits, applyHardwareControl, applyGpuControl, applyNvapiThermalLimit, applyNvapiOverclock, thermalModeMap } from "./services/uxtuAdapter";
 import { useCallback, useState, useEffect, useRef } from "react";
 
 const NAV_ITEMS = ["主页", "系统", "设置"];
@@ -118,6 +118,11 @@ export default function App() {
                 var gpuTemp = Math.min(p.gpuTempLimitC || 75, 87);
                 window.dispatchEvent(new CustomEvent("gpu-thermal-updated", { detail: gpuTemp }));
                 applyNvapiThermalLimit(gpuTemp).catch(function(e){});
+                // GPU 核心/显存偏移: 乐观更新 UI + 异步下发
+                var coreOff = p.gpuCoreOffsetMhz || 0;
+                var memOff = p.gpuMemOffsetMhz || 0;
+                window.dispatchEvent(new CustomEvent("gpu-oc-updated", { detail: { core: coreOff, mem: memOff } }));
+                applyNvapiOverclock(coreOff, memOff).catch(function(e){});
                 // SMU + EC 散热模式
                 applyUxtuLimits({ chipset: "Ryzen 9 8940HX", profile: mode.id, params: p }).catch(function(e){});
                 if (tv !== null && tv !== undefined) applyHardwareControl("thermal_mode", tv).catch(function(e){});
