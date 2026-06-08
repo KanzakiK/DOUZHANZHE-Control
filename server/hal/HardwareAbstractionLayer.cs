@@ -46,7 +46,6 @@ public sealed class HardwareAbstractionLayer : IDisposable
     public const ushort FanLargeMax = 4400;
     public const ushort FanSmallMax = 8200;
 
-
     public HardwareAbstractionLayer()
     {
         _io = DriverBridge.Instance;
@@ -136,7 +135,6 @@ public sealed class HardwareAbstractionLayer : IDisposable
             PowerSetActiveScheme(IntPtr.Zero, ref g);
         }
     }
-
 
     // ================================================================
     // 遥测 — 只读属性
@@ -449,7 +447,6 @@ public sealed class HardwareAbstractionLayer : IDisposable
 
     /// <summary>通过 EC IO 协议写入寄存器 (备选方法)</summary>
     public void WriteEcPort(byte reg, byte val) => _io.WriteEc(reg, val);
-    
 
     // ================================================================
     // 系统信息 (WMI 子进程)
@@ -583,24 +580,14 @@ public sealed class HardwareAbstractionLayer : IDisposable
     {
         get
         {
-            if ((DateTime.UtcNow - _sgCpuTime).TotalSeconds < 2 && _sgCpuPct > 0) return _sgCpuPct;
+            if ((DateTime.UtcNow - _sgCpuTime).TotalSeconds < 1 && _sgCpuPct > 0) return _sgCpuPct;
             try
             {
-                using var p = new Process
-                {
-                    StartInfo = new ProcessStartInfo
-                    {
-                        FileName = "powershell",
-                        Arguments = "-NoProfile -Command \"(Get-CimInstance Win32_PerfFormattedData_PerfOS_Processor | Where-Object Name -eq '_Total').PercentProcessorTime\"",
-                        UseShellExecute = false,
-                        RedirectStandardOutput = true,
-                        CreateNoWindow = true
-                    }
-                };
-                p.Start();
-                if (!p.WaitForExit(3000)) { p.Kill(); return _sgCpuPct; }
-                var line = p.StandardOutput.ReadToEnd().Trim();
-                if (int.TryParse(line, out var v) && v > 0 && v <= 100)
+                using var pc = new System.Diagnostics.PerformanceCounter("Processor", "% Processor Time", "_Total");
+                pc.NextValue();
+                System.Threading.Thread.Sleep(200);
+                var v = (int)Math.Round(pc.NextValue());
+                if (v >= 0 && v <= 100)
                 {
                     _sgCpuPct = v;
                     _sgCpuTime = DateTime.UtcNow;
@@ -629,21 +616,11 @@ public sealed class HardwareAbstractionLayer : IDisposable
             return _cpuFreqCache;
         try
         {
-            using var p = new Process
-            {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = "powershell",
-                    Arguments = "-NoProfile -Command \"(Get-CimInstance Win32_PerfFormattedData_Counters_ProcessorInformation | Where-Object Name -eq '_Total').PercentProcessorPerformance\"",
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    CreateNoWindow = true
-                }
-            };
-            p.Start();
-            if (!p.WaitForExit(3000)) { p.Kill(); return _cpuFreqCache > 0 ? _cpuFreqCache : 2.4f; }
-            var line = p.StandardOutput.ReadToEnd().Trim();
-            if (float.TryParse(line, out var pct) && pct > 0)
+            using var pc = new System.Diagnostics.PerformanceCounter("Processor Information", "% Processor Performance", "_Total");
+            pc.NextValue();
+            System.Threading.Thread.Sleep(200);
+            var pct = pc.NextValue();
+            if (pct > 0)
             {
                 _cpuFreqCache = (float)(2.4 * (pct / 100.0));
                 _cpuFreqTime = DateTime.UtcNow;

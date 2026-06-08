@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <PackageReference Include="System.Management" Version="*" />
+    <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="*" />
   </ItemGroup>
 
 </Project>
