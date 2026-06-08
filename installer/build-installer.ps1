@@ -101,7 +101,8 @@ $ToolsDir = Join-Path $Root "server\tools"
 # 复制 Shell �?API 目录
 Copy-Item -Path (Join-Path $ShellDir "*") -Destination $ApiDir -Recurse -Force
 
-# 复制运行时工�?$ToolFiles = @("ryzenadj.exe", "WinRing0x64.dll", "WinRing0x64.sys")
+# 复制运行时工具
+$ToolFiles = @("ryzenadj.exe", "WinRing0x64.dll", "WinRing0x64.sys")
 foreach ($f in $ToolFiles) {
     $src = Join-Path $ToolsDir $f
     if (Test-Path $src) {
@@ -112,7 +113,8 @@ foreach ($f in $ToolFiles) {
     }
 }
 
-# 复制 sysinfo-ext.ps1（不�?publish 输出中，需手动复制�?$SysInfoPs1 = Join-Path $Root "server\api\sysinfo-ext.ps1"
+# 复制 sysinfo-ext.ps1（不在 publish 输出中，需手动复制）
+$SysInfoPs1 = Join-Path $Root "server\api\sysinfo-ext.ps1"
 if (Test-Path $SysInfoPs1) {
     Copy-Item $SysInfoPs1 $ApiDir -Force
     Write-Host "  已复�? sysinfo-ext.ps1" -ForegroundColor Green
