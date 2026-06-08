@@ -9,11 +9,11 @@ import {
 } from "../../services/uxtuAdapter";
 
 // ── 图表常量 ──
-const W = 700, H = 400;
-const PL = 58, PR = 18, PT = 18, PB = 38;
+const W = 700, H = 380;
+const PL = 52, PR = 18, PT = 18, PB = 36;
 const CW = W - PL - PR;
 const CH = H - PT - PB;
-const T_MIN = 30, T_MAX = 100;
+const T_MIN = 40, T_MAX = 105;
 const RPM_MAX = 8400;
 
 // 默认曲线 (对齐 BellatorFanControl LoadDefaultCurve)
@@ -218,7 +218,7 @@ export default function FanCurvePanel({ telemetry }) {
   // ══════════════════════════════════════
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" style={{ maxWidth: 900 }}>
       {/* ── 曲线图 ── */}
       <Card
         title="散热曲线"
@@ -239,7 +239,7 @@ export default function FanCurvePanel({ telemetry }) {
           ref={svgRef}
           viewBox={`0 0 ${W} ${H}`}
           className="w-full select-none"
-          style={{ cursor: dragRef.current ? "grabbing" : "default", maxHeight: 420 }}
+          style={{ cursor: dragRef.current ? "grabbing" : "default" }}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
@@ -261,8 +261,8 @@ export default function FanCurvePanel({ telemetry }) {
               </g>
             );
           })}
-          {/* X 轴 (每 10°C) */}
-          {Array.from({ length: 8 }, (_, i) => T_MIN + i * 10).map((t) => {
+          {/* X 轴 (每 10°C: 40, 50, ..., 100) */}
+          {[40, 50, 60, 70, 80, 90, 100].map((t) => {
             const x = tX(t);
             return (
               <g key={`gx-${t}`}>
