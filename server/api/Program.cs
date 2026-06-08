@@ -24,8 +24,15 @@ app.UseDefaultFiles();
 app.UseStaticFiles();
 app.MapFallbackToFile("index.html");
 // ---- Config directory (shared with Node.js) ----
-// 统一使用 AppContext.BaseDirectory 解析，无论工作目录如何都能定位到 server/api/config/
-var configDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "config"));
+// 安装环境: AppContext.BaseDirectory\config\
+// 开发环境: BaseDirectory\bin\build\ → 需要回退到项目根目录\config\
+var configDir = Path.Combine(AppContext.BaseDirectory, "config");
+if (!Directory.Exists(configDir))
+{
+    var devConfig = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "config"));
+    if (Directory.Exists(devConfig))
+        configDir = devConfig;
+}
 Directory.CreateDirectory(configDir);
 // ---- JSON persistence helpers ----
 T JsonRead<T>(string fileName, T fallback) where T : class

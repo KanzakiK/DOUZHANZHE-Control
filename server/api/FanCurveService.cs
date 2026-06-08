@@ -63,9 +63,13 @@ public sealed class FanCurveService : IDisposable
         _log = log;
 
         // 定位 config 目录（与 Program.cs 逻辑一致）
-        _configDir = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "..", "config"));
+        _configDir = Path.Combine(AppContext.BaseDirectory, "config");
         if (!Directory.Exists(_configDir))
-            _configDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "config"));
+        {
+            var devConfig = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "config"));
+            if (Directory.Exists(devConfig))
+                _configDir = devConfig;
+        }
         Directory.CreateDirectory(_configDir);
     }
 
