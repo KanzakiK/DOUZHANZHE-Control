@@ -91,7 +91,7 @@ export default function App() {
         </>
       )}
       <div className="max-w-[1750px] mx-auto grid grid-cols-1 md:grid-cols-[220px_1fr] gap-4">
-        <aside className="rounded-2xl p-3 flex flex-col gap-4 md:sticky md:top-4 md:self-start md:max-h-[calc(100vh-2rem)] console-panel" style={{ background: bgActive ? "rgba(15,23,42,0.6)" : "var(--card)", border: "1px solid var(--border)", backdropFilter: bgActive ? "blur(16px)" : undefined, WebkitBackdropFilter: bgActive ? "blur(16px)" : undefined }}>
+        <aside className="rounded-2xl p-3 flex flex-col gap-4 md:sticky md:top-4 md:self-start md:max-h-[calc(100vh-2rem)] console-panel" style={{ border: "1px solid var(--border)" }}>
           <div className="rounded-xl p-3" style={{ background: "var(--card-2)" }}>
             <p className="text-xs uppercase tracking-widest" style={{ color: "var(--muted)" }}>DOUZHANZHE</p>
             <p className="text-sm font-semibold mt-1">Douzhanzhe Console</p>

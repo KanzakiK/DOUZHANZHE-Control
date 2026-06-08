@@ -464,20 +464,32 @@ body {
   background: var(--card);
 }
 
+/* ── 侧边栏基础样式 ── */
+.console-panel {
+  background: var(--card);
+}
+
 /* ── 自定义背景激活时：卡片半透明 + 毛玻璃 ── */
 .dz-bg-active .dz-card {
-  background: rgba(15, 23, 42, 0.6) !important;
+  background: color-mix(in srgb, var(--card) 60%, transparent) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+/* ── 自定义背景激活时：侧边栏半透明 + 毛玻璃 ── */
+.dz-bg-active .console-panel {
+  background: color-mix(in srgb, var(--card) 60%, transparent) !important;
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
 }
 
 /* ── 自定义背景激活时：侧边栏内部元素半透明 ── */
 .dz-bg-active .console-panel > div {
-  background: rgba(15, 23, 42, 0.5) !important;
+  background: color-mix(in srgb, var(--card-2) 60%, transparent) !important;
 }
 .dz-bg-active .console-panel nav > button {
-  background: rgba(15, 23, 42, 0.5) !important;
+  background: color-mix(in srgb, var(--card-2) 60%, transparent) !important;
 }
-.dz-bg-active .console-panel nav > button[style*="#fff"] {
-  background: rgba(100, 80, 200, 0.7) !important;
+.dz-bg-active .console-panel select {
+  background: color-mix(in srgb, var(--card-2) 60%, transparent) !important;
 }
