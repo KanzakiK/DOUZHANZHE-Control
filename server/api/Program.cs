@@ -220,12 +220,10 @@ app.MapGet("/api/system/info-ext", () =>
             StartInfo = new System.Diagnostics.ProcessStartInfo
             {
                 FileName = "powershell",
-                Arguments = $"-NoProfile -ExecutionPolicy Bypass -Command \"$OutputEncoding = [System.Text.Encoding]::UTF8; [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & '{scriptPath}'\"",
+                Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\"",
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true,
-                StandardOutputEncoding = System.Text.Encoding.UTF8
+                CreateNoWindow = true
             }
         };
         p.Start();
