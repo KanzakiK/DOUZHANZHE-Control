@@ -204,7 +204,7 @@ var _sysInfoExtTime = DateTime.MinValue;
 app.MapGet("/api/system/info-ext", () =>
 {
     if ((DateTime.UtcNow - _sysInfoExtTime).TotalSeconds < 60 && !string.IsNullOrEmpty(_sysInfoExtCache))
-        return Results.Content(_sysInfoExtCache, "application/json");
+        return Results.Content(_sysInfoExtCache, "application/json; charset=utf-8");
     try
     {
         // bin/<config>/net8.0/ → project root (up 3), or bin/run/ or bin/build/ → project root (up 2)
@@ -234,7 +234,7 @@ app.MapGet("/api/system/info-ext", () =>
             _sysInfoExtCache = json;
             _sysInfoExtTime = DateTime.UtcNow;
         }
-        return Results.Content(_sysInfoExtCache, "application/json");
+        return Results.Content(_sysInfoExtCache, "application/json; charset=utf-8");
     }
     catch (Exception ex)
     {
