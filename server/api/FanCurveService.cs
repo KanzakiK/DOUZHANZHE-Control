@@ -115,7 +115,12 @@ public sealed class FanCurveService : IDisposable
             int gpuTemp = _hal.GpuTemperature;
             int hotspot = Math.Max(cpuTemp, gpuTemp);
 
-            if (hotspot <= 0) return; // 温度无效
+            if (hotspot <= 0)
+            {
+                _log.LogWarning("[FanCurve] Tick 跳过: 温度无效 cpuTemp={Cpu} gpuTemp={Gpu}",
+                    cpuTemp, gpuTemp);
+                return;
+            }
 
             // 查找目标曲线点
             var (largeRpm, smallRpm) = LookupTarget(hotspot);
@@ -123,23 +128,29 @@ public sealed class FanCurveService : IDisposable
             int smallTarget = Math.Clamp(smallRpm / 100, 0, 82);
 
             // ShouldWrite: 精确复现 BellatorFanControl 的回差策略
-            if (!ShouldWrite(hotspot, largeTarget, smallTarget)) return;
+            if (!ShouldWrite(hotspot, largeTarget, smallTarget))
+            {
+                _log.LogDebug("[FanCurve] Tick 跳过(回差): hotspot={Hot}°C large={L} small={S} last={LastHot}",
+                    hotspot, largeTarget, smallTarget, _lastHotspot);
+                return;
+            }
 
             // 每次写入都重新启用手动模式 (对抗 EC 回写覆盖)
-            _wmi.SetFanManual(true);
-            _wmi.SetFanSpeed(0, (byte)largeTarget); // FanType 0 = 大扇 (CPUGPUFan)
-            _wmi.SetFanSpeed(1, (byte)smallTarget); // FanType 1 = 小扇 (SYSFan)
+            bool manualOk = _wmi.SetFanManual(true);
+            bool largeOk = _wmi.SetFanSpeed(0, (byte)largeTarget); // FanType 0 = 大扇 (CPUGPUFan)
+            bool smallOk = _wmi.SetFanSpeed(1, (byte)smallTarget); // FanType 1 = 小扇 (SYSFan)
 
             _lastHotspot = hotspot;
             _lastLargeTarget = largeTarget;
             _lastSmallTarget = smallTarget;
 
-            _log.LogDebug("[FanCurve] hotspot={Hot}°C → large={L}x100rpm small={S}x100rpm",
-                hotspot, largeTarget, smallTarget);
+            _log.LogInformation(
+                "[FanCurve] Tick: hotspot={Hot}°C → large={L}x100rpm small={S}x100rpm | WMI: manual={M} large={Lr} small={Sr}",
+                hotspot, largeTarget, smallTarget, manualOk, largeOk, smallOk);
         }
         catch (Exception ex)
         {
-            _log.LogWarning("[FanCurve] tick 异常: {Msg}", ex.Message);
+            _log.LogWarning("[FanCurve] Tick 异常: {Msg}", ex.ToString());
         }
     }
 
