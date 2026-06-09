@@ -191,7 +191,7 @@ export default function App() {
               showSwitches={true} showKeyboard={true} showSummary={true} showCredits={true} showAutoStart={true}
               showBackground={true} bg={bg} updateBg={updateBg} />
           )}
-          {activeTab === "fancurve" && <FanCurvePanel telemetry={telemetry} overrides={overrides} />}
+          {activeTab === "fancurve" && <FanCurvePanel telemetry={telemetry} overrides={overrides} settings={settings} />}
         </main>
 
         {/* 版本更新弹窗 */}
