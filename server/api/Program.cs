@@ -175,7 +175,7 @@ app.MapGet("/api/telemetry", (HardwareAbstractionLayer hal, WmiInterface wmi) =>
         fnLock = wmi.Available ? wmi.GetFnLock() == 1 : hal.FnLock,
         numLock = hal.NumLock,
         capsLock = hal.CapsLock,
-        thermalMode = hal.ThermalMode,
+        thermalMode = wmi.Available ? wmi.GetThermalMode() : hal.ThermalMode,
         powerPlan = hal.PowerPlan,
         touchpadLock = wmi.Available ? wmi.GetTouchpadLock() == 1 : hal.TouchpadLocked,
         igpuOnly = hal.IgpuOnly,
@@ -275,7 +275,13 @@ app.MapPost("/api/control", (ControlRequest req, HardwareAbstractionLayer hal, W
                 hal.PowerPlan = req.Value;
                 break;
             case "thermal_mode":
-                hal.ThermalMode = (byte)int.Clamp(req.Value, 0, 3);
+                // 优先走 WMI Method 8 (SystemPerMode) — 固件完整加载模式预设
+                // WMI 不可用时降级到 EC 直写
+                var clampedMode = (byte)int.Clamp(req.Value, 0, 3);
+                if (wmi.Available)
+                    wmi.SetThermalMode(clampedMode);
+                else
+                    hal.ThermalMode = clampedMode;
                 break;
             case "igpu_only":
                 hal.IgpuOnly = req.Value != 0;

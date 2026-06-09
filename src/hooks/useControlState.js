@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { mockTelemetry } from "../data/mockTelemetry";
 import {
-  createTelemetrySocket, FULL_PARAMS, dispatchFullMode,
+  createTelemetrySocket, FULL_PARAMS, MODE_FAN_DEFAULTS, dispatchFullMode,
 } from "../services/uxtuAdapter";
 
 const LS_THEME = "douzhanzhe_theme";
@@ -107,7 +107,8 @@ export function useControlState(onSaveResult) {
     
     // 加载 overrides
     const overrides = loadOverrides(mode);
-    return { ...FULL_PARAMS, ...overrides };
+    const fanDefaults = MODE_FAN_DEFAULTS[mode] || {};
+    return { ...FULL_PARAMS, ...fanDefaults, ...overrides };
   });
 
   const [paramsLoaded, setParamsLoaded] = useState(false);
@@ -124,11 +125,12 @@ export function useControlState(onSaveResult) {
     clearOverrides(mode);
     setOverrides({});
     
-    // 2. UI 参数回到 FULL_PARAMS 兆底值（包含该模式的风扇默认转速）
-    setUxtuParams({ ...FULL_PARAMS });
+    // 2. UI 参数回到 FULL_PARAMS + 该模式的风扇默认转速
+    const fanDefaults = MODE_FAN_DEFAULTS[mode] || {};
+    setUxtuParams({ ...FULL_PARAMS, ...fanDefaults });
     
-    console.log("[resetParams] mode:", mode, "FULL_PARAMS:", FULL_PARAMS);
-  }, [FULL_PARAMS]);
+    console.log("[resetParams] mode:", mode, "fanDefaults:", fanDefaults);
+  }, []);
 
   // 持久化 theme + settings
   useEffect(() => { saveToLS(LS_THEME, theme); }, [theme]);
@@ -144,8 +146,9 @@ export function useControlState(onSaveResult) {
   
     // 切换到自定义模式 → 加载 overrides + 从服务端加载
     if (currentMode === "custom") {
+      const customFanDefaults = MODE_FAN_DEFAULTS["custom"] || {};
       const customOverrides = loadOverrides("custom");
-      const customParams = { ...FULL_PARAMS, ...customOverrides };
+      const customParams = { ...FULL_PARAMS, ...customFanDefaults, ...customOverrides };
       setUxtuParams(customParams);
       setOverrides(customOverrides);
 
@@ -169,8 +172,9 @@ export function useControlState(onSaveResult) {
     }
   
     // 加载新模式的 overrides
+    const fanDefaults = MODE_FAN_DEFAULTS[currentMode] || {};
     const newOverrides = loadOverrides(currentMode);
-    const newParams = { ...FULL_PARAMS, ...newOverrides };
+    const newParams = { ...FULL_PARAMS, ...fanDefaults, ...newOverrides };
     setUxtuParams(newParams);
     setOverrides(newOverrides);
   

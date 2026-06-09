@@ -59,6 +59,33 @@ public sealed class WmiInterface
         return (byte[])outParams["OutData"];
     }
 
+    // ---- SystemPerMode (?? 8) — 散热模式切换 ----
+    public byte GetThermalMode()
+    {
+        var input = new byte[32];
+        input[1] = 250; // Get
+        input[3] = 8;   // SystemPerMode
+        var result = CallMethod(input);
+        return result.Length > 4 ? result[4] : (byte)0;
+    }
+
+    public bool SetThermalMode(byte mode)
+    {
+        try
+        {
+            var input = new byte[32];
+            input[1] = 251; // Set
+            input[3] = 8;   // SystemPerMode
+            input[4] = mode;
+            CallMethod(input);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     // ---- GPUMode (?? 9) ----
     public byte GetGpuMode()
     {

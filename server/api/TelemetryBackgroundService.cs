@@ -95,7 +95,7 @@ public class TelemetryBackgroundService : BackgroundService
                     fnLock = _wmi.Available ? _wmi.GetFnLock() == 1 : _hal.FnLock,
                     numLock = _hal.NumLock,
                     capsLock = _hal.CapsLock,
-                    thermalMode = _hal.ThermalMode,
+                    thermalMode = _wmi.Available ? _wmi.GetThermalMode() : _hal.ThermalMode,
                     powerPlan = _hal.PowerPlan,
                     touchpadLock = _wmi.Available ? _wmi.GetTouchpadLock() == 1 : _hal.TouchpadLocked,
                     igpuOnly = _hal.IgpuOnly,

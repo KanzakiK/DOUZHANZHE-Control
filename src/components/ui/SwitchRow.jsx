@@ -7,7 +7,7 @@ export default function SwitchRow({ label, checked, onChange, disabled = false, 
       <span className="text-sm flex items-center gap-1.5">
         {highlighted && <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: "var(--primary-2)" }} />}
         <span style={{ color: highlighted ? "var(--text)" : isCustom === false ? "var(--muted)" : undefined }}>{label}</span>
-        {dimmed && <span className="text-xs" style={{ color: "var(--muted)" }}>EC</span>}
+        {dimmed && <span className="text-xs" style={{ color: "var(--muted)" }}>默认</span>}
       </span>
       <button
         onClick={() => !disabled && onChange(!checked)}

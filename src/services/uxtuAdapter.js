@@ -145,12 +145,13 @@ export const FULL_PARAMS = {
 };
 
 // 各模式的 EC 官方风扇默认转速（用于恢复默认时设置正确的 UI 值）
+// 数据来源：docs/reference-consoles.md 官方预设表
 export const MODE_FAN_DEFAULTS = {
-  silent: { fanLargeRpmTarget: 2200, fanSmallRpmTarget: 4100 },
-  office: { fanLargeRpmTarget: 2900, fanSmallRpmTarget: 5200 },
-  gaming: { fanLargeRpmTarget: 3500, fanSmallRpmTarget: 6400 },
-  beast:  { fanLargeRpmTarget: 3800, fanSmallRpmTarget: 7200 },
-  custom: { fanLargeRpmTarget: 2900, fanSmallRpmTarget: 5200 },  // custom 默认用均衡
+  silent: { fanLargeRpmTarget: 2200, fanSmallRpmTarget: 2000 },
+  office: { fanLargeRpmTarget: 2900, fanSmallRpmTarget: 6400 },
+  gaming: { fanLargeRpmTarget: 4300, fanSmallRpmTarget: 8000 },
+  beast:  { fanLargeRpmTarget: 3500, fanSmallRpmTarget: 6900 },
+  custom: { fanLargeRpmTarget: 2900, fanSmallRpmTarget: 6400 },  // custom 默认用均衡
 };
 
 // 参数合法范围 — 用于写入硬件前钳位

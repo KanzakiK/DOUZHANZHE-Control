@@ -10,7 +10,7 @@ import SortableDashboard from "./components/SortableDashboard";
 import UpdateDialog from "./components/ui/UpdateDialog";
 import { ToastProvider, useToast } from "./components/ui/Toast";
 import { useControlState } from "./hooks/useControlState";
-import { fetchFanCurveStatus, resetToFactoryDefaults } from "./services/uxtuAdapter";
+import { fetchFanCurveStatus, stopFanCurve, resetToFactoryDefaults } from "./services/uxtuAdapter";
 import { useCallback, useState, useEffect } from "react";
 
 const NAV_ITEMS = ["主页", "散热曲线", "系统", "设置"];
@@ -137,8 +137,14 @@ export default function App() {
             action={<button onClick={async () => {
               const mode = settings.mode;
               try {
+                // ① 先关闭自定义风扇曲线（防止 EC 被回写）
+                if (fanCurveActive) {
+                  await stopFanCurve();
+                  setFanCurveActive(false);
+                }
+                // ② 发送模式恢复命令
                 await resetToFactoryDefaults(mode);
-                resetParams(mode);  // 同步清空 overrides + UI 回到 FULL_PARAMS
+                resetParams(mode);  // 同步清空 overrides + UI 回到模式默认
                 toast?.("已恢复官方默认", "success");
               } catch (err) {
                 toast?.(`恢复失败: ${err.message}`, "error");
