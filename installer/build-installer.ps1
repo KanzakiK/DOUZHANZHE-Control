@@ -51,7 +51,7 @@ if (-not (Test-Path "C:\Program Files\dotnet\dotnet.exe")) {
 # ── 2. 构建前端 ──
 if (-not $SkipFrontend) {
     Write-Host "[2/6] 构建前端..." -ForegroundColor Cyan
-    Push-Location $_Root
+    Push-Location $Root
     npm run deploy
     if ($LASTEXITCODE -ne 0) { Pop-Location; exit 1 }
     Pop-Location
