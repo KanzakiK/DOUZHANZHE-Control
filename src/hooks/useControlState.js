@@ -252,6 +252,12 @@ export function useControlState(onSaveResult) {
         (data) => {
           setBackendOnline(true);
           setTelemetry(prev => ({ ...prev, ...data }));
+          // 自动同步 dGpuDirect 与实际 GPU mode（mode 1=独显→true，0/2→false）
+          if (data.gpuMode != null) {
+            const gpuMode = parseInt(data.gpuMode);
+            const shouldBeOn = gpuMode === 1;
+            setSettings(prev => prev.dGpuDirect === shouldBeOn ? prev : { ...prev, dGpuDirect: shouldBeOn });
+          }
         },
         () => setBackendOnline(false)
       );

@@ -83,21 +83,52 @@ _ = System.Threading.Tasks.Task.Run(() =>
     try
     {
         var saved = JsonRead<Dictionary<string, int>>("gpu-mode.json", new Dictionary<string, int>());
-        if (saved.TryGetValue("gpuMode", out int mode) && mode >= 0 && mode <= 2)
+        bool hasSaved = saved.TryGetValue("gpuMode", out int mode) && mode >= 0 && mode <= 2;
+
+        // 安全网: iGPU-only(mode=2) 会导致本机视频输出口无信号，拒绝在启动时自动恢复
+        if (hasSaved && mode == 2)
         {
-            var wmiStartup = app.Services.GetRequiredService<WmiInterface>();
-            // 最多重试 3 次，每次间隔 2 秒，等待 WMI 就绪
-            for (int attempt = 1; attempt <= 3; attempt++)
+            Log("[Startup] Saved GPU mode is iGPU-only(2), which disables video output on this laptop — auto-correcting to hybrid(0)");
+            mode = 0;
+            JsonWrite("gpu-mode.json", new { gpuMode = 0 });
+        }
+
+        var wmiStartup = app.Services.GetRequiredService<WmiInterface>();
+        // 最多重试 3 次，每次间隔 2 秒，等待 WMI 就绪
+        for (int attempt = 1; attempt <= 3; attempt++)
+        {
+            if (!wmiStartup.Available)
             {
-                if (!wmiStartup.Available)
+                Log($"[Startup] WMI not available, retry {attempt}/3...");
+                System.Threading.Thread.Sleep(2000);
+                continue;
+            }
+
+            // 读取固件当前 GPU mode
+            byte firmware = wmiStartup.GetGpuMode();
+            Log($"[Startup] Firmware GPU mode={firmware}, saved={( hasSaved ? mode.ToString() : "none" )}");
+
+            // 如果固件已经是 iGPU-only(2)，无论是否有存档都强制切回混合模式
+            if (firmware == 2)
+            {
+                Log("[Startup] Firmware in iGPU-only(2) — auto-correcting to hybrid(0)");
+                if (wmiStartup.SetGpuMode(0))
                 {
-                    Log($"[Startup] WMI not available, retry {attempt}/3...");
-                    System.Threading.Thread.Sleep(2000);
-                    continue;
+                    JsonWrite("gpu-mode.json", new { gpuMode = 0 });
+                    Log("[Startup] GPU mode corrected to hybrid(0)");
+                    return;
                 }
+                Log($"[Startup] SetGpuMode(0) failed, retry {attempt}/3...");
+                System.Threading.Thread.Sleep(2000);
+                continue;
+            }
+
+            // 有存档且有效 → 恢复到存档值
+            if (hasSaved)
+            {
                 if (!wmiStartup.SetGpuMode((byte)mode))
                 {
-                    Log($"[Startup] SetGpuMode failed, retry {attempt}/3...");
+                    Log($"[Startup] SetGpuMode({mode}) failed, retry {attempt}/3...");
                     System.Threading.Thread.Sleep(2000);
                     continue;
                 }
@@ -109,9 +140,14 @@ _ = System.Threading.Tasks.Task.Run(() =>
                 }
                 Log($"[Startup] GPU mode mismatch: expected {mode}, got {current}, retry {attempt}/3...");
                 System.Threading.Thread.Sleep(2000);
+                continue;
             }
-            Log($"[Startup] GPU mode restore failed after 3 attempts");
+
+            // 无存档 + 固件已在安全模式(0或1) → 记录当前状态即可
+            Log($"[Startup] No saved GPU mode, firmware is in safe mode({firmware}), no action needed");
+            return;
         }
+        Log("[Startup] GPU mode restore failed after 3 attempts");
     }
     catch (Exception ex) { Log($"[Startup] GPU mode restore failed: {ex.Message}"); }
 });

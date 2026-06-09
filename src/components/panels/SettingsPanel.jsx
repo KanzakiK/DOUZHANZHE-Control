@@ -142,7 +142,6 @@ export default function SettingsPanel({ settings, setSettings, uxtuPayload, show
       numLock: "num_lock",
       capsLock: "caps_lock",
       kbBrightnessLevel: "kb_light",
-      gpuOnly: "igpu_only",
       touchpadLock: "touchpad_lock",
       dGpuDirect: "gpu_mode",
     };
@@ -154,6 +153,9 @@ export default function SettingsPanel({ settings, setSettings, uxtuPayload, show
       // kb_light 透传数值 0-3，其余开关做 bool→0/1 映射
       const mappedValue = key === "kbBrightnessLevel" ? value : (key === "dGpuDirect" ? (value ? 1 : 0) : (value ? 1 : 0));
       applyHardwareControl(halMap[key], mappedValue)
+        .then(() => {
+          if (key === "dGpuDirect") toast?.("GPU 模式切换将在重启后生效，请重启电脑", "info");
+        })
         .catch(() => toast?.("设置下发失败", "error"));
     } else {
       console.warn("[SettingsPanel] unknown key:", key, value);

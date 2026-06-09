@@ -273,6 +273,7 @@ export default function SortableDashboard({
             <div className="grid grid-cols-3 gap-2">
               {gpuModes.map((m) => (
                 <button key={m.id} onClick={() => {
+                  if (m.id === 2 && !confirm("切换到集显模式会导致独显断电，笔记本 HDMI/DP 输出口将停止输出信号。\n确定要继续吗？")) return;
                   applyHardwareControl("gpu_mode", m.id).then(() => {
                     toast?.("GPU 模式切换将在重启后生效，请重启电脑", "info");
                   }).catch(() => {
