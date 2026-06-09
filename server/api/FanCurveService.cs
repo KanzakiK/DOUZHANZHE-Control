@@ -159,24 +159,26 @@ public sealed class FanCurveService : IDisposable
                 }
             }
 
-            // ShouldWrite: 精确复现 BellatorFanControl 的回差策略
-            if (!ShouldWrite(hotspot, largeTarget, smallTarget))
+            // ShouldWrite 回差策略：仅控制是否更新目标值，不阻止写入
+            // 每个 tick 都必须重发 SetFanManual + SetFanSpeed，对抗 EC 回写覆盖
+            if (ShouldWrite(hotspot, largeTarget, smallTarget))
             {
-                _log.LogDebug("[FanCurve] Tick 跳过(回差): hotspot={Hot}°C large={L} small={S} last={LastHot}",
-                    hotspot, largeTarget, smallTarget, _lastHotspot);
-                return;
+                _lastHotspot = hotspot;
+                _lastLargeTarget = largeTarget;
+                _lastSmallTarget = smallTarget;
+            }
+            else
+            {
+                // 回差范围内：保持上次的目标值
+                largeTarget = _lastLargeTarget;
+                smallTarget = _lastSmallTarget;
             }
 
-            // 每次写入都重新启用手动模式 (对抗 EC 回写覆盖)
-            // Bellator 协议: 交错式 — Switch(0) → Speed(0) → Switch(1) → Speed(1)
+            // 每个 tick 都写入 (交错式)，确保 EC 手动模式不被回收
             bool manual0 = _wmi.SetFanManual(0, true);
-            bool largeOk = _wmi.SetFanSpeed(0, (byte)largeTarget); // FanType 0 = 大扇 (CPUGPUFan)
+            bool largeOk = _wmi.SetFanSpeed(0, (byte)largeTarget);
             bool manual1 = _wmi.SetFanManual(1, true);
-            bool smallOk = _wmi.SetFanSpeed(1, (byte)smallTarget); // FanType 1 = 小扇 (SYSFan)
-
-            _lastHotspot = hotspot;
-            _lastLargeTarget = largeTarget;
-            _lastSmallTarget = smallTarget;
+            bool smallOk = _wmi.SetFanSpeed(1, (byte)smallTarget);
 
             _log.LogInformation(
                 "[FanCurve] Tick: hotspot={Hot}°C → large={L}x100rpm small={S}x100rpm | WMI: m0={M0} large={Lr} m1={M1} small={Sr}",
