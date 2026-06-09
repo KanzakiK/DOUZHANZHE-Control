@@ -41,6 +41,15 @@ export default function PerformancePanel({
     try { localStorage.setItem("dz_gpu_freq_locked", String(gpuFreqLocked)); } catch {}
   }, [gpuFreqLocked]);
 
+  // GPU 锁频状态与模式参数同步: 切换模式时 uxtuParams 被替换，按钮状态自动跟随
+  useEffect(() => {
+    const shouldBeLocked = !!uxtuParams.gpuFreqLimitEnabled;
+    if (gpuFreqLocked !== shouldBeLocked) {
+      setGpuFreqLocked(shouldBeLocked);
+      gpuFreqLockedRef.current = shouldBeLocked;
+    }
+  }, [uxtuParams.gpuFreqLimitEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // 所有去抖 timer refs
   const smuTimer = useRef(null);
   const cpuFreqTimer = useRef(null); // 修复: 之前未声明
@@ -94,7 +103,7 @@ export default function PerformancePanel({
     gpuCoreTimer.current = setTimeout(() => applyGpuCoreFreq(mhz), 400);
   }
 
-  // GPU 频率锁定切换
+  // GPU 频率锁定切换 (同时写入 overrides，确保跟随模式保存和下发)
   async function toggleGpuLock() {
     const mhz = latestParamsRef.current.gpuCoreFreqMhz;
     if (gpuFreqLockedRef.current) {
@@ -103,12 +112,16 @@ export default function PerformancePanel({
       await gpuCmd("limit-max", mhz);
       gpuFreqLockedRef.current = false;
       setGpuFreqLocked(false);
+      update("gpuFreqLimitEnabled")(false);
     } else {
       // 锁定: limit-max → lock-exact
       await gpuCmd("limit-max", mhz);
       await gpuCmd("lock-exact", mhz);
       gpuFreqLockedRef.current = true;
       setGpuFreqLocked(true);
+      // 写入 overrides: 锁定标记 + 当前频率值（让滑块高亮，且 dispatchFullMode 能读到）
+      update("gpuFreqLimitEnabled")(true);
+      update("gpuCoreFreqMhz")(mhz);
     }
   }
 
