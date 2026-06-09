@@ -10,7 +10,7 @@ import SortableDashboard from "./components/SortableDashboard";
 import UpdateDialog from "./components/ui/UpdateDialog";
 import { ToastProvider, useToast } from "./components/ui/Toast";
 import { useControlState } from "./hooks/useControlState";
-import { dispatchFullMode, fetchFanCurveStatus, resetToFactoryDefaults } from "./services/uxtuAdapter";
+import { fetchFanCurveStatus, resetToFactoryDefaults } from "./services/uxtuAdapter";
 import { useCallback, useState, useEffect } from "react";
 
 const NAV_ITEMS = ["主页", "散热曲线", "系统", "设置"];
@@ -27,7 +27,7 @@ export default function App() {
   const onCustomSaveResult = useCallback((ok) => {
     toast?.(ok ? "自定义参数已保存" : "自定义参数保存失败", ok ? "success" : "error");
   }, [toast]);
-  const { theme, setTheme, telemetry, setTelemetry, uxtuParams, setUxtuParams, settings, setSettings, uxtuPayload, history, resetParams } =
+  const { theme, setTheme, telemetry, setTelemetry, uxtuParams, setUxtuParams, settings, setSettings, uxtuPayload, history, overrides, saveOverride, clearOverrides, resetParams } =
     useControlState(onCustomSaveResult);
   const [activeTab, setActiveTab] = useState(() => {
     try { return localStorage.getItem("douzhanzhe_active_tab") || "dashboard"; }
@@ -168,6 +168,7 @@ export default function App() {
             uxtuPayload={uxtuPayload}
             uxtuParams={uxtuParams} setUxtuParams={setUxtuParams}
             history={history}
+            overrides={overrides} saveOverride={saveOverride} clearOverrides={clearOverrides}
             editMode={editMode} setEditMode={setEditMode}
             fanCurveActive={fanCurveActive}
             onSwitchTab={setActiveTab} />
@@ -178,7 +179,7 @@ export default function App() {
               showSwitches={true} showKeyboard={true} showSummary={true} showCredits={true} showAutoStart={true}
               showBackground={true} bg={bg} updateBg={updateBg} />
           )}
-          {activeTab === "fancurve" && <FanCurvePanel telemetry={telemetry} />}
+          {activeTab === "fancurve" && <FanCurvePanel telemetry={telemetry} overrides={overrides} />}
         </main>
 
         {/* 版本更新弹窗 */}

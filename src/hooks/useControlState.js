@@ -41,16 +41,29 @@ function clearOverrides(mode) {
   saveToLS(LS_OVERRIDES_PREFIX + mode, {});
 }
 
-// ── 旧数据清空（不迁移） ──
+// ── 旧数据清空（非自定义模式不迁移；自定义模式迁移到 overrides） ──
 
 function clearOldParams() {
-  const modes = ["silent", "office", "beast", "gaming", "custom"];
+  const modes = ["silent", "office", "beast", "gaming"];
+  // 非自定义模式：直接删除旧全量存储
   for (const mode of modes) {
     const oldKey = LS_PARAMS_PREFIX + mode;
     if (localStorage.getItem(oldKey)) {
       localStorage.removeItem(oldKey);
     }
   }
+  // 自定义模式：迁移旧全量存储到 overrides（仅当 overrides 不存在时）
+  const oldCustomKey = LS_PARAMS_PREFIX + "custom";
+  const newCustomKey = LS_OVERRIDES_PREFIX + "custom";
+  if (localStorage.getItem(oldCustomKey) && !localStorage.getItem(newCustomKey)) {
+    try {
+      const data = JSON.parse(localStorage.getItem(oldCustomKey));
+      if (data && typeof data === "object") {
+        localStorage.setItem(newCustomKey, JSON.stringify(data));
+      }
+    } catch {}
+  }
+  localStorage.removeItem(oldCustomKey);
 }
 
 export function useControlState(onSaveResult) {
@@ -129,8 +142,13 @@ export function useControlState(onSaveResult) {
     prevModeRef.current = currentMode;
     if (prevMode === currentMode) return;
   
-    // 切换到自定义模式 → 从服务端加载
+    // 切换到自定义模式 → 加载 overrides + 从服务端加载
     if (currentMode === "custom") {
+      const customOverrides = loadOverrides("custom");
+      const customParams = { ...FULL_PARAMS, ...customOverrides };
+      setUxtuParams(customParams);
+      setOverrides(customOverrides);
+
       if (paramsLoaded) {
         fetch(API_CUSTOM_PARAMS)
           .then(r => r.json())
@@ -140,12 +158,13 @@ export function useControlState(onSaveResult) {
                 data.gpuMemFreqMhz = 1;
               }
               setUxtuParams(prev => ({ ...prev, ...data }));
+              setOverrides(data);
             }
           })
           .catch(() => {});
       }
-      // 仍然下发当前参数到硬件
-      dispatchFullMode(currentMode, uxtuParams);
+      // custom 模式没有 thermal_mode，下发全部参数
+      dispatchFullMode(currentMode, customOverrides);
       return;
     }
   
@@ -163,7 +182,7 @@ export function useControlState(onSaveResult) {
   const saveTimerRef = useRef(null);
   useEffect(() => {
     if (!paramsLoaded || settings.mode !== "custom") return;
-    saveToLS(LS_PARAMS_PREFIX + "custom", uxtuParams);
+    saveToLS(LS_OVERRIDES_PREFIX + "custom", uxtuParams);
     clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       fetch(API_CUSTOM_PARAMS, {
@@ -272,6 +291,17 @@ export function useControlState(onSaveResult) {
     return () => clearInterval(timer);
   }, [settings.mode, uxtuParams, backendOnline]);
 
+  // ── Overrides 稀疏存储操作（暴露给组件） ──
+  const saveOverrideFn = useCallback((mode, key, value) => {
+    saveOverride(mode, key, value);
+    setOverrides(prev => ({ ...prev, [key]: value }));
+  }, []);
+
+  const clearOverridesFn = useCallback((mode) => {
+    clearOverrides(mode);
+    setOverrides({});
+  }, []);
+
   return {
     theme, setTheme,
     telemetry, setTelemetry,
@@ -279,6 +309,9 @@ export function useControlState(onSaveResult) {
     settings, setSettings,
     uxtuPayload,
     history,
-    overrides, setOverrides, resetParams,
+    overrides, setOverrides,
+    saveOverride: saveOverrideFn,
+    clearOverrides: clearOverridesFn,
+    resetParams,
   };
 }

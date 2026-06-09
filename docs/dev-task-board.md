@@ -57,21 +57,22 @@
   - [x] [前端] `App.jsx`: 「恢复预设」改为「恢复默认」— clearOverrides + resetToFactoryDefaults
   - [x] [前端] `panels/PerformancePanel.jsx`: **删除**三个分组「恢复预设」按钮（CPU 频率、CPU 功耗、GPU）
   - [x] [前端] `SortableDashboard.jsx`: **删除**风扇「恢复预设」按钮
-  - [ ] [前端] `App.jsx`: 清理模式按钮残留的 async 双发 dispatchFullMode 逻辑（当前 L155-170）
+  - [x] [前端] `App.jsx`: 清理模式按钮残留的 async 双发 dispatchFullMode 逻辑（已移除未使用的 import）
 
-> **Phase 3 — UI + 收尾**
-- [ ] **④ 控件灰色/高亮 + 单项下发三步**
-  - [ ] [前端] 各 SliderRow/SwitchRow: 根据 `key in overrides` 显示灰色（EC 管理）或高亮（已自定义），灰色控件可操作，拖动后自动高亮
-  - [ ] [前端] 各组件 onChange 统一三步：`setUxtuParams`（UI）+ `saveOverride`（立即存）+ `queueXxx`（按需去抖下发）
-  - [ ] [前端] `SortableDashboard.jsx`: 新增 `queueFan(largeRpm, smallRpm)` 去抖函数（400ms，合并大小风扇一次请求），替代 useControlState 集中风扇 useEffect
-  - [ ] [前端] 分组卡片标题旁显示自定义状态（如「3项已自定义」或无标记）
-  - [ ] [前端] 去抖策略：SMU/GPU核心频率/NVAPI/CPU频率核心数/风扇 = 400-600ms 去抖；CPU 睿频/电源计划/GPU 显存档位 = 直接执行不去抖
-- [ ] **⑤ 风扇 EC 自动 + 曲线互斥**
-  - [ ] [前端] `SortableDashboard.jsx`: 风扇 `queueFan` 仅在 overrides 有 `fanLargeRpmTarget`/`fanSmallRpmTarget` 时下发，无 override 时不发请求（EC 管理）
-  - [ ] [前端] `panels/FanCurvePanel.jsx`: 曲线停止时如 overrides 无风扇字段则自动回归 EC
-- [ ] **⑥ 清理废弃代码**
-  - [ ] [前端] 全项目清理 MODE_PRESETS 引用（App.jsx / useControlState.js / PerformancePanel.jsx / SortableDashboard.jsx）
-  - [ ] [前端] 删除旧的 `design-override-layer.md`（已被 plan-override-layer.md 替代）
+> **Phase 3 — UI + 收尾** ✅ 已完成
+- [x] **④ 控件灰色/高亮 + 单项下发三步**
+  - [x] [前端] 各 SliderRow/SwitchRow: 根据 `key in overrides` 显示灰色（EC 管理）或高亮（已自定义），灰色控件可操作，拖动后自动高亮
+  - [x] [前端] 各组件 onChange 统一三步：`setUxtuParams`（UI）+ `saveOverride`（立即存）+ `queueXxx`（按需去抖下发）
+  - [x] [前端] `SortableDashboard.jsx`: 新增 `queueFan(largeRpm, smallRpm)` 去抖函数（400ms，合并大小风扇一次请求），替代 useControlState 集中风扇 useEffect
+  - [x] [前端] 分组卡片标题旁显示自定义状态（如「3项已自定义」或无标记）
+  - [x] [前端] 去抖策略：SMU/GPU核心频率/NVAPI/CPU频率核心数/风扇 = 400-600ms 去抖；CPU 睿频/电源计划/GPU 显存档位 = 直接执行不去抖
+- [x] **⑤ 风扇 EC 自动 + 曲线互斥**
+  - [x] [前端] `SortableDashboard.jsx`: 风扇 `queueFan` 仅在 overrides 有 `fanLargeRpmTarget`/`fanSmallRpmTarget` 时下发，无 override 时不发请求（EC 管理）
+  - [x] [前端] `panels/FanCurvePanel.jsx`: 曲线停止时如 overrides 无风扇字段则自动回归 EC，有 override 则恢复用户设定转速
+- [x] **⑥ 清理废弃代码**
+  - [x] [前端] 全项目清理 MODE_PRESETS 引用（App.jsx / useControlState.js / PerformancePanel.jsx / SortableDashboard.jsx）
+  - [x] [前端] 删除旧的 `design-override-layer.md`（已被 plan-override-layer.md 替代）
+  - [x] [前端] custom 模式存储迁移：`douzhanzhe_params_custom` → `douzhanzhe_overrides_custom`（自动迁移旧数据）
 
 ### 其他
 - [ ] **一键降压**: 参考游戏加加 Lite，实现 CPU/GPU 降压功能（降低电压以减少发热和功耗）

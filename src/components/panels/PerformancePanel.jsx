@@ -20,6 +20,7 @@ export default function PerformancePanel({
   settings, setSettings, uxtuParams, setUxtuParams,
   uxtuPayload, onApplied, showCpu = true, showGpu = true,
   showPower = true, telemetry, editMode = false,
+  overrides, saveOverride, customLabel,
 }) {
   const toast = useToast();
   const [isApplying, setIsApplying] = useState(false);
@@ -145,7 +146,8 @@ export default function PerformancePanel({
 
   const update = useCallback((key) => (value) => {
     setUxtuParams(p => ({ ...p, [key]: value }));
-  }, [setUxtuParams]);
+    saveOverride?.(settings.mode, key, value);
+  }, [setUxtuParams, saveOverride, settings.mode]);
 
   async function handleApply() {
     setIsApplying(true); setApplyMessage("");
@@ -161,19 +163,24 @@ export default function PerformancePanel({
     } finally { setIsApplying(false); }
   }
 
+  const isC = useCallback((key) => (overrides ? key in overrides : undefined), [overrides]);
+
   return (
     <>
-      {showCpu && <Card title="CPU 频率控制" className="!p-3">
+      {showCpu && <Card title={"CPU 频率控制" + (customLabel || "")} className="!p-3">
         <div className="space-y-3">
           <SwitchRow label="频率限制" checked={uxtuParams.cpuFreqLimitEnabled}
+            isCustom={isC("cpuFreqLimitEnabled")}
             onChange={(on) => { update("cpuFreqLimitEnabled")(on); queueCpuFreq(on ? uxtuParams.cpuFreqLimitMhz : 0); }}
             disabled={paramsLocked} />
           {uxtuParams.cpuFreqLimitEnabled && (
             <SliderRow label="最大频率" value={uxtuParams.cpuFreqLimitMhz}
               min={2000} max={5500} step={100} unit="MHz"
+              isCustom={isC("cpuFreqLimitMhz")}
               onChange={(v) => { update("cpuFreqLimitMhz")(v); queueCpuFreq(v); }} />
           )}
           <SwitchRow label="关闭睿频" checked={uxtuParams.cpuTurboDisabled}
+            isCustom={isC("cpuTurboDisabled")}
             onChange={async (disabled) => {
               update("cpuTurboDisabled")(disabled);
               try { await setCpuTurbo(!disabled); }
@@ -181,11 +188,13 @@ export default function PerformancePanel({
             }}
             disabled={paramsLocked} />
           <SwitchRow label="限制核心数" checked={uxtuParams.cpuCoreLimit > 0}
+            isCustom={isC("cpuCoreLimit")}
             onChange={(on) => { const v = on ? 8 : 0; update("cpuCoreLimit")(v); queueCoreLimit(v); }}
             disabled={paramsLocked} />
           {uxtuParams.cpuCoreLimit > 0 && (
             <SliderRow label="核心数" value={uxtuParams.cpuCoreLimit}
               min={2} max={14} step={2} unit="核"
+              isCustom={isC("cpuCoreLimit")}
               onChange={(v) => { update("cpuCoreLimit")(v); queueCoreLimit(v); }} disabled={paramsLocked} />
           )}
           <div>
@@ -206,37 +215,44 @@ export default function PerformancePanel({
         </div>
       </Card>}
 
-      {showPower && <Card title="CPU 功耗与温度" className="!p-3">
+      {showPower && <Card title={"CPU 功耗与温度" + (customLabel || "")} className="!p-3">
         <div className="space-y-3">
           <SliderRow label="温度墙" value={uxtuParams.cpuTempLimitC}
             min={60} max={100} unit="°C"
+            isCustom={isC("cpuTempLimitC")}
             onChange={(v) => { update("cpuTempLimitC")(v); queueSmu("temp_limit", v); }} disabled={paramsLocked} />
           <SliderRow label="电压调节(降压)" value={uxtuParams.cpuVoltageOffset}
             min={-30} max={0} step={1} unit="mV"
+            isCustom={isC("cpuVoltageOffset")}
             onChange={(v) => { update("cpuVoltageOffset")(v); queueSmu("co_all", v); }} disabled={paramsLocked} />
           <SliderRow label="长时功耗" value={uxtuParams.cpuLongPptW}
             min={15} max={120} unit="W"
+            isCustom={isC("cpuLongPptW")}
             onChange={(v) => { update("cpuLongPptW")(v); queueSmu("power_limit", v); }} disabled={paramsLocked} />
           <SliderRow label="短时功耗" value={uxtuParams.cpuShortPptW}
             min={15} max={140} unit="W"
+            isCustom={isC("cpuShortPptW")}
             onChange={(v) => { update("cpuShortPptW")(v); queueSmu("short_power_limit", v); }} disabled={paramsLocked} />
         </div>
       </Card>}
 
-      {showGpu && <Card title="GPU 调节" className="!p-3"
+      {showGpu && <Card title={"GPU 调节" + (customLabel || "")} className="!p-3"
         >
 
         <div className="space-y-3">
           <SliderRow label="核心频率" value={uxtuParams.gpuCoreFreqMhz}
             min={1000} max={3100} step={50} unit="MHz"
+            isCustom={isC("gpuCoreFreqMhz")}
             onChange={(v) => { update("gpuCoreFreqMhz")(v); queueGpuCore(v); }} />
           <SliderRow label="核心偏移" value={uxtuParams.ocCoreOffsetMhz ?? 0}
             min={-200} max={300} step={25} unit="MHz"
             displayValue={((uxtuParams.ocCoreOffsetMhz ?? 0) >= 0 ? "+" : "") + (uxtuParams.ocCoreOffsetMhz ?? 0)}
+            isCustom={isC("ocCoreOffsetMhz")}
             onChange={(v) => { update("ocCoreOffsetMhz")(v); queueOc(); }} />
           <SliderRow label="显存频率" value={uxtuParams.gpuMemFreqMhz}
             min={0} max={3} step={1} unit=" MHz"
             displayValue={["自动", "9001", "11001", "12001"][uxtuParams.gpuMemFreqMhz] || ""}
+            isCustom={isC("gpuMemFreqMhz")}
             onChange={async (v) => {
               update("gpuMemFreqMhz")(v);
               const map = [0, 9001, 11001, 12001];
@@ -245,6 +261,7 @@ export default function PerformancePanel({
             }} />
           <SliderRow label="温度限制" value={uxtuParams.gpuTempLimitC ?? 87}
             min={60} max={100} step={1} unit="°C"
+            isCustom={isC("gpuTempLimitC")}
             onChange={(v) => { update("gpuTempLimitC")(v); queueThermal(v); }} />
         </div>
       </Card>}

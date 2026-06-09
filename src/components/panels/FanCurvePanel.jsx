@@ -73,7 +73,7 @@ function buildExtendPaths(pts, rpmKey, maxRpm) {
   return { head, tail };
 }
 
-export default function FanCurvePanel({ telemetry }) {
+export default function FanCurvePanel({ telemetry, overrides }) {
   const toast = useToast();
 
   const [points, setPoints] = useState(DEFAULT_POINTS);
@@ -229,7 +229,20 @@ export default function FanCurvePanel({ telemetry }) {
       const r = await stopFanCurve();
       if (r.ok) {
         setCurveActive(false);
-        toast?.("已恢复固件控制", "success");
+        // 检查是否有风扇 override，如有则重新下发用户设定值
+        const hasFanOverride = overrides && ("fanLargeRpmTarget" in overrides || "fanSmallRpmTarget" in overrides);
+        if (hasFanOverride) {
+          const largeRpm = overrides.fanLargeRpmTarget ?? 2900;
+          const smallRpm = overrides.fanSmallRpmTarget ?? 6400;
+          fetch("/api/fan/set-target", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ largeRpm, smallRpm }),
+          }).catch(() => {});
+          toast?.("已停止曲线，恢复用户自定义转速", "success");
+        } else {
+          toast?.("已恢复固件控制", "success");
+        }
       } else {
         toast?.("停止失败: " + (r.error || ""), "error");
       }

@@ -41,8 +41,38 @@ export default function SortableDashboard({
   uxtuPayload, uxtuParams, setUxtuParams,
   history, editMode, setEditMode,
   fanCurveActive, onSwitchTab,
+  overrides, saveOverride, clearOverrides,
 }) {
   const toast = useToast();
+
+  // ── 风扇去抖 (400ms，合并大小风扇一次请求) ──
+  const fanTimer = useRef(null);
+  const latestFanRef = useRef({ large: uxtuParams.fanLargeRpmTarget ?? 2900, small: uxtuParams.fanSmallRpmTarget ?? 6400 });
+
+  function queueFan(largeRpm, smallRpm) {
+    latestFanRef.current = { large: largeRpm, small: smallRpm };
+    clearTimeout(fanTimer.current);
+    fanTimer.current = setTimeout(() => {
+      const { large, small } = latestFanRef.current;
+      fetch("/api/fan/set-target", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ largeRpm: large, smallRpm: small }),
+      }).catch(() => {});
+    }, 400);
+  }
+
+  // ── 分组自定义状态计数 ──
+  const cpuFreqKeys = ["cpuFreqLimitEnabled", "cpuFreqLimitMhz", "cpuTurboDisabled", "cpuCoreLimit", "cpuPowerPlan"];
+  const cpuPowerKeys = ["cpuTempLimitC", "cpuVoltageOffset", "cpuLongPptW", "cpuShortPptW"];
+  const gpuKeys = ["gpuCoreFreqMhz", "ocCoreOffsetMhz", "gpuMemFreqMhz", "gpuTempLimitC"];
+  const fanKeys = ["fanLargeRpmTarget", "fanSmallRpmTarget"];
+  const countCustom = (keys) => keys.filter(k => k in (overrides || {})).length;
+
+  function customLabel(keys) {
+    const n = countCustom(keys);
+    return n > 0 ? `  ·  ${n}项已自定义` : "";
+  }
   const onSyncResult = useCallback((ok) => {
     toast?.(ok ? "排序已保存" : "排序保存失败", ok ? "success" : "error");
   }, [toast]);
@@ -133,8 +163,10 @@ export default function SortableDashboard({
       case "fan-info":
         const fanRange = getFanRange(settings?.mode || "silent");
         const fanToast = useToast();
+        const fanLargeCustom = "fanLargeRpmTarget" in (overrides || {});
+        const fanSmallCustom = "fanSmallRpmTarget" in (overrides || {});
         return (
-          <Card title="风扇信息"
+          <Card title={"风扇信息" + customLabel(fanKeys)}
             action={!editMode && (fanCurveActive ? (
               <button onClick={async () => {
                 try { await stopFanCurve(); fanToast?.("自定义散热已关闭", "success"); }
@@ -171,7 +203,12 @@ export default function SortableDashboard({
                 <SliderRow label="大风扇目标转速" value={uxtuParams.fanLargeRpmTarget ?? 2900}
                   min={fanRange.largeMin} max={fanRange.largeMax} step={100} unit="RPM"
                   disabled={fanCurveActive}
-                  onChange={(v) => setUxtuParams(p => ({ ...p, fanLargeRpmTarget: v }))}/>
+                  isCustom={fanLargeCustom}
+                  onChange={(v) => {
+                    setUxtuParams(p => ({ ...p, fanLargeRpmTarget: v }));
+                    saveOverride?.(settings.mode, "fanLargeRpmTarget", v);
+                    queueFan(v, uxtuParams.fanSmallRpmTarget ?? 6400);
+                  }}/>
                 <Gauge label="大风扇负载" value={Math.round((telemetry.fanLargeRpm / Math.max(1, telemetry.fanLargeMax)) * 100)}/>
               </div>
               <div className="space-y-1">
@@ -186,18 +223,23 @@ export default function SortableDashboard({
                 <SliderRow label="小风扇目标转速" value={uxtuParams.fanSmallRpmTarget ?? 6400}
                   min={fanRange.smallMin} max={fanRange.smallMax} step={100} unit="RPM"
                   disabled={fanCurveActive}
-                  onChange={(v) => setUxtuParams(p => ({ ...p, fanSmallRpmTarget: v }))}/>
+                  isCustom={fanSmallCustom}
+                  onChange={(v) => {
+                    setUxtuParams(p => ({ ...p, fanSmallRpmTarget: v }));
+                    saveOverride?.(settings.mode, "fanSmallRpmTarget", v);
+                    queueFan(uxtuParams.fanLargeRpmTarget ?? 2900, v);
+                  }}/>
                 <Gauge label="小风扇负载" value={Math.round((telemetry.fanSmallRpm / Math.max(1, telemetry.fanSmallMax)) * 100)}/>
               </div>
             </div>
           </Card>
         );
       case "cpu-adjust":
-        return <PerformancePanel showCpu={true} showGpu={false} showPower={false} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} uxtuPayload={uxtuPayload} editMode={editMode}/>;
+        return <PerformancePanel showCpu={true} showGpu={false} showPower={false} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} uxtuPayload={uxtuPayload} overrides={overrides} saveOverride={saveOverride} editMode={editMode} customLabel={customLabel(cpuFreqKeys)}/>;
       case "cpu-power":
-        return <PerformancePanel showCpu={false} showGpu={false} showPower={true} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} uxtuPayload={uxtuPayload} editMode={editMode}/>;
+        return <PerformancePanel showCpu={false} showGpu={false} showPower={true} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} uxtuPayload={uxtuPayload} overrides={overrides} saveOverride={saveOverride} editMode={editMode} customLabel={customLabel(cpuPowerKeys)}/>;
       case "gpu-adjust":
-        return <PerformancePanel showCpu={false} showPower={false} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} uxtuPayload={uxtuPayload} editMode={editMode}/>;
+        return <PerformancePanel showCpu={false} showPower={false} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} uxtuPayload={uxtuPayload} overrides={overrides} saveOverride={saveOverride} editMode={editMode} customLabel={customLabel(gpuKeys)}/>;
       case "keyboard-light":
         return <SettingsPanel settings={settings} setSettings={setSettings} uxtuPayload={uxtuPayload} showSwitches={false} showKeyboard={true} showSummary={false} showSmu={false} showAbout={false}/>;
       case "system-switches":
