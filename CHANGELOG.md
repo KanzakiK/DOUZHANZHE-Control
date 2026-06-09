@@ -20,6 +20,7 @@
 - **ASP.NET Core Runtime 依赖检测**: 安装包安装时自动检测并安装 ASP.NET Core Runtime（之前只检测 .NET Desktop Runtime）
 - **run.ps1 保留 config**: 构建部署时不覆盖用户配置文件
 - **ISCC 路径修正**: Inno Setup 编译器默认路径更新为当前用户安装位置
+- **性能模式切换竞态修复**: 模式切换统一由 `useControlState` 单路径下发，`dispatchFullMode` 内部改为两次延迟 SMU 重发（500ms + 1500ms），消除前端重复 dispatch 导致的固件覆盖问题
 
 ## [1.2.1] — 2026-06-09
 
