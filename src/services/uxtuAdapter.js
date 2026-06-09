@@ -68,6 +68,7 @@ export function createTelemetrySocket(onData, onError) {
   return ws;
 }
 
+export const CPU_BASE_CLOCK = 2400; // Ryzen 9 8940HX 基础频率 (WMI MaxClockSpeed ≈ 2401 MHz)
 export const GPU_BASE_CLOCK = 2750; // RTX 5060 典型 boost 频率 (nvidia-smi 无法读取，用户提供)
 export const GPU_MEM_BASE_CLOCK = 12001; // 显存最大频率 (limit-memory 作为上限使用) // 显存基准频率
 
