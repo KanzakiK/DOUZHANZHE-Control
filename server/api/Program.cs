@@ -21,10 +21,10 @@ app.UseWebSockets();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.MapFallbackToFile("index.html");
-// ---- Config directory (shared with Node.js) ----
-var configDir = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "..", "config"));
+// ---- Config directory (always {app}/config) ----
+var configDir = Path.Combine(AppContext.BaseDirectory, "config");
 if (!Directory.Exists(configDir))
-    configDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "config"));
+    configDir = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "config"));
 Directory.CreateDirectory(configDir);
 var bgImagePath = Path.Combine(configDir, "background.png");
 // ---- JSON persistence helpers ----
