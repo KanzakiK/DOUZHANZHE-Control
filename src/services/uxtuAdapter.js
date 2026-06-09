@@ -132,7 +132,8 @@ const FAN_RANGES = {
   custom: { largeMin: 2600, largeMax: 3500, smallMin: 5900, smallMax: 6900 },
 };
 
-// 全量参数默认值 (兜底，用于 UI 层显示)
+// 全量参数默认值 (兆底，用于 UI 层显示)
+// 注意：风扇转速随模式变化，这里只是占位符，实际使用时会被各模式默认值覆盖
 export const FULL_PARAMS = {
   cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 4500, cpuTurboDisabled: false,
   cpuTempLimitC: 80, cpuCoreLimit: 0, cpuPowerPlan: "balance", cpuVoltageOffset: 0,
@@ -140,7 +141,16 @@ export const FULL_PARAMS = {
   gpuFreqLimitEnabled: false, gpuFreqLimitMhz: 2600, gpuCoreFreqMhz: 2750,
   gpuMemFreqMhz: 0, gpuPptLimitW: 75, gpuTempLimitC: 85,
   ocCoreOffsetMhz: 0, ocMemOffsetMhz: 0,
-  fanLargeRpmTarget: 2900, fanSmallRpmTarget: 6400,
+  fanLargeRpmTarget: 2900, fanSmallRpmTarget: 5200,  // 均衡模式默认
+};
+
+// 各模式的 EC 官方风扇默认转速（用于恢复默认时设置正确的 UI 值）
+export const MODE_FAN_DEFAULTS = {
+  silent: { fanLargeRpmTarget: 2200, fanSmallRpmTarget: 4100 },
+  office: { fanLargeRpmTarget: 2900, fanSmallRpmTarget: 5200 },
+  gaming: { fanLargeRpmTarget: 3500, fanSmallRpmTarget: 6400 },
+  beast:  { fanLargeRpmTarget: 3800, fanSmallRpmTarget: 7200 },
+  custom: { fanLargeRpmTarget: 2900, fanSmallRpmTarget: 5200 },  // custom 默认用均衡
 };
 
 // 参数合法范围 — 用于写入硬件前钳位

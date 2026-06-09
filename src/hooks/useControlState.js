@@ -111,9 +111,11 @@ export function useControlState(onSaveResult) {
     clearOverrides(mode);
     setOverrides({});
     
-    // 2. UI 参数回到 FULL_PARAMS 兆底值
+    // 2. UI 参数回到 FULL_PARAMS 兆底值（包含该模式的风扇默认转速）
     setUxtuParams({ ...FULL_PARAMS });
-  }, []);
+    
+    console.log("[resetParams] mode:", mode, "FULL_PARAMS:", FULL_PARAMS);
+  }, [FULL_PARAMS]);
 
   // 持久化 theme + settings
   useEffect(() => { saveToLS(LS_THEME, theme); }, [theme]);
