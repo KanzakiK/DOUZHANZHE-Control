@@ -154,6 +154,7 @@ export default function App() {
               {MODE_ITEMS.map((mode) => (
                 <button key={mode.id} onClick={() => {
                   setSettings(prev => ({ ...prev, mode: mode.id }));
+                  toast?.(`已切换至${mode.label}`, "success");
                 }}
                   className="text-xs md:text-sm rounded-lg px-2 py-3 transition-all"
                   style={{ border: "1px solid var(--border)", background: settings.mode === mode.id ? "var(--primary-2)" : "var(--card-2)", color: settings.mode === mode.id ? "#ffffff" : "var(--text)", boxShadow: settings.mode === mode.id ? "0 0 24px rgba(167, 139, 250, 0.35)" : "none" }}

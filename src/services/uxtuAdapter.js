@@ -345,10 +345,15 @@ export async function dispatchFullMode(mode, params) {
     }),
   }).catch(e => console.warn("[Fan]:", e));
 
-  // 7. 500ms 后重发 SMU，防止 EC 刷预设覆盖用户参数
+  // 7. 延迟重发 SMU（两次），防止 EC 刷预设覆盖用户参数
   setTimeout(() => {
     applyUxtuLimits({ chipset: "Ryzen 9 8940HX", profile: mode, params })
       .then(r => console.log("[SMU] re-send OK:", r))
       .catch(e => console.warn("[SMU] re-send failed:", e));
   }, 500);
+  setTimeout(() => {
+    applyUxtuLimits({ chipset: "Ryzen 9 8940HX", profile: mode, params })
+      .then(r => console.log("[SMU] re-send2 OK:", r))
+      .catch(e => console.warn("[SMU] re-send2 failed:", e));
+  }, 1500);
 }

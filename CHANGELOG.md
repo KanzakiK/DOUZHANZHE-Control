@@ -5,6 +5,22 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
+## [1.3.0] — 2026-06-09
+
+### 新增
+
+- **版本更新推送**: 启动时自动检查 GitHub Release 最新版本，弹窗显示更新日志（支持跳过此版本/稍后提醒/前往下载）；设置页"关于"卡片新增手动检查更新按钮
+- **构建脚本版本号变量化**: `build-installer.ps1 -Version` 参数通过 ISCC `/dMyAppVersion=` 直接传入 Inno Setup，iss 文件改用 `#ifndef` 条件编译，不再需要正则替换文件内容
+
+### 修复
+
+- **GPU 模式 WMI 映射修正**: 独显=1, 集显=2（之前映射错误导致模式切换异常）
+- **GPU 模式启动恢复加固**: 启动时正确读取并恢复上一次 GPU 模式
+- **背景上传预览修复**: 首次上传/删除后使用 createObjectURL 即时预览，无需等待后端响应
+- **ASP.NET Core Runtime 依赖检测**: 安装包安装时自动检测并安装 ASP.NET Core Runtime（之前只检测 .NET Desktop Runtime）
+- **run.ps1 保留 config**: 构建部署时不覆盖用户配置文件
+- **ISCC 路径修正**: Inno Setup 编译器默认路径更新为当前用户安装位置
+
 ## [1.2.1] — 2026-06-09
 
 ### 修复
