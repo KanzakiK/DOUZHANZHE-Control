@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { mockTelemetry } from "../data/mockTelemetry";
 import {
   createTelemetrySocket, FULL_PARAMS, dispatchFullMode,
