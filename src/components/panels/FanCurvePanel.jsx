@@ -110,7 +110,7 @@ export default function FanCurvePanel({ telemetry, overrides, settings }) {
   // ── 当前模式的风扇合法区间 ──
   const mode = settings?.mode || "silent";
   const fanRange = getFanRange(mode);
-  const MODE_LABELS = { silent: "静音", office: "办公", beast: "野兽", gaming: "游戏", custom: "自定义" };
+  const MODE_LABELS = { silent: "安静", office: "均衡", beast: "野兽", gaming: "斗战", custom: "自定义" };
   const modeLabel = MODE_LABELS[mode] || mode;
 
   // 检测曲线中有多少点超出区间

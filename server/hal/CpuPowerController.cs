@@ -31,6 +31,9 @@ public sealed class CpuPowerController : IDisposable
     // Processor maximum state % (标准 Windows)
     private const string SET_PROC_MAX_STATE = "0cc5b647-c1df-4637-891a-dec35c318583";
 
+    // Processor minimum state % (标准 Windows)
+    private const string SET_PROC_MIN_STATE = "893dee8e-2bef-41e0-89c6-b55d0929964c";
+
     // Processor power throttling max (标准 Windows)
     private const string SET_PROC_THROTTLE_MAX = "8baa4a8a-14c6-4451-8e8b-14bdbd197537";
 
@@ -66,14 +69,25 @@ public sealed class CpuPowerController : IDisposable
 
     /// <summary>
     /// 启用/禁用睿频 (Turbo Boost)
+    /// 禁用策略: min=max=100% 定频，配合频率限制使用（而非降到基础频率）
     /// </summary>
     public async Task SetTurboAsync(bool enabled)
     {
         var scheme = GetActiveScheme();
         await DisableOverlayAsync();
-        // 0=禁用, 2=激进模式
-        var val = enabled ? "2" : "0";
-        await SetPowerValueAsync(scheme, SUB_PROCESSOR, SET_PERF_BOOST, val);
+        if (enabled)
+        {
+            // 恢复睿频: 最小状态 0%, boost 激进模式
+            await SetPowerValueAsync(scheme, SUB_PROCESSOR, SET_PROC_MIN_STATE, "0");
+            await SetPowerValueAsync(scheme, SUB_PROCESSOR, SET_PERF_BOOST, "2");
+        }
+        else
+        {
+            // 关闭睿频: 定频 100% (min=max)，CPU 跑额定频率，再由频率限制滑块控制上限
+            await SetPowerValueAsync(scheme, SUB_PROCESSOR, SET_PROC_MIN_STATE, "100");
+            await SetPowerValueAsync(scheme, SUB_PROCESSOR, SET_PROC_MAX_STATE, "100");
+            await SetPowerValueAsync(scheme, SUB_PROCESSOR, SET_PERF_BOOST, "0");
+        }
         await Task.Delay(100);
         await SetActiveSchemeAsync(scheme);
     }
@@ -107,6 +121,7 @@ public sealed class CpuPowerController : IDisposable
         // 频率限制归零 (取消)
         await SetPowerValueAsync(scheme, SUB_PROCESSOR, SET_PROC_FREQ_LIMIT, "0");
         // 睿频启用 (激进模式)
+        await SetPowerValueAsync(scheme, SUB_PROCESSOR, SET_PROC_MIN_STATE, "0");
         await SetPowerValueAsync(scheme, SUB_PROCESSOR, SET_PERF_BOOST, "2");
         // 核心数 100%
         await SetPowerValueAsync(scheme, SUB_PROCESSOR, SET_PROC_THROTTLE_MAX, "100");

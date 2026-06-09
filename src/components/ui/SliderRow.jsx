@@ -1,4 +1,4 @@
-export default function SliderRow({ label, value, min, max, step = 1, onChange, unit = "", displayValue, disabled = false, isCustom }) {
+export default function SliderRow({ label, value, min, max, step = 1, onChange, unit = "", displayValue, disabled = false, isCustom, action }) {
   // isCustom: undefined = 不启用双态；true = 已自定义(高亮)；false = EC 管理(灰色)
   const dimmed = isCustom === false;
   const highlighted = isCustom === true;
@@ -12,8 +12,11 @@ export default function SliderRow({ label, value, min, max, step = 1, onChange, 
           <span style={{ color: highlighted ? "var(--text)" : isCustom === false ? "var(--muted)" : undefined }}>{label}</span>
           {dimmed && <span className="text-xs" style={{ color: "var(--muted)" }}>默认</span>}
         </span>
-        <span style={{ color: highlighted ? "var(--primary-2)" : "var(--muted)" }}>
-          {displayValue ?? value}{displayValue === "自动" ? "" : unit}
+        <span className="flex items-center gap-2">
+          <span style={{ color: highlighted ? "var(--primary-2)" : "var(--muted)" }}>
+            {displayValue ?? value}{displayValue === "自动" ? "" : unit}
+          </span>
+          {action}
         </span>
       </div>
       <input

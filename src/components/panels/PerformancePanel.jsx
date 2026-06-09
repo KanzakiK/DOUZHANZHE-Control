@@ -27,8 +27,9 @@ export default function PerformancePanel({
   const [applyMessage, setApplyMessage] = useState("");
   const [cpuPowerStatus, setCpuPowerStatus] = useState(null);
 
-  // GPU 频率锁定状态 (本组件内 ref，非持久化)
-  const gpuFreqLocked = useRef(false);
+  // GPU 频率锁定状态 (useState 以驱动 UI 更新)
+  const [gpuFreqLocked, setGpuFreqLocked] = useState(false);
+  const gpuFreqLockedRef = useRef(false); // ref 供回调中读取最新值
   const latestParamsRef = useRef(uxtuParams);
   latestParamsRef.current = uxtuParams;
 
@@ -53,20 +54,40 @@ export default function PerformancePanel({
     }
   }
 
-  // GPU 核心频率: unlock → limit → lock
+  // GPU 核心频率: 默认只设上限 (limit-max)，锁定状态下才精确锁定
   async function applyGpuCoreFreq(mhz) {
-    if (gpuFreqLocked.current) {
+    if (gpuFreqLockedRef.current) {
       await gpuCmd("reset-clocks").catch(() => {});
-      gpuFreqLocked.current = false;
+      await gpuCmd("limit-max", mhz);
+      gpuFreqLockedRef.current = true;
+      await gpuCmd("lock-exact", mhz);
+    } else {
+      await gpuCmd("reset-clocks").catch(() => {});
+      await gpuCmd("limit-max", mhz);
     }
-    await gpuCmd("limit-max", mhz);
-    gpuFreqLocked.current = true;
-    await gpuCmd("lock-exact", mhz);
   }
 
   function queueGpuCore(mhz) {
     clearTimeout(gpuCoreTimer.current);
     gpuCoreTimer.current = setTimeout(() => applyGpuCoreFreq(mhz), 400);
+  }
+
+  // GPU 频率锁定切换
+  async function toggleGpuLock() {
+    const mhz = latestParamsRef.current.gpuCoreFreqMhz;
+    if (gpuFreqLockedRef.current) {
+      // 解锁: reset → limit-max
+      await gpuCmd("reset-clocks").catch(() => {});
+      await gpuCmd("limit-max", mhz);
+      gpuFreqLockedRef.current = false;
+      setGpuFreqLocked(false);
+    } else {
+      // 锁定: limit-max → lock-exact
+      await gpuCmd("limit-max", mhz);
+      await gpuCmd("lock-exact", mhz);
+      gpuFreqLockedRef.current = true;
+      setGpuFreqLocked(true);
+    }
   }
 
   function queueCpuFreq(mhz) {
@@ -113,7 +134,7 @@ export default function PerformancePanel({
       try {
         const p = latestParamsRef.current;
         await applyNvapiOverclock(p.ocCoreOffsetMhz ?? 0, p.ocMemOffsetMhz ?? 0);
-        if (gpuFreqLocked.current) {
+        if (gpuFreqLockedRef.current) {
           await gpuCmd("lock-exact", p.gpuCoreFreqMhz).catch(() => {});
         }
       } catch (err) { console.error("NVAPI OC failed:", err); }
@@ -243,7 +264,19 @@ export default function PerformancePanel({
           <SliderRow label="核心频率" value={uxtuParams.gpuCoreFreqMhz}
             min={1000} max={3100} step={50} unit="MHz"
             isCustom={isC("gpuCoreFreqMhz")}
-            onChange={(v) => { update("gpuCoreFreqMhz")(v); queueGpuCore(v); }} />
+            onChange={(v) => { update("gpuCoreFreqMhz")(v); queueGpuCore(v); }}
+            action={
+              <button onClick={toggleGpuLock}
+                className="text-xs px-2.5 py-1 rounded-lg transition whitespace-nowrap"
+                style={{
+                  border: gpuFreqLocked ? "1px solid var(--ok)" : "1px solid var(--border)",
+                  background: gpuFreqLocked ? "var(--ok)" : "var(--card-2)",
+                  color: gpuFreqLocked ? "#fff" : "var(--text)",
+                }}>
+                {gpuFreqLocked ? "已锁定" : "锁定频率"}
+              </button>
+            }
+          />
           <SliderRow label="核心偏移" value={uxtuParams.ocCoreOffsetMhz ?? 0}
             min={-200} max={300} step={25} unit="MHz"
             displayValue={((uxtuParams.ocCoreOffsetMhz ?? 0) >= 0 ? "+" : "") + (uxtuParams.ocCoreOffsetMhz ?? 0)}
