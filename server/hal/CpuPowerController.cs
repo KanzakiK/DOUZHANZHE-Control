@@ -57,13 +57,10 @@ public sealed class CpuPowerController : IDisposable
         if (mhz < 0) throw new ArgumentOutOfRangeException(nameof(mhz));
         var scheme = GetActiveScheme();
         await DisableOverlayAsync();
-        // 设置 AC + DC
+        // 直接写入 AC + DC
         await SetPowerValueAsync(scheme, SUB_PROCESSOR, SET_PROC_FREQ_LIMIT, mhz.ToString());
         await Task.Delay(100);
-        // 归零再设（蛟龙同款逻辑，确保 Windows 电源管理刷新）
-        await SetPowerValueAsync(scheme, SUB_PROCESSOR, SET_PROC_FREQ_LIMIT, "0");
-        await Task.Delay(100);
-        // 重新激活方案
+        // 重新激活方案使设置生效
         await SetActiveSchemeAsync(scheme);
     }
 
