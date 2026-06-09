@@ -153,6 +153,67 @@ app.MapGet("/api/health", (HardwareAbstractionLayer hal) =>
         timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
     });
 });
+
+// ---- 版本更新检查 ----
+const string CURRENT_VERSION = "1.2.0";
+const string GITHUB_API_URL = "https://api.github.com/repos/KanzakiK/DOUZHANZHE-Control/releases/latest";
+
+app.MapGet("/api/update/check", async () =>
+{
+    try
+    {
+        using var client = new HttpClient();
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("Douzhanzhe-Console");
+        client.Timeout = TimeSpan.FromSeconds(10);
+
+        var json = await client.GetStringAsync(GITHUB_API_URL);
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        var tagName = root.GetProperty("tag_name").GetString() ?? "";
+        var body = root.TryGetProperty("body", out var b) ? b.GetString() ?? "" : "";
+        var htmlUrl = root.GetProperty("html_url").GetString() ?? "";
+        var publishedAt = root.TryGetProperty("published_at", out var p) ? p.GetString() ?? "" : "";
+
+        // 解析版本号：v1.3.0 → 1.3.0
+        var remoteVersion = tagName.TrimStart('v');
+
+        // 版本号对比
+        if (Version.TryParse(remoteVersion, out var rv) && Version.TryParse(CURRENT_VERSION, out var cv))
+        {
+            var hasUpdate = rv > cv;
+            return Results.Json(new
+            {
+                available = hasUpdate,
+                currentVersion = CURRENT_VERSION,
+                latestVersion = remoteVersion,
+                body = body,
+                url = htmlUrl,
+                publishedAt = publishedAt,
+            });
+        }
+
+        return Results.Json(new
+        {
+            available = false,
+            currentVersion = CURRENT_VERSION,
+            latestVersion = remoteVersion,
+            body = body,
+            url = htmlUrl,
+            publishedAt = publishedAt,
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new
+        {
+            available = false,
+            error = ex.Message,
+            currentVersion = CURRENT_VERSION,
+        });
+    }
+});
+
 app.MapPost("/api/control", (ControlRequest req, HardwareAbstractionLayer hal, WmiInterface wmi) =>
 {
     try

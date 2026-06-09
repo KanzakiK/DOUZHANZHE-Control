@@ -7,6 +7,7 @@ import FanCurvePanel from "./components/panels/FanCurvePanel";
 import Card from "./components/ui/Card";
 import Gauge from "./components/ui/Gauge";
 import SortableDashboard from "./components/SortableDashboard";
+import UpdateDialog from "./components/ui/UpdateDialog";
 import { ToastProvider, useToast } from "./components/ui/Toast";
 import { useControlState } from "./hooks/useControlState";
 import { MODE_PRESETS, FULL_PARAMS, dispatchFullMode, fetchFanCurveStatus } from "./services/uxtuAdapter";
@@ -180,6 +181,9 @@ export default function App() {
           )}
           {activeTab === "fancurve" && <FanCurvePanel telemetry={telemetry} />}
         </main>
+
+        {/* 版本更新弹窗 */}
+        <UpdateDialog />
       </div>
     </div>
   );

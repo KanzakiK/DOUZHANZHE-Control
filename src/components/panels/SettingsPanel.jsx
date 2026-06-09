@@ -237,7 +237,7 @@ export default function SettingsPanel({ settings, setSettings, uxtuPayload, show
       )}
       {showAbout && (<Card title="关于" className="!p-3">
         <div className="text-xs space-y-1" style={{ color: "var(--muted)" }}>
-          <p>Douzhanzhe Console v1.2.1</p>
+          <p>Douzhanzhe Console v1.2.0</p>
           <p>适用于联想 Legion N176 2025 (宝龙达 OEM)</p>
           <p className="mt-2"><span className="font-semibold">开发者：</span>KanzakiK</p>
           <p><span className="font-semibold">开源协议：</span>GNU General Public License v3.0</p>
@@ -245,6 +245,34 @@ export default function SettingsPanel({ settings, setSettings, uxtuPayload, show
             <a href="https://github.com/KanzakiK/DOUZHANZHE-Control" target="_blank" rel="noopener noreferrer"
               style={{ color: "var(--primary)" }}>KanzakiK/DOUZHANZHE-Control</a>
           </p>
+          <div className="mt-3 pt-3" style={{ borderTop: "1px solid var(--border)" }}>
+            <button
+              onClick={() => {
+                fetch("/api/update/check")
+                  .then(r => r.json())
+                  .then(d => {
+                    if (d.error) { toast?.("检查更新失败: " + d.error, "error"); return; }
+                    if (d.available) {
+                      toast?.(`发现新版本 v${d.latestVersion}，请重启应用查看更新详情`, "info");
+                    } else {
+                      toast?.("当前已是最新版本", "success");
+                    }
+                  })
+                  .catch(() => toast?.("检查更新失败", "error"));
+              }}
+              style={{
+                padding: "6px 12px",
+                borderRadius: "6px",
+                border: "1px solid var(--border)",
+                background: "transparent",
+                color: "var(--primary)",
+                cursor: "pointer",
+                fontSize: "12px",
+              }}
+            >
+              检查更新
+            </button>
+          </div>
         </div>
       </Card>)}
     </>
