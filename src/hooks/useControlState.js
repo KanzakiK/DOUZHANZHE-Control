@@ -105,6 +105,16 @@ export function useControlState(onSaveResult) {
     return loadOverrides(mode);
   });
 
+  // ── 重置参数到官方默认 ──
+  const resetParams = useCallback((mode) => {
+    // 1. 清空 overrides (localStorage + UI 状态)
+    clearOverrides(mode);
+    setOverrides({});
+    
+    // 2. UI 参数回到 FULL_PARAMS 兆底值
+    setUxtuParams({ ...FULL_PARAMS });
+  }, []);
+
   // 持久化 theme + settings
   useEffect(() => { saveToLS(LS_THEME, theme); }, [theme]);
   useEffect(() => { saveToLS(LS_SETTINGS, settings); }, [settings]);
@@ -147,16 +157,6 @@ export function useControlState(onSaveResult) {
     dispatchFullMode(currentMode, newOverrides);
   }, [settings.mode]);
 
-  // ── 每模式 localStorage 持久化 (非自定义模式, 参数变化时保存) ──
-  const prevParamsRef = useRef(uxtuParams);
-  useEffect(() => {
-    if (!paramsLoaded) return; // 跳过首次渲染，避免覆盖已保存数据
-    if (settings.mode === "custom") return;
-    if (prevParamsRef.current === uxtuParams) return;
-    prevParamsRef.current = uxtuParams;
-    saveToLS(LS_PARAMS_PREFIX + settings.mode, uxtuParams);
-  }, [uxtuParams, settings.mode, paramsLoaded]);
-
   // ── 自定义模式: 服务端 + localStorage 持久化 (去抖 1s) ──
   const saveTimerRef = useRef(null);
   useEffect(() => {
@@ -195,23 +195,6 @@ export function useControlState(onSaveResult) {
       .catch(() => {})
       .finally(() => setParamsLoaded(true));
   }, []);
-
-  // ── 风扇目标转速去抖下发 (600ms) ──
-  const fanTimerRef = useRef(null);
-  useEffect(() => {
-    clearTimeout(fanTimerRef.current);
-    fanTimerRef.current = setTimeout(() => {
-      fetch("/api/fan/set-target", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          largeRpm: uxtuParams.fanLargeRpmTarget ?? 2900,
-          smallRpm: uxtuParams.fanSmallRpmTarget ?? 6400,
-        }),
-      }).catch(() => {});
-    }, 600);
-    return () => clearTimeout(fanTimerRef.current);
-  }, [uxtuParams.fanLargeRpmTarget, uxtuParams.fanSmallRpmTarget]);
 
   // ── uxtuPayload (用于手动下发按钮) ──
   const uxtuPayload = useMemo(
@@ -294,5 +277,6 @@ export function useControlState(onSaveResult) {
     settings, setSettings,
     uxtuPayload,
     history,
+    overrides, setOverrides, resetParams,
   };
 }

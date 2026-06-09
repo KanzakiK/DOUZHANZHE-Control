@@ -10,7 +10,7 @@ import SortableDashboard from "./components/SortableDashboard";
 import UpdateDialog from "./components/ui/UpdateDialog";
 import { ToastProvider, useToast } from "./components/ui/Toast";
 import { useControlState } from "./hooks/useControlState";
-import { FULL_PARAMS, dispatchFullMode, fetchFanCurveStatus, resetToFactoryDefaults } from "./services/uxtuAdapter";
+import { dispatchFullMode, fetchFanCurveStatus, resetToFactoryDefaults } from "./services/uxtuAdapter";
 import { useCallback, useState, useEffect } from "react";
 
 const NAV_ITEMS = ["主页", "散热曲线", "系统", "设置"];
@@ -27,7 +27,7 @@ export default function App() {
   const onCustomSaveResult = useCallback((ok) => {
     toast?.(ok ? "自定义参数已保存" : "自定义参数保存失败", ok ? "success" : "error");
   }, [toast]);
-  const { theme, setTheme, telemetry, setTelemetry, uxtuParams, setUxtuParams, settings, setSettings, uxtuPayload, history } =
+  const { theme, setTheme, telemetry, setTelemetry, uxtuParams, setUxtuParams, settings, setSettings, uxtuPayload, history, resetParams } =
     useControlState(onCustomSaveResult);
   const [activeTab, setActiveTab] = useState(() => {
     try { return localStorage.getItem("douzhanzhe_active_tab") || "dashboard"; }
@@ -138,7 +138,7 @@ export default function App() {
               const mode = settings.mode;
               try {
                 await resetToFactoryDefaults(mode);
-                setUxtuParams({ ...FULL_PARAMS });
+                resetParams(mode);  // 同步清空 overrides + UI 回到 FULL_PARAMS
                 toast?.("已恢复官方默认", "success");
               } catch (err) {
                 toast?.(`恢复失败: ${err.message}`, "error");

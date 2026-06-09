@@ -260,7 +260,7 @@ export async function resetCpuPower() {
 // ── 恢复官方默认 ──
 // 清空 overrides + 重发 thermal_mode (EC 恢复出厂值) + resetCpuPower
 export async function resetToFactoryDefaults(mode) {
-  // 1. 清空 overrides (localStorage)
+  // 1. 清空 overrides (localStorage + UI 状态)
   localStorage.setItem("douzhanzhe_overrides_" + mode, "{}");
   
   // 2. 重发 thermal_mode (EC 重新加载出厂值，包括 CPU/GPU/风扇预设)
@@ -273,93 +273,130 @@ export async function resetToFactoryDefaults(mode) {
   await resetCpuPower().catch(e => console.warn("resetCpuPower:", e));
 }
 
-// ── 全量模式下发 ──
-// 按正确写入顺序下发所有硬件参数:
-// 1. EC 散热模式 → 2. SMU 批量 → 3. GPU 频率(unlock→limit→lock) →
-// 4. NVAPI 超频+温度(并行) → 5. CPU powercfg → 6. 风扇 → 7. 500ms SMU 重发
-export async function dispatchFullMode(mode, params) {
-  const tv = thermalModeMap[mode];
 
-  // 1. EC 散热模式
+// ── 全量模式下发（overrides 感知） ──
+// overrides 为空时只发 thermal_mode，非空时按通道下发用户改过的字段
+// 顺序: 1. thermal_mode → 2. SMU → 3. GPU → 4. NVAPI → 5. CPU powercfg → 6. 风扇 → 7. SMU 重发
+export async function dispatchFullMode(mode, overrides) {
+  const tv = thermalModeMap[mode];
+  const isEmpty = !overrides || Object.keys(overrides).length === 0;
+
+  // ① thermal_mode 永远执行（切模式的基础）
   if (tv !== null && tv !== undefined) {
     applyHardwareControl("thermal_mode", tv).catch(e => console.warn("[EC] thermal_mode:", e));
   }
 
-  // 2. SMU 批量写入 (后端提取 CPU 相关字段一次性下发)
-  await applyUxtuLimits({ chipset: "Ryzen 9 8940HX", profile: mode, params }).catch(
-    e => console.warn("[SMU] batch:", e)
-  );
-
-  // 3. GPU 频率控制 (nvidia-smi: unlock → limit → lock)
-  try {
-    await applyGpuControl("reset-clocks");
-    if (params.gpuFreqLimitEnabled && params.gpuCoreFreqMhz !== GPU_BASE_CLOCK) {
-      await applyGpuControl("limit-max", params.gpuCoreFreqMhz);
-      await applyGpuControl("lock-exact", params.gpuCoreFreqMhz);
-    }
-  } catch (e) { console.warn("[GPU] freq:", e); }
-
-  // GPU 显存频率
-  try {
-    const memMap = [0, 9001, 11001, 12001];
-    if (params.gpuMemFreqMhz === 0) {
-      await applyGpuControl("reset-memory-clocks");
-    } else {
-      await applyGpuControl("limit-memory", memMap[params.gpuMemFreqMhz]);
-    }
-  } catch (e) { console.warn("[GPU] memory:", e); }
-
-  // 4. NVAPI: 超频偏移 + 温度限制 (并行，互不依赖)
-  const thermalC = clampParam("gpuTempLimitC", params.gpuTempLimitC ?? 87);
-  Promise.all([
-    applyNvapiOverclock(params.ocCoreOffsetMhz ?? 0, params.ocMemOffsetMhz ?? 0).catch(
-      e => console.warn("[NVAPI] OC:", e)
-    ),
-    applyNvapiThermalLimit(thermalC).catch(
-      e => console.warn("[NVAPI] thermal:", e)
-    ),
-  ]);
-
-  // 5. CPU powercfg: 频率限制 / 睿频 / 核心数 / 电源计划
-  setCpuFreqLimit(params.cpuFreqLimitEnabled ? params.cpuFreqLimitMhz : 0).catch(
-    e => console.warn("[CPU] freq:", e)
-  );
-  setCpuTurbo(!params.cpuTurboDisabled).catch(
-    e => console.warn("[CPU] turbo:", e)
-  );
-  if (params.cpuCoreLimit > 0) {
-    setCpuCoreLimitPercent(Math.round(params.cpuCoreLimit / 16 * 100)).catch(
-      e => console.warn("[CPU] core-limit:", e)
-    );
-  } else {
-    setCpuCoreLimitPercent(100).catch(() => {});
+  // overrides 为空时，只发 thermal_mode，其他全部跳过
+  if (isEmpty) {
+    console.log("[dispatch] overrides 为空，仅发送 thermal_mode");
+    return;
   }
-  const ppHal = powerPlanHALMap[params.cpuPowerPlan];
-  if (ppHal !== undefined) {
-    applyHardwareControl("power_plan", ppHal).catch(
-      e => console.warn("[CPU] power-plan:", e)
+
+  // ② SMU 批量写入（仅当 overrides 有 CPU SMU 字段时执行）
+  const smuFields = ["cpuLongPptW", "cpuShortPptW", "cpuTempLimitC", "cpuVoltageOffset"];
+  const hasSmu = smuFields.some(f => f in overrides);
+  if (hasSmu) {
+    await applyUxtuLimits({ chipset: "Ryzen 9 8940HX", profile: mode, params: overrides }).catch(
+      e => console.warn("[SMU] batch:", e)
     );
   }
 
-  // 6. 风扇目标转速
-  fetch("/api/fan/set-target", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      largeRpm: params.fanLargeRpmTarget ?? 2900,
-      smallRpm: params.fanSmallRpmTarget ?? 6400,
-    }),
-  }).catch(e => console.warn("[Fan]:", e));
+  // ③ GPU 频率控制（nvidia-smi: unlock → limit → lock）
+  const gpuFields = ["gpuFreqLimitEnabled", "gpuCoreFreqMhz", "gpuMemFreqMhz"];
+  const hasGpu = gpuFields.some(f => f in overrides);
+  if (hasGpu) {
+    try {
+      await applyGpuControl("reset-clocks");
+      if (overrides.gpuFreqLimitEnabled && overrides.gpuCoreFreqMhz !== GPU_BASE_CLOCK) {
+        await applyGpuControl("limit-max", overrides.gpuCoreFreqMhz);
+        await applyGpuControl("lock-exact", overrides.gpuCoreFreqMhz);
+      }
+    } catch (e) { console.warn("[GPU] freq:", e); }
 
-  // 7. 延迟重发 SMU（两次），防止 EC 刷预设覆盖用户参数
-  setTimeout(() => {
-    applyUxtuLimits({ chipset: "Ryzen 9 8940HX", profile: mode, params })
-      .then(r => console.log("[SMU] re-send OK:", r))
-      .catch(e => console.warn("[SMU] re-send failed:", e));
-  }, 500);
-  setTimeout(() => {
-    applyUxtuLimits({ chipset: "Ryzen 9 8940HX", profile: mode, params })
-      .then(r => console.log("[SMU] re-send2 OK:", r))
-      .catch(e => console.warn("[SMU] re-send2 failed:", e));
-  }, 1500);
+    // GPU 显存频率
+    try {
+      const memMap = [0, 9001, 11001, 12001];
+      if (overrides.gpuMemFreqMhz === 0 || overrides.gpuMemFreqMhz === undefined) {
+        await applyGpuControl("reset-memory-clocks");
+      } else {
+        await applyGpuControl("limit-memory", memMap[overrides.gpuMemFreqMhz]);
+      }
+    } catch (e) { console.warn("[GPU] memory:", e); }
+  }
+
+  // ④ NVAPI: 超频偏移 + 温度限制（并行）
+  const nvapiFields = ["ocCoreOffsetMhz", "ocMemOffsetMhz", "gpuTempLimitC"];
+  const hasNvapi = nvapiFields.some(f => f in overrides);
+  if (hasNvapi) {
+    const thermalC = clampParam("gpuTempLimitC", overrides.gpuTempLimitC ?? 87);
+    Promise.all([
+      applyNvapiOverclock(overrides.ocCoreOffsetMhz ?? 0, overrides.ocMemOffsetMhz ?? 0).catch(
+        e => console.warn("[NVAPI] OC:", e)
+      ),
+      applyNvapiThermalLimit(thermalC).catch(
+        e => console.warn("[NVAPI] thermal:", e)
+      ),
+    ]);
+  }
+
+  // ⑤ CPU powercfg: 频率限制 / 睿频 / 核心数 / 电源计划
+  const cpuFields = ["cpuFreqLimitEnabled", "cpuFreqLimitMhz", "cpuTurboDisabled", "cpuCoreLimit", "cpuPowerPlan"];
+  const hasCpu = cpuFields.some(f => f in overrides);
+  if (hasCpu) {
+    if ("cpuFreqLimitEnabled" in overrides || "cpuFreqLimitMhz" in overrides) {
+      setCpuFreqLimit(overrides.cpuFreqLimitEnabled ? overrides.cpuFreqLimitMhz : 0).catch(
+        e => console.warn("[CPU] freq:", e)
+      );
+    }
+    if ("cpuTurboDisabled" in overrides) {
+      setCpuTurbo(!overrides.cpuTurboDisabled).catch(
+        e => console.warn("[CPU] turbo:", e)
+      );
+    }
+    if ("cpuCoreLimit" in overrides) {
+      if (overrides.cpuCoreLimit > 0) {
+        setCpuCoreLimitPercent(Math.round(overrides.cpuCoreLimit / 16 * 100)).catch(
+          e => console.warn("[CPU] core-limit:", e)
+        );
+      } else {
+        setCpuCoreLimitPercent(100).catch(() => {});
+      }
+    }
+    if ("cpuPowerPlan" in overrides) {
+      const ppHal = powerPlanHALMap[overrides.cpuPowerPlan];
+      if (ppHal !== undefined) {
+        applyHardwareControl("power_plan", ppHal).catch(
+          e => console.warn("[CPU] power-plan:", e)
+        );
+      }
+    }
+  }
+
+  // ⑥ 风扇目标转速
+  const fanFields = ["fanLargeRpmTarget", "fanSmallRpmTarget"];
+  const hasFan = fanFields.some(f => f in overrides);
+  if (hasFan) {
+    fetch("/api/fan/set-target", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        largeRpm: overrides.fanLargeRpmTarget ?? 2900,
+        smallRpm: overrides.fanSmallRpmTarget ?? 6400,
+      }),
+    }).catch(e => console.warn("[Fan]:", e));
+  }
+
+  // ⑦ 延迟重发 SMU（两次），仅当 SMU 实际执行时触发
+  if (hasSmu) {
+    setTimeout(() => {
+      applyUxtuLimits({ chipset: "Ryzen 9 8940HX", profile: mode, params: overrides })
+        .then(r => console.log("[SMU] re-send OK:", r))
+        .catch(e => console.warn("[SMU] re-send failed:", e));
+    }, 500);
+    setTimeout(() => {
+      applyUxtuLimits({ chipset: "Ryzen 9 8940HX", profile: mode, params: overrides })
+        .then(r => console.log("[SMU] re-send2 OK:", r))
+        .catch(e => console.warn("[SMU] re-send2 failed:", e));
+    }, 1500);
+  }
 }
