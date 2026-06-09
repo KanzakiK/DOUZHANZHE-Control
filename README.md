@@ -1,15 +1,23 @@
 # Douzhanzhe Console
 
 > [!WARNING]
-> **⚠️ 风险声明 / Disclaimer**
+> **️ 风险提示 & 兼容性声明 / Disclaimer**
 >
-> 本工具提供的部分功能涉及超出厂商预设范围的硬件参数调整（包括但不限于 CPU 功耗墙、温度墙、GPU 超频、EC 寄存器直写等）。**使用此类功能可能导致硬件损坏、系统不稳定、数据丢失，或影响厂商保修及售后服务。**
+> **兼容性**：本控制台仅在 **联想斗战者战7000锐龙版 2025款** 上测试通过。酷睿版或其他机型使用可能导致部分功能不可用，甚至引发硬件参数设置错误。请在非兼容机型上谨慎使用。
+>
+> **操作风险**：本工具提供的部分功能涉及超出厂商预设范围的硬件参数调整（包括但不限于 CPU 功耗墙、温度墙、GPU 超频、EC 寄存器直写等）。**使用此类功能可能导致硬件损坏、系统不稳定、数据丢失，或影响厂商保修及售后服务。**
 >
 > 请在充分了解相关风险后自行决定是否使用。**因使用本工具造成的一切硬件损坏、系统故障、保修失效等后果，需由用户自行承担，本工具及其开发者不承担任何责任。**
 >
-> Some features of this tool involve hardware parameter adjustments beyond manufacturer defaults (including but not limited to CPU/GPU power limits, thermal thresholds, overclocking, and direct EC register writes). **These operations may cause hardware damage, system instability, data loss, or void your warranty.**
+> **Compatibility**: This console has only been tested on the **Lenovo Legion 7000 Ryzen 2025 Edition**. Using it on Intel or other models may result in feature incompatibility or incorrect hardware configuration.
 >
-> **Use at your own risk.** The developers assume no liability for any hardware damage, system failure, or warranty issues resulting from the use of this tool.
+> **Use at your own risk.** Some features involve hardware adjustments beyond manufacturer defaults. The developers assume no liability for any hardware damage, system failure, or warranty issues.
+
+> [!TIP]
+> **📥 下载安装 / Download**
+> 获取最新安装包请访问：[GitHub Releases](https://github.com/KanzakiK/DOUZHANZHE-Control/releases/latest)
+>
+> Get the latest installer from: [GitHub Releases](https://github.com/KanzakiK/DOUZHANZHE-Control/releases/latest)
 
 ---
 
