@@ -1,6 +1,7 @@
 using Douzhanzhe.HAL;
 using Douzhanzhe.API;
 using System.Net.WebSockets;
+using System.Net.Http;
 using System.Text.Json.Serialization;
 using System.IO;
 using System.Text.Json;
@@ -1193,6 +1194,58 @@ app.MapDelete("/api/background", () =>
         return Results.Json(new { ok = true });
     }
     catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }); }
+});
+
+// ---- 检查更新 (GitHub Releases API) ----
+var _updateHttpClient = new HttpClient();
+_updateHttpClient.Timeout = TimeSpan.FromSeconds(8);
+_updateHttpClient.DefaultRequestHeaders.UserAgent.ParseAdd("DouzhanzheConsole-UpdateChecker/1.0");
+
+app.MapGet("/api/update/check", async () =>
+{
+    try
+    {
+        const string CurrentVersion = "1.3.6";
+        var res = await _updateHttpClient.GetAsync(
+            "https://api.github.com/repos/KanzakiK/DOUZHANZHE-Control/releases/latest");
+
+        // 无 release (404) 或网络故障 → 视为无更新
+        if (!res.IsSuccessStatusCode)
+            return Results.Json(new { available = false, currentVersion = CurrentVersion,
+                reason = "无法获取发布信息" });
+
+        var json = await res.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        var tag = root.GetProperty("tag_name").GetString() ?? "";
+        var latestVersion = tag.TrimStart('v');
+        var body = root.TryGetProperty("body", out var b) ? b.GetString() : null;
+        var publishedAt = root.TryGetProperty("published_at", out var p) ? p.GetString() : null;
+        var htmlUrl = root.TryGetProperty("html_url", out var u) ? u.GetString() : null;
+
+        var isNewer = false;
+        if (Version.TryParse(latestVersion, out var latest) &&
+            Version.TryParse(CurrentVersion, out var current))
+        {
+            isNewer = latest > current;
+        }
+
+        return Results.Json(new
+        {
+            available = isNewer,
+            currentVersion = CurrentVersion,
+            latestVersion,
+            body,
+            publishedAt,
+            url = htmlUrl
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new { available = false, currentVersion = "1.3.6",
+            error = ex.Message });
+    }
 });
 
 app.MapGet("/debug", () =>

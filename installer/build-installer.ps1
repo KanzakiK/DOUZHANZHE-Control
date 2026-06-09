@@ -17,6 +17,21 @@ $ErrorActionPreference = "Stop"
 $Root = "d:\DOUZHANZHE-Control"
 $PSScriptRoot_Fallback = "d:\DOUZHANZHE-Control\installer"
 
+# ── 版本号自动检测: 未显式指定时从 package.json 读取 ──
+if (-not $Version) {
+    $PkgPath = Join-Path $Root "package.json"
+    if (Test-Path $PkgPath) {
+        $PkgRaw = Get-Content $PkgPath -Raw -Encoding UTF8
+        if ($PkgRaw -match '"version"\s*:\s*"(\d+\.\d+\.\d+)"') {
+            $Version = $matches[1]
+            Write-Host "[0/6] 从 package.json 读取版本号: $Version" -ForegroundColor Cyan
+        }
+    }
+    if (-not $Version) {
+        Write-Host "[0/6] 警告：未能自动检测版本号，安装包将使用 ISS 默认值" -ForegroundColor Yellow
+    }
+}
+
 # ── 0. 版本号同步 ──
 if ($Version) {
     Write-Host "[0/6] 同步版本号: $Version ..." -ForegroundColor Cyan
