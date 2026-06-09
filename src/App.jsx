@@ -62,10 +62,25 @@ export default function App() {
     return { enabled: false, opacity: 50, maskColor: "black", hasImage: false, url: null };
   });
   useEffect(() => {
-    fetch("/api/background-opts").then(r => r.json()).then(d => {
-      const cfg = { enabled: !!d.enabled, opacity: d.opacity ?? 50, maskColor: d.maskColor || "black", hasImage: !!d.hasImage };
-      localStorage.setItem("dz_bg", JSON.stringify(cfg));
-      setBg({ ...cfg, url: d.hasImage ? "/api/background?" + Date.now() : null });
+    // 仅在启动时验证后端图片文件是否存在，不覆盖本地开关/透明度/遮罩设置
+    fetch("/api/background", { method: "HEAD" }).then(r => {
+      if (r.ok) {
+        // 图片存在：确保本地 hasImage 为 true 并刷新 URL
+        setBg(prev => {
+          if (prev.hasImage && prev.url) return prev;
+          const next = { ...prev, hasImage: true, url: "/api/background?" + Date.now() };
+          localStorage.setItem("dz_bg", JSON.stringify({ enabled: next.enabled, opacity: next.opacity, maskColor: next.maskColor, hasImage: true }));
+          return next;
+        });
+      } else {
+        // 图片不存在：清除本地 hasImage
+        setBg(prev => {
+          if (!prev.hasImage) return prev;
+          const next = { ...prev, hasImage: false, url: null };
+          localStorage.setItem("dz_bg", JSON.stringify({ enabled: next.enabled, opacity: next.opacity, maskColor: next.maskColor, hasImage: false }));
+          return next;
+        });
+      }
     }).catch(() => {});
   }, []);
   const updateBg = useCallback((patch) => {
