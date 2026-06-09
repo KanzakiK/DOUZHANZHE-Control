@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
-  MODE_PRESETS, applyUxtuLimits, applySmuSet, applyHardwareControl,
+  applyUxtuLimits, applySmuSet, applyHardwareControl,
   powerPlanHALMap, applyGpuControl, applyNvapiOverclock, applyNvapiThermalLimit,
   fetchNvapiStatus, fetchCpuPowerStatus, setCpuFreqLimit, setCpuTurbo,
   setCpuCoreLimitPercent, resetCpuPower, GPU_BASE_CLOCK,
@@ -163,34 +163,7 @@ export default function PerformancePanel({
 
   return (
     <>
-      {showCpu && <Card title="CPU 频率控制" className="!p-3"
-        action={!editMode && <button onClick={async () => {
-          try {
-            await resetCpuPower();
-            const mode = settings?.mode || "office";
-            setUxtuParams(p => {
-              const next = {
-                ...p,
-                cpuFreqLimitEnabled: false,
-                cpuTurboDisabled: false,
-                cpuCoreLimit: 0,
-                cpuPowerPlan: "balance",
-              };
-              try { localStorage.setItem("douzhanzhe_params_" + mode, JSON.stringify(next)); } catch {}
-              return next;
-            });
-            setCpuPowerStatus(s => s ? { ...s, turboEnabled: true, freqLimitMhz: 0, coreLimitPercent: 100 } : s);
-            setCpuCoreLimitPercent(100).catch(() => {});
-            applyHardwareControl("power_plan", powerPlanHALMap.balance).catch(() => {});
-            toast?.("已恢复预设值", "success");
-          } catch (err) {
-            toast?.("恢复预设失败: " + err.message, "error");
-          }
-        }}
-          className="text-xs px-2 py-1 rounded-lg"
-          style={{ border: "1px solid var(--warn)", color: "var(--warn)", background: "transparent" }}
-        >恢复预设</button>}
-      >
+      {showCpu && <Card title="CPU 频率控制" className="!p-3">
         <div className="space-y-3">
           <SwitchRow label="频率限制" checked={uxtuParams.cpuFreqLimitEnabled}
             onChange={(on) => { update("cpuFreqLimitEnabled")(on); queueCpuFreq(on ? uxtuParams.cpuFreqLimitMhz : 0); }}
@@ -233,33 +206,7 @@ export default function PerformancePanel({
         </div>
       </Card>}
 
-      {showPower && <Card title="CPU 功耗与温度" className="!p-3"
-        action={!editMode && <button onClick={() => {
-          const mode = settings?.mode || "silent";
-          const preset = MODE_PRESETS[mode] || {};
-          setUxtuParams(p => {
-            const next = {
-              ...p,
-              cpuTempLimitC: preset.cpuTempLimitC ?? 75,
-              cpuVoltageOffset: preset.cpuVoltageOffset ?? 0,
-              cpuLongPptW: preset.cpuLongPptW ?? 35,
-              cpuShortPptW: preset.cpuShortPptW ?? 45,
-            };
-            try { localStorage.setItem("douzhanzhe_params_" + mode, JSON.stringify(next)); } catch {}
-            return next;
-          });
-          applySmuBatch({
-            cpuTempLimitC: preset.cpuTempLimitC ?? 75,
-            cpuVoltageOffset: preset.cpuVoltageOffset ?? 0,
-            cpuLongPptW: preset.cpuLongPptW ?? 35,
-            cpuShortPptW: preset.cpuShortPptW ?? 45,
-          });
-          toast?.("已恢复当前模式预设", "success");
-        }}
-          className="text-xs px-2 py-1 rounded-lg"
-          style={{ border: "1px solid var(--warn)", color: "var(--warn)", background: "transparent" }}
-        >恢复预设</button>}
-      >
+      {showPower && <Card title="CPU 功耗与温度" className="!p-3">
         <div className="space-y-3">
           <SliderRow label="温度墙" value={uxtuParams.cpuTempLimitC}
             min={60} max={100} unit="°C"
@@ -277,36 +224,8 @@ export default function PerformancePanel({
       </Card>}
 
       {showGpu && <Card title="GPU 调节" className="!p-3"
-        action={!editMode && <button onClick={async () => {
-          gpuFreqLocked.current = false;
-          await gpuCmd("reset-clocks").catch(() => {});
-          await gpuCmd("reset-memory-clocks").catch(() => {});
-          try { await applyNvapiOverclock(0, 0); }
-          catch (err) { console.error("NVAPI OC reset failed:", err); }
-          const mode = settings?.mode || "silent";
-          const preset = MODE_PRESETS[mode] || {};
-          const thermalDefault = preset.gpuTempLimitC ?? 87;
-          setUxtuParams(p => {
-            const next = {
-              ...p,
-              gpuCoreFreqMhz: GPU_BASE_CLOCK,
-              gpuMemFreqMhz: 0,
-              gpuFreqLimitEnabled: false,
-              ocCoreOffsetMhz: 0,
-              ocMemOffsetMhz: 0,
-              gpuTempLimitC: thermalDefault,
-            };
-            // 同步落盘，防止刷新前 effect 未执行
-            try { localStorage.setItem("douzhanzhe_params_" + mode, JSON.stringify(next)); } catch {}
-            return next;
-          });
-          await applyNvapiThermalLimit(thermalDefault);
-          toast?.("已恢复预设值", "success");
-        }}
-          className="text-xs px-2 py-1 rounded-lg"
-          style={{ border: "1px solid var(--warn)", color: "var(--warn)", background: "transparent" }}
-        >恢复预设</button>}
-      >
+        >
+
         <div className="space-y-3">
           <SliderRow label="核心频率" value={uxtuParams.gpuCoreFreqMhz}
             min={1000} max={3100} step={50} unit="MHz"

@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { mockTelemetry } from "../data/mockTelemetry";
 import {
-  createTelemetrySocket, MODE_PRESETS, FULL_PARAMS, dispatchFullMode,
+  createTelemetrySocket, FULL_PARAMS, dispatchFullMode,
 } from "../services/uxtuAdapter";
 
 const LS_THEME = "douzhanzhe_theme";
 const LS_SETTINGS = "douzhanzhe_settings";
-const LS_PARAMS_PREFIX = "douzhanzhe_params_";
+const LS_PARAMS_PREFIX = "douzhanzhe_params_";      // 旧版全量存储（迁移用）
+const LS_OVERRIDES_PREFIX = "douzhanzhe_overrides_"; // 新版稀疏存储
 const API_CUSTOM_PARAMS = "/api/custom-params";
 
 function loadFromLS(key, defaultValue) {
@@ -22,6 +23,34 @@ function saveToLS(key, value) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch { /* quota exceeded etc */ }
+}
+
+// ── Overrides 稀疏存储 API ──
+
+function loadOverrides(mode) {
+  return loadFromLS(LS_OVERRIDES_PREFIX + mode, {});
+}
+
+function saveOverride(mode, key, value) {
+  const overrides = loadOverrides(mode);
+  overrides[key] = value;
+  saveToLS(LS_OVERRIDES_PREFIX + mode, overrides);
+}
+
+function clearOverrides(mode) {
+  saveToLS(LS_OVERRIDES_PREFIX + mode, {});
+}
+
+// ── 旧数据清空（不迁移） ──
+
+function clearOldParams() {
+  const modes = ["silent", "office", "beast", "gaming", "custom"];
+  for (const mode of modes) {
+    const oldKey = LS_PARAMS_PREFIX + mode;
+    if (localStorage.getItem(oldKey)) {
+      localStorage.removeItem(oldKey);
+    }
+  }
 }
 
 export function useControlState(onSaveResult) {
@@ -56,33 +85,38 @@ export function useControlState(onSaveResult) {
     touchpadLock: false, osdDisabled: false, kbBrightnessLevel: 0,
   }));
 
-  // ── uxtuParams: 唯一全量参数状态 (包含 CPU/GPU/风扇所有可控字段) ──
+  // ── uxtuParams: 唯一全量参数状态 (FULL_PARAMS 兆底 + overrides 覆盖) ──
   const [uxtuParams, setUxtuParams] = useState(() => {
     const mode = loadFromLS(LS_SETTINGS, { mode: "office" }).mode;
-    const saved = loadFromLS(LS_PARAMS_PREFIX + mode, null);
-    const preset = MODE_PRESETS[mode] || {};
-    return { ...FULL_PARAMS, ...preset, ...(saved || {}) };
+    
+    // 启动时清空旧数据（不迁移）
+    clearOldParams();
+    
+    // 加载 overrides
+    const overrides = loadOverrides(mode);
+    return { ...FULL_PARAMS, ...overrides };
   });
 
   const [paramsLoaded, setParamsLoaded] = useState(false);
+
+  // ── Overrides 状态（暴露给组件，用于灰色/高亮显示）──
+  const [overrides, setOverrides] = useState(() => {
+    const mode = loadFromLS(LS_SETTINGS, { mode: "office" }).mode;
+    return loadOverrides(mode);
+  });
 
   // 持久化 theme + settings
   useEffect(() => { saveToLS(LS_THEME, theme); }, [theme]);
   useEffect(() => { saveToLS(LS_SETTINGS, settings); }, [settings]);
 
-  // ── 模式切换: 保存旧参数 → 加载新参数 → dispatchFullMode 全量下发 ──
+  // ── 模式切换: 加载新 overrides → dispatchFullMode 条件下发 ──
   const prevModeRef = useRef(settings.mode);
   useEffect(() => {
     const prevMode = prevModeRef.current;
     const currentMode = settings.mode;
     prevModeRef.current = currentMode;
     if (prevMode === currentMode) return;
-
-    // 保存当前参数到旧模式 localStorage key
-    if (prevMode !== "custom") {
-      saveToLS(LS_PARAMS_PREFIX + prevMode, uxtuParams);
-    }
-
+  
     // 切换到自定义模式 → 从服务端加载
     if (currentMode === "custom") {
       if (paramsLoaded) {
@@ -102,15 +136,15 @@ export function useControlState(onSaveResult) {
       dispatchFullMode(currentMode, uxtuParams);
       return;
     }
-
-    // 加载新模式: localStorage → MODE_PRESETS → FULL_PARAMS 兜底
-    const saved = loadFromLS(LS_PARAMS_PREFIX + currentMode, null);
-    const preset = MODE_PRESETS[currentMode] || {};
-    const newParams = { ...FULL_PARAMS, ...preset, ...(saved || {}) };
+  
+    // 加载新模式的 overrides
+    const newOverrides = loadOverrides(currentMode);
+    const newParams = { ...FULL_PARAMS, ...newOverrides };
     setUxtuParams(newParams);
-
-    // 全量硬件下发 (含写入顺序保证)
-    dispatchFullMode(currentMode, newParams);
+    setOverrides(newOverrides);
+  
+    // 条件下发硬件命令（overrides 为空时只发 thermal_mode）
+    dispatchFullMode(currentMode, newOverrides);
   }, [settings.mode]);
 
   // ── 每模式 localStorage 持久化 (非自定义模式, 参数变化时保存) ──

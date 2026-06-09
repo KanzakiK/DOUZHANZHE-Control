@@ -18,7 +18,7 @@ import Sparkline from "./ui/Sparkline";
 import SortableCard from "./ui/SortableCard";
 import PerformancePanel from "./panels/PerformancePanel";
 import SettingsPanel from "./panels/SettingsPanel";
-import { getFanRange, applyHardwareControl, MODE_PRESETS, startFanCurve, stopFanCurve } from "../services/uxtuAdapter";
+import { getFanRange, applyHardwareControl, startFanCurve, stopFanCurve } from "../services/uxtuAdapter";
 import { useCardOrder } from "./../hooks/useCardOrder";
 import { useToast } from "./ui/Toast";
 
@@ -155,24 +155,6 @@ export default function SortableDashboard({
                   className="text-xs px-2 py-1 rounded-lg"
                   style={{ border: "1px solid var(--primary-2)", color: "var(--primary-2)", background: "transparent" }}
                 >自定义</button>
-                <button onClick={() => {
-                  const mode = settings?.mode || "silent";
-                  const preset = MODE_PRESETS[mode] || {};
-                  setUxtuParams(p => {
-                    const next = {
-                      ...p,
-                      fanLargeRpmTarget: preset.fanLargeRpmTarget ?? 2200,
-                      fanSmallRpmTarget: preset.fanSmallRpmTarget ?? 4100,
-                    };
-                    try { localStorage.setItem("douzhanzhe_params_" + mode, JSON.stringify(next)); } catch {}
-                    return next;
-                  });
-                  const modeName = mode === "silent" ? "安静" : mode === "office" ? "均衡" : mode === "gaming" ? "斗战" : mode === "beast" ? "野兽" : "自定义";
-                  fanToast?.(`已恢复${modeName}模式风扇预设`, "success");
-                }}
-                  className="text-xs px-2 py-1 rounded-lg"
-                  style={{ border: "1px solid var(--warn)", color: "var(--warn)", background: "transparent" }}
-                >恢复预设</button>
               </div>
             ))}
           >

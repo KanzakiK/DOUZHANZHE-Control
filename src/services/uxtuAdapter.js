@@ -132,17 +132,7 @@ const FAN_RANGES = {
   custom: { largeMin: 2600, largeMax: 3500, smallMin: 5900, smallMax: 6900 },
 };
 
-// 完整模式预设：全量参数快照 (22 字段)
-// 命名约定: oc*OffsetMhz = NVAPI P-State 超频偏移, gpu*FreqMhz = nvidia-smi 频率锁
-export const MODE_PRESETS = {
-  silent: { cpuTempLimitC: 75, cpuLongPptW: 35, cpuShortPptW: 45, cpuVoltageOffset: 0, cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 3000, cpuTurboDisabled: false, cpuCoreLimit: 0, cpuPowerPlan: "balance", gpuPptLimitW: 60, gpuTempLimitC: 75, gpuCoreFreqMhz: 2750, gpuMemFreqMhz: 0, gpuFreqLimitEnabled: false, gpuFreqLimitMhz: 2600, ocCoreOffsetMhz: 0, ocMemOffsetMhz: 0, fanLargeRpmTarget: 2200, fanSmallRpmTarget: 2000 },
-  office: { cpuTempLimitC: 80, cpuLongPptW: 55, cpuShortPptW: 70, cpuVoltageOffset: 0, cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 4500, cpuTurboDisabled: false, cpuCoreLimit: 0, cpuPowerPlan: "balance", gpuPptLimitW: 75, gpuTempLimitC: 85, gpuCoreFreqMhz: 2750, gpuMemFreqMhz: 0, gpuFreqLimitEnabled: false, gpuFreqLimitMhz: 2600, ocCoreOffsetMhz: 0, ocMemOffsetMhz: 0, fanLargeRpmTarget: 2900, fanSmallRpmTarget: 6400 },
-  gaming: { cpuTempLimitC: 95, cpuLongPptW: 120, cpuShortPptW: 140, cpuVoltageOffset: 0, cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 5500, cpuTurboDisabled: false, cpuCoreLimit: 0, cpuPowerPlan: "performance", gpuPptLimitW: 115, gpuTempLimitC: 95, gpuCoreFreqMhz: 2750, gpuMemFreqMhz: 0, gpuFreqLimitEnabled: false, gpuFreqLimitMhz: 2600, ocCoreOffsetMhz: 0, ocMemOffsetMhz: 0, fanLargeRpmTarget: 4300, fanSmallRpmTarget: 8000 },
-  beast:  { cpuTempLimitC: 88, cpuLongPptW: 85, cpuShortPptW: 100, cpuVoltageOffset: 0, cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 5000, cpuTurboDisabled: false, cpuCoreLimit: 0, cpuPowerPlan: "performance", gpuPptLimitW: 100, gpuTempLimitC: 90, gpuCoreFreqMhz: 2750, gpuMemFreqMhz: 0, gpuFreqLimitEnabled: false, gpuFreqLimitMhz: 2600, ocCoreOffsetMhz: 0, ocMemOffsetMhz: 0, fanLargeRpmTarget: 3500, fanSmallRpmTarget: 6900 },
-  custom: { cpuTempLimitC: 80, cpuLongPptW: 55, cpuShortPptW: 70, cpuVoltageOffset: 0, cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 4500, cpuTurboDisabled: false, cpuCoreLimit: 0, cpuPowerPlan: "balance", gpuPptLimitW: 75, gpuTempLimitC: 85, gpuCoreFreqMhz: 2750, gpuMemFreqMhz: 0, gpuFreqLimitEnabled: false, gpuFreqLimitMhz: 2600, ocCoreOffsetMhz: 0, ocMemOffsetMhz: 0, fanLargeRpmTarget: 2900, fanSmallRpmTarget: 6400 },
-};
-
-// 全量参数默认值 (兜底)
+// 全量参数默认值 (兜底，用于 UI 层显示)
 export const FULL_PARAMS = {
   cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 4500, cpuTurboDisabled: false,
   cpuTempLimitC: 80, cpuCoreLimit: 0, cpuPowerPlan: "balance", cpuVoltageOffset: 0,
@@ -265,6 +255,22 @@ export async function resetCpuPower() {
   const res = await fetch("/api/cpu/reset", { method: "POST" });
   if (!res.ok) throw new Error("CPU reset returned " + res.status);
   return res.json();
+}
+
+// ── 恢复官方默认 ──
+// 清空 overrides + 重发 thermal_mode (EC 恢复出厂值) + resetCpuPower
+export async function resetToFactoryDefaults(mode) {
+  // 1. 清空 overrides (localStorage)
+  localStorage.setItem("douzhanzhe_overrides_" + mode, "{}");
+  
+  // 2. 重发 thermal_mode (EC 重新加载出厂值，包括 CPU/GPU/风扇预设)
+  const tv = thermalModeMap[mode];
+  if (tv !== null && tv !== undefined) {
+    await applyHardwareControl("thermal_mode", tv);
+  }
+  
+  // 3. CPU 频率/睿频/核心数通过 Windows powercfg 控制，必须单独恢复
+  await resetCpuPower().catch(e => console.warn("resetCpuPower:", e));
 }
 
 // ── 全量模式下发 ──

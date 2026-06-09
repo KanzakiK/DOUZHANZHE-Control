@@ -10,7 +10,7 @@ import SortableDashboard from "./components/SortableDashboard";
 import UpdateDialog from "./components/ui/UpdateDialog";
 import { ToastProvider, useToast } from "./components/ui/Toast";
 import { useControlState } from "./hooks/useControlState";
-import { MODE_PRESETS, FULL_PARAMS, dispatchFullMode, fetchFanCurveStatus } from "./services/uxtuAdapter";
+import { FULL_PARAMS, dispatchFullMode, fetchFanCurveStatus, resetToFactoryDefaults } from "./services/uxtuAdapter";
 import { useCallback, useState, useEffect } from "react";
 
 const NAV_ITEMS = ["主页", "散热曲线", "系统", "设置"];
@@ -134,21 +134,19 @@ export default function App() {
         <main className="grid gap-4">
           {activeTab === "dashboard" && (
           <Card title="模式选择" className="console-dock !p-3"
-            action={<button onClick={() => {
+            action={<button onClick={async () => {
               const mode = settings.mode;
-              const cleanPreset = { ...FULL_PARAMS, ...(MODE_PRESETS[mode] || {}) };
-              // 同步写入 localStorage，确保刷新前数据已落盘
-              localStorage.setItem("douzhanzhe_params_" + mode, JSON.stringify(cleanPreset));
-              setUxtuParams(cleanPreset);
-              dispatchFullMode(mode, cleanPreset).then(() => {
-                toast?.("已恢复预设值", "success");
-              }).catch(err => {
+              try {
+                await resetToFactoryDefaults(mode);
+                setUxtuParams({ ...FULL_PARAMS });
+                toast?.("已恢复官方默认", "success");
+              } catch (err) {
                 toast?.(`恢复失败: ${err.message}`, "error");
-              });
+              }
             }}
               className="text-xs px-2 py-1 rounded-lg"
               style={{ border: "1px solid var(--warn)", color: "var(--warn)", background: "transparent" }}
-            >恢复预设</button>}
+            >恢复默认</button>}
           >
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               {MODE_ITEMS.map((mode) => (
