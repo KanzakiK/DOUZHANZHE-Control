@@ -384,9 +384,9 @@ Name: "{group}\卸载 {#MyAppName}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
-; 安装完成后启动程序
+; 安装完成后启动程序（继承安装程序的管理员权限，避免双重 UAC 弹窗）
 Filename: "{app}\{#MyAppExeName}"; Description: "启动 {#MyAppName}"; \
-  Flags: nowait postinstall skipifsilent
+  Flags: nowait postinstall skipifsilent runascurrentuser
 
 [UninstallDelete]
 ; 清理运行时生成的文件
