@@ -97,8 +97,9 @@ public sealed class FanCurveService : IDisposable
         _timer = null;
         _lastHotspot = null;
 
-        // 恢复固件风扇控制
-        _wmi.SetFanManual(false);
+        // 恢复固件风扇控制 (双扇)
+        _wmi.SetFanManual(0, false);
+        _wmi.SetFanManual(1, false);
         _log.LogInformation("[FanCurve] 自定义曲线已停止, 固件控制已恢复");
     }
 
@@ -136,8 +137,10 @@ public sealed class FanCurveService : IDisposable
             }
 
             // 每次写入都重新启用手动模式 (对抗 EC 回写覆盖)
-            bool manualOk = _wmi.SetFanManual(true);
+            // Bellator 协议: 交错式 — Switch(0) → Speed(0) → Switch(1) → Speed(1)
+            bool manual0 = _wmi.SetFanManual(0, true);
             bool largeOk = _wmi.SetFanSpeed(0, (byte)largeTarget); // FanType 0 = 大扇 (CPUGPUFan)
+            bool manual1 = _wmi.SetFanManual(1, true);
             bool smallOk = _wmi.SetFanSpeed(1, (byte)smallTarget); // FanType 1 = 小扇 (SYSFan)
 
             _lastHotspot = hotspot;
@@ -145,8 +148,8 @@ public sealed class FanCurveService : IDisposable
             _lastSmallTarget = smallTarget;
 
             _log.LogInformation(
-                "[FanCurve] Tick: hotspot={Hot}°C → large={L}x100rpm small={S}x100rpm | WMI: manual={M} large={Lr} small={Sr}",
-                hotspot, largeTarget, smallTarget, manualOk, largeOk, smallOk);
+                "[FanCurve] Tick: hotspot={Hot}°C → large={L}x100rpm small={S}x100rpm | WMI: m0={M0} large={Lr} m1={M1} small={Sr}",
+                hotspot, largeTarget, smallTarget, manual0, largeOk, manual1, smallOk);
         }
         catch (Exception ex)
         {

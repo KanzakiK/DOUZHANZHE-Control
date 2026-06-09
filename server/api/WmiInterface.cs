@@ -163,15 +163,15 @@ public sealed class WmiInterface
 
     // ---- Fan control (Bellator protocol: data[4]=FanType, data[5]=value) ----
     // FanType: 0=CPUGPUFan(大扇), 1=SYSFan(小扇)
-    public bool SetFanManual(bool enable)
+    public bool SetFanManual(byte fanType, bool enable)
     {
         try
         {
-            // MaxFanSwitch(20): data[4]=FanType(0), data[5]=enable
+            // MaxFanSwitch(20): data[4]=FanType, data[5]=enable
             var input = new byte[32];
             input[1] = 251;
             input[3] = 20;
-            input[4] = 0;   // CPUGPUFan (大扇)
+            input[4] = fanType;
             input[5] = enable ? (byte)1 : (byte)0;
             CallMethod(input);
             return true;

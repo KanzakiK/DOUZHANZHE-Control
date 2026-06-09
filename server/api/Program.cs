@@ -463,16 +463,17 @@ app.MapPost("/api/fan/set-target", (FanSetRequest req, WmiInterface wmi) =>
 {
     try
     {
-        // Bellator 协议: 先启用手动风扇模式，再设转速
-        wmi.SetFanManual(true);
+        // Bellator 协议: 交错式 — Switch(fan) → Speed(fan) 逐扇操作
         if (req.LargeRpm.HasValue)
         {
             var speed = (byte)Math.Clamp(req.LargeRpm.Value / 100, 0, 44);
+            wmi.SetFanManual(0, true);
             wmi.SetFanSpeed(0, speed); // FanType 0 = CPUGPUFan
         }
         if (req.SmallRpm.HasValue)
         {
             var speed = (byte)Math.Clamp(req.SmallRpm.Value / 100, 0, 82);
+            wmi.SetFanManual(1, true);
             wmi.SetFanSpeed(1, speed); // FanType 1 = SYSFan
         }
         return Results.Json(new { ok = true });
@@ -486,7 +487,8 @@ app.MapPost("/api/fan/restore", (WmiInterface wmi) =>
 {
     try
     {
-        wmi.SetFanManual(false);
+        wmi.SetFanManual(0, false);
+        wmi.SetFanManual(1, false);
         return Results.Json(new { ok = true });
     }
     catch (Exception ex)
