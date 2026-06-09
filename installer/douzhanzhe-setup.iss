@@ -1,6 +1,6 @@
 ﻿; ============================================================
 ; 斗战者控制台 (Douzhanzhe Console) — Inno Setup 安装脚本
-; 版本: 1.2.0
+; 版本: 1.3.2
 ; 许可证: GPL-3.0-only
 ;
 ; 依赖: Inno Setup 6.1+ (https://jrsoftware.org/isdl.php)
@@ -13,7 +13,7 @@
 #define MyAppName "斗战者控制台"
 #define MyAppNameEn "Douzhanzhe Console"
 #ifndef MyAppVersion
-  #define MyAppVersion "1.2.0"
+  #define MyAppVersion "1.3.2"
 #endif
 #define MyAppPublisher "Douzhanzhe"
 #define MyAppExeName "Douzhanzhe.Shell.exe"
