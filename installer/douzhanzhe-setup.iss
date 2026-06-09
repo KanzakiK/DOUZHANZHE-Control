@@ -241,7 +241,6 @@ begin
     '    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>' + #13#10 +
     '    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>' + #13#10 +
     '    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>' + #13#10 +
-    '    <DisallowStartOnRemoteAppSession>false</DisallowStartOnRemoteAppSession>' + #13#10 +
     '  </Settings>' + #13#10 +
     '  <Actions Context="Author">' + #13#10 +
     '    <Exec>' + #13#10 +

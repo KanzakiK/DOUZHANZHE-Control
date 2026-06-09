@@ -105,7 +105,8 @@ export default function SettingsPanel({ settings, setSettings, uxtuPayload, show
         .then(d => {
           URL.revokeObjectURL(previewUrl);
           if (d.ok) {
-            updateBg({ hasImage: true });
+            updateBg({ hasImage: true, enabled: true });
+            saveBgOpts({ hasImage: true, enabled: true });
             toast?.("背景图片已设置", "success");
           } else {
             toast?.(d.error || "上传失败", "error");
