@@ -3,6 +3,14 @@ import Card from "../ui/Card";
 
 const LS_SYS_INFO = "douzhanzhe_sys_info";
 const LS_SYS_EXT  = "douzhanzhe_sys_info_ext";
+const LS_CACHE_VER = "douzhanzhe_cache_ver";
+
+// 缓存版本 2: 清除旧版编码乱码缓存
+if (localStorage.getItem(LS_CACHE_VER) !== "2") {
+  localStorage.removeItem(LS_SYS_INFO);
+  localStorage.removeItem(LS_SYS_EXT);
+  localStorage.setItem(LS_CACHE_VER, "2");
+}
 
 export default function SystemInfoPanel() {
   const [info, setInfo] = useState(() => {
