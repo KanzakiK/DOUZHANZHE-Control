@@ -70,10 +70,11 @@ public sealed class CpuPowerController : IDisposable
     }
 
     /// <summary>
-    /// 启用/禁用睿频 (锁频模式)
-    /// "关闭睿频" = 锁定 CPU 频率，禁止降频，使 CPU 始终运行在最大全核频率
-    /// 禁用策略: min=max=100% + boost=2 + freq_limit=0 → CPU 钉死在全速 (~3.8-3.9 GHz)
-    /// 启用策略: min=0% + max=100% + boost=2 + freq_limit=0 → 恢复正常按需调频
+    /// 启用/禁用锁频模式 (原名"关闭睿频")
+    /// 禁用(锁频): min=max=100% + boost=2，CPU 钉死在当前频率上限
+    ///   - 不修改 freq_limit，由用户通过频率限制滑块控制上限
+    ///   - 若未设频率限制，则 CPU 跑在全核最大睿频
+    /// 启用(正常): min=0% + max=100% + boost=2，恢复正常按需调频
     /// </summary>
     public async Task SetTurboAsync(bool enabled)
     {
@@ -85,16 +86,14 @@ public sealed class CpuPowerController : IDisposable
             await SetPowerValueAsync(scheme, SUB_PROCESSOR, SET_PROC_MIN_STATE, "0");
             await SetPowerValueAsync(scheme, SUB_PROCESSOR, SET_PROC_MAX_STATE, "100");
             await SetPowerValueAsync(scheme, SUB_PROCESSOR, SET_PERF_BOOST, "2");
-            await SetPowerValueAsync(scheme, SUB_PROCESSOR, SET_PROC_FREQ_LIMIT, "0");
         }
         else
         {
-            // 关闭睿频(锁频): min=max=100% 强制 CPU 始终运行在最高频率
-            // boost=2 保持启用，不使用 boost=0 (会锁死在基础频率 2.4GHz)
+            // 锁频模式: min=max=100% 强制 CPU 始终运行在最高可用频率
+            // 不动 freq_limit — 用户可通过频率限制滑块设定想要的锁定频率
             await SetPowerValueAsync(scheme, SUB_PROCESSOR, SET_PROC_MIN_STATE, "100");
             await SetPowerValueAsync(scheme, SUB_PROCESSOR, SET_PROC_MAX_STATE, "100");
             await SetPowerValueAsync(scheme, SUB_PROCESSOR, SET_PERF_BOOST, "2");
-            await SetPowerValueAsync(scheme, SUB_PROCESSOR, SET_PROC_FREQ_LIMIT, "0");
         }
         await Task.Delay(100);
         await SetActiveSchemeAsync(scheme);
