@@ -40,7 +40,7 @@ export default function SortableDashboard({
   telemetry, setTelemetry, settings, setSettings,
   uxtuPayload, uxtuParams, setUxtuParams,
   history, editMode, setEditMode,
-  fanCurveActive, onSwitchTab,
+  fanCurveActive, onFanCurveStop, onSwitchTab,
   overrides, saveOverride, clearOverrides,
 }) {
   const toast = useToast();
@@ -162,15 +162,32 @@ export default function SortableDashboard({
         );
       case "fan-info":
         const fanRange = getFanRange(settings?.mode || "silent");
-        const fanToast = useToast();
         const fanLargeCustom = "fanLargeRpmTarget" in (overrides || {});
         const fanSmallCustom = "fanSmallRpmTarget" in (overrides || {});
         return (
           <Card title={"风扇信息" + customLabel(fanKeys)}
             action={!editMode && (fanCurveActive ? (
               <button onClick={async () => {
-                try { await stopFanCurve(); fanToast?.("自定义散热已关闭", "success"); }
-                catch { fanToast?.("关闭自定义散热失败", "error"); }
+                try {
+                  await stopFanCurve();
+                  // 与 FanCurvePanel.handleStop 一致：有 override 回写，无 override 恢复固件
+                  const hasFanOverride = overrides && ("fanLargeRpmTarget" in overrides || "fanSmallRpmTarget" in overrides);
+                  if (hasFanOverride) {
+                    const largeRpm = overrides.fanLargeRpmTarget ?? 2900;
+                    const smallRpm = overrides.fanSmallRpmTarget ?? 6400;
+                    fetch("/api/fan/set-target", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ largeRpm, smallRpm }),
+                    }).catch(() => {});
+                    toast?.("已停止曲线，恢复用户自定义转速", "success");
+                  } else {
+                    fetch("/api/fan/restore", { method: "POST" }).catch(() => {});
+                    toast?.("已停止曲线，恢复固件控制", "success");
+                  }
+                  onFanCurveStop?.();
+                }
+                catch { toast?.("关闭自定义散热失败", "error"); }
               }}
                 className="text-xs px-2 py-1 rounded-lg flex items-center gap-1"
                 style={{ border: "1px solid var(--ok)", color: "var(--ok)", background: "transparent" }}
@@ -181,8 +198,8 @@ export default function SortableDashboard({
             ) : (
               <div className="flex items-center gap-1.5">
                 <button onClick={async () => {
-                  try { await startFanCurve(); fanToast?.("自定义散热已开启", "success"); }
-                  catch { fanToast?.("开启自定义散热失败", "error"); }
+                  try { await startFanCurve(); toast?.("自定义散热已开启", "success"); }
+                  catch { toast?.("开启自定义散热失败", "error"); }
                 }}
                   className="text-xs px-2 py-1 rounded-lg"
                   style={{ border: "1px solid var(--primary-2)", color: "var(--primary-2)", background: "transparent" }}

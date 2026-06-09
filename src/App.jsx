@@ -156,7 +156,12 @@ export default function App() {
           >
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               {MODE_ITEMS.map((mode) => (
-                <button key={mode.id} onClick={() => {
+                <button key={mode.id} onClick={async () => {
+                  // 切换模式前先停曲线，避免曲线定时器与新模式参数冲突
+                  if (fanCurveActive) {
+                    await stopFanCurve().catch(() => {});
+                    setFanCurveActive(false);
+                  }
                   setSettings(prev => ({ ...prev, mode: mode.id }));
                   toast?.(`已切换至${mode.label}`, "success");
                 }}
@@ -177,6 +182,7 @@ export default function App() {
             overrides={overrides} saveOverride={saveOverride} clearOverrides={clearOverrides}
             editMode={editMode} setEditMode={setEditMode}
             fanCurveActive={fanCurveActive}
+            onFanCurveStop={() => setFanCurveActive(false)}
             onSwitchTab={setActiveTab} />
           )}
           {activeTab === "system" && <SystemInfoPanel />}

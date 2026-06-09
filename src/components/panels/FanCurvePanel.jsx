@@ -241,6 +241,8 @@ export default function FanCurvePanel({ telemetry, overrides }) {
           }).catch(() => {});
           toast?.("已停止曲线，恢复用户自定义转速", "success");
         } else {
+          // 无用户自定义转速 → 恢复固件控制
+          fetch("/api/fan/restore", { method: "POST" }).catch(() => {});
           toast?.("已恢复固件控制", "success");
         }
       } else {

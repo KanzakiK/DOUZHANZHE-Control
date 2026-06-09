@@ -96,14 +96,20 @@ public sealed class FanCurveService : IDisposable
         _timer?.Dispose();
         _timer = null;
         _lastHotspot = null;
-
-        // 恢复固件风扇控制 (双扇)
-        _wmi.SetFanManual(0, false);
-        _wmi.SetFanManual(1, false);
-        _log.LogInformation("[FanCurve] 自定义曲线已停止, 固件控制已恢复");
+        // 仅停定时器，不碰 EC 风扇状态
+        // 由前端决定：有 override → 回写用户转速；无 override → 调 /api/fan/restore 恢复固件
+        _log.LogInformation("[FanCurve] 自定义曲线已停止 (定时器已关闭)");
     }
 
-    public void Dispose() => Stop();
+    /// <summary>显式恢复固件风扇控制（进程退出时调用）</summary>
+    public void RestoreFirmwareControl()
+    {
+        _wmi.SetFanManual(0, false);
+        _wmi.SetFanManual(1, false);
+        _log.LogInformation("[FanCurve] 固件风扇控制已恢复");
+    }
+
+    public void Dispose() => RestoreFirmwareControl();
 
     // ── 定时回调 (核心逻辑，对齐 BellatorFanControl.PollAndApply) ──
 
