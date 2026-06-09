@@ -138,13 +138,17 @@ export function useControlState(onSaveResult) {
 
   // ── 模式切换: 加载新 overrides → dispatchFullMode 条件下发 ──
   const prevModeRef = useRef(settings.mode);
+  // 用 ref 追踪 paramsLoaded，避免加入依赖数组后触发不必要的 effect 重跑
+  const paramsLoadedRef = useRef(paramsLoaded);
+  paramsLoadedRef.current = paramsLoaded;
+
   useEffect(() => {
     const prevMode = prevModeRef.current;
     const currentMode = settings.mode;
     prevModeRef.current = currentMode;
     if (prevMode === currentMode) return;
   
-    // 切换到自定义模式 → 加载 overrides + 从服务端加载
+    // 切换到自定义模式 → 加载 overrides + 从服务端加载（await 后再 dispatch，避免竞争）
     if (currentMode === "custom") {
       const customFanDefaults = MODE_FAN_DEFAULTS["custom"] || {};
       const customOverrides = loadOverrides("custom");
@@ -152,7 +156,8 @@ export function useControlState(onSaveResult) {
       setUxtuParams(customParams);
       setOverrides(customOverrides);
 
-      if (paramsLoaded) {
+      // 服务端加载完成后再下发硬件命令，避免 localStorage 和 server 数据竞争
+      if (paramsLoadedRef.current) {
         fetch(API_CUSTOM_PARAMS)
           .then(r => r.json())
           .then(data => {
@@ -162,12 +167,20 @@ export function useControlState(onSaveResult) {
               }
               setUxtuParams(prev => ({ ...prev, ...data }));
               setOverrides(data);
+              // fetch 成功后用服务端数据下发，保证 UI 和硬件一致
+              dispatchFullMode(currentMode, data);
+            } else {
+              dispatchFullMode(currentMode, customOverrides);
             }
           })
-          .catch(() => {});
+          .catch(() => {
+            // fetch 失败时用 localStorage 数据下发
+            dispatchFullMode(currentMode, customOverrides);
+          });
+      } else {
+        // paramsLoaded 尚未完成（启动 fetch 还在跑），先用 localStorage 下发
+        dispatchFullMode(currentMode, customOverrides);
       }
-      // custom 模式没有 thermal_mode，下发全部参数
-      dispatchFullMode(currentMode, customOverrides);
       return;
     }
   

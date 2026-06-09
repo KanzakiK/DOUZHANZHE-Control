@@ -1,5 +1,16 @@
 const BACKEND = "";
 
+// ── SMU 重发取消机制 ──
+// 快速切模式时，新 dispatch 必须取消上一轮 dispatch 遗留的 setTimeout，
+// 否则旧闭包里的 mode/overrides 会覆盖新模式的 SMU 值
+let _smuResendTimers = [];   // 存储 setTimeout 返回的 timer ID
+let _smuDispatchGen = 0;     // generation 计数器，用于二次校验
+
+function cancelSmuResendTimers() {
+  for (const id of _smuResendTimers) clearTimeout(id);
+  _smuResendTimers = [];
+}
+
 // C# HAL thermal_mode value mapping
 export const thermalModeMap = {
   silent: 2,
@@ -140,7 +151,7 @@ export const FULL_PARAMS = {
   cpuTempLimitC: 80, cpuCoreLimit: 0, cpuPowerPlan: "balance", cpuVoltageOffset: 0,
   cpuLongPptW: 55, cpuShortPptW: 70,
   gpuFreqLimitEnabled: false, gpuFreqLimitMhz: 2600, gpuCoreFreqMhz: 2750,
-  gpuMemFreqMhz: 0, gpuPptLimitW: 75, gpuTempLimitC: 85,
+  gpuMemFreqMhz: 0, gpuPptLimitW: 75, gpuTempLimitC: 87,
   ocCoreOffsetMhz: 0, ocMemOffsetMhz: 0,
   fanLargeRpmTarget: 2900, fanSmallRpmTarget: 5200,  // 均衡模式默认
 };
@@ -298,6 +309,10 @@ export async function resetToFactoryDefaults(mode) {
 // thermal_mode + GPU/NVAPI 每次必发（不受 EC 管理），其余通道按 overrides 条件下发
 // 顺序: 1. thermal_mode → 2. SMU → 3. GPU → 4. NVAPI → 5. CPU powercfg → 6. 风扇 → 7. SMU 重发
 export async function dispatchFullMode(mode, overrides) {
+  // ── 取消上一轮 SMU 重发定时器（防止快速切模式时旧闭包覆盖新值） ──
+  cancelSmuResendTimers();
+  const myGen = ++_smuDispatchGen;
+
   const tv = thermalModeMap[mode];
   const isEmpty = !overrides || Object.keys(overrides).length === 0;
 
@@ -319,11 +334,13 @@ export async function dispatchFullMode(mode, overrides) {
       applyNvapiOverclock(0, 0).catch(e => console.warn("[NVAPI] OC-reset:", e)),
       applyNvapiThermalLimit(87).catch(e => console.warn("[NVAPI] thermal-reset:", e)),
     ]);
-    // CPU: 解除频率限制、开启睿频、全部核心、平衡电源计划
-    setCpuFreqLimit(0).catch(e => console.warn("[CPU] freq-reset:", e));
-    setCpuTurbo(true).catch(e => console.warn("[CPU] turbo-reset:", e));
-    setCpuCoreLimitPercent(100).catch(() => {});
-    applyHardwareControl("power_plan", 0).catch(e => console.warn("[CPU] power-plan-reset:", e));
+    // CPU: 解除频率限制、开启睿频、全部核心、平衡电源计划 — await 防止与后续手动操作竞争
+    await Promise.all([
+      setCpuFreqLimit(0).catch(e => console.warn("[CPU] freq-reset:", e)),
+      setCpuTurbo(true).catch(e => console.warn("[CPU] turbo-reset:", e)),
+      setCpuCoreLimitPercent(100).catch(() => {}),
+      applyHardwareControl("power_plan", 0).catch(e => console.warn("[CPU] power-plan-reset:", e)),
+    ]);
     return;
   }
 
@@ -404,16 +421,26 @@ export async function dispatchFullMode(mode, overrides) {
   }
 
   // ⑦ 延迟重发 SMU（两次），仅当 SMU 实际执行时触发
+  // 使用 generation 校验 + timer 追踪，新 dispatch 进入时自动取消旧的定时器
   if (hasSmu) {
-    setTimeout(() => {
+    const t1 = setTimeout(() => {
+      if (myGen !== _smuDispatchGen) {
+        console.log("[SMU] re-send skipped (superseded by gen", _smuDispatchGen, ")");
+        return;
+      }
       applyUxtuLimits({ chipset: "Ryzen 9 8940HX", profile: mode, params: overrides })
         .then(r => console.log("[SMU] re-send OK:", r))
         .catch(e => console.warn("[SMU] re-send failed:", e));
     }, 500);
-    setTimeout(() => {
+    const t2 = setTimeout(() => {
+      if (myGen !== _smuDispatchGen) {
+        console.log("[SMU] re-send2 skipped (superseded by gen", _smuDispatchGen, ")");
+        return;
+      }
       applyUxtuLimits({ chipset: "Ryzen 9 8940HX", profile: mode, params: overrides })
         .then(r => console.log("[SMU] re-send2 OK:", r))
         .catch(e => console.warn("[SMU] re-send2 failed:", e));
     }, 1500);
+    _smuResendTimers = [t1, t2];
   }
 }

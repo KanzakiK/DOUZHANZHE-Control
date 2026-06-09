@@ -27,17 +27,39 @@ export default function PerformancePanel({
   const [applyMessage, setApplyMessage] = useState("");
   const [cpuPowerStatus, setCpuPowerStatus] = useState(null);
 
-  // GPU 频率锁定状态 (useState 以驱动 UI 更新)
-  const [gpuFreqLocked, setGpuFreqLocked] = useState(false);
-  const gpuFreqLockedRef = useRef(false); // ref 供回调中读取最新值
+  // GPU 频率锁定状态 (useState 以驱动 UI 更新，持久化到 localStorage)
+  const [gpuFreqLocked, setGpuFreqLocked] = useState(() => {
+    try { return localStorage.getItem("dz_gpu_freq_locked") === "true"; } catch { return false; }
+  });
+  const gpuFreqLockedRef = useRef(gpuFreqLocked);
   const latestParamsRef = useRef(uxtuParams);
   latestParamsRef.current = uxtuParams;
+
+  // GPU 锁频状态持久化: 变更时写入 localStorage，同步 ref
+  useEffect(() => {
+    gpuFreqLockedRef.current = gpuFreqLocked;
+    try { localStorage.setItem("dz_gpu_freq_locked", String(gpuFreqLocked)); } catch {}
+  }, [gpuFreqLocked]);
 
   // 所有去抖 timer refs
   const smuTimer = useRef(null);
   const cpuFreqTimer = useRef(null); // 修复: 之前未声明
   const coreTimer = useRef(null);
   const ocTimer = useRef(null);
+  const turboTimer = useRef(null);
+  const gpuMemTimer = useRef(null);
+
+  // 组件卸载时清理所有去抖 timer
+  useEffect(() => {
+    return () => {
+      clearTimeout(smuTimer.current);
+      clearTimeout(cpuFreqTimer.current);
+      clearTimeout(coreTimer.current);
+      clearTimeout(ocTimer.current);
+      clearTimeout(turboTimer.current);
+      clearTimeout(gpuMemTimer.current);
+    };
+  }, []);
   const thermalTimer = useRef(null);
   const gpuCoreTimer = useRef(null);
 
@@ -107,14 +129,18 @@ export default function PerformancePanel({
     }, 600);
   }
 
-  // SMU 批量下发 (重置卡片时使用，单次调用发送全部 CPU 参数)
-  function applySmuBatch(p) {
-    return Promise.all([
-      applySmuSet("temp_limit", p.cpuTempLimitC).catch(e => console.warn("SMU temp:", e)),
-      applySmuSet("co_all", p.cpuVoltageOffset).catch(e => console.warn("SMU co:", e)),
-      applySmuSet("power_limit", p.cpuLongPptW).catch(e => console.warn("SMU power:", e)),
-      applySmuSet("short_power_limit", p.cpuShortPptW).catch(e => console.warn("SMU short:", e)),
-    ]);
+  // CPU 睿频开关: 去抖 600ms + 失败回滚
+  function queueTurbo(disabled) {
+    clearTimeout(turboTimer.current);
+    turboTimer.current = setTimeout(async () => {
+      try {
+        await setCpuTurbo(!disabled);
+      } catch (err) {
+        console.error("CPU turbo toggle failed:", err);
+        // 回滚 UI 和 override
+        setUxtuParams(p => ({ ...p, cpuTurboDisabled: !disabled }));
+      }
+    }, 600);
   }
 
   function queueCoreLimit(coreCount) {
@@ -147,6 +173,18 @@ export default function PerformancePanel({
       try { await applyNvapiThermalLimit(tempC); }
       catch (err) { console.error("NVAPI thermal limit failed:", err); }
     }, 600);
+  }
+
+  // GPU 显存频率: 去抖 400ms，合并快速连点
+  function queueGpuMem(v) {
+    clearTimeout(gpuMemTimer.current);
+    gpuMemTimer.current = setTimeout(async () => {
+      try {
+        const map = [0, 9001, 11001, 12001];
+        if (v === 0) await gpuCmd("reset-memory-clocks");
+        else await gpuCmd("limit-memory", map[v]);
+      } catch (err) { console.error("GPU memory freq failed:", err); }
+    }, 400);
   }
 
   const paramsLocked = false;
@@ -202,11 +240,7 @@ export default function PerformancePanel({
           )}
           <SwitchRow label="关闭睿频" checked={uxtuParams.cpuTurboDisabled}
             isCustom={isC("cpuTurboDisabled")}
-            onChange={async (disabled) => {
-              update("cpuTurboDisabled")(disabled);
-              try { await setCpuTurbo(!disabled); }
-              catch (err) { console.error("CPU turbo toggle failed:", err); }
-            }}
+            onChange={(disabled) => { update("cpuTurboDisabled")(disabled); queueTurbo(disabled); }}
             disabled={paramsLocked} />
           <SwitchRow label="限制核心数" checked={uxtuParams.cpuCoreLimit > 0}
             isCustom={isC("cpuCoreLimit")}
@@ -286,12 +320,7 @@ export default function PerformancePanel({
             min={0} max={3} step={1} unit=" MHz"
             displayValue={["自动", "9001", "11001", "12001"][uxtuParams.gpuMemFreqMhz] || ""}
             isCustom={isC("gpuMemFreqMhz")}
-            onChange={async (v) => {
-              update("gpuMemFreqMhz")(v);
-              const map = [0, 9001, 11001, 12001];
-              if (v === 0) await gpuCmd("reset-memory-clocks");
-              else await gpuCmd("limit-memory", map[v]);
-            }} />
+            onChange={(v) => { update("gpuMemFreqMhz")(v); queueGpuMem(v); }} />
           <SliderRow label="温度限制" value={uxtuParams.gpuTempLimitC ?? 87}
             min={60} max={100} step={1} unit="°C"
             isCustom={isC("gpuTempLimitC")}

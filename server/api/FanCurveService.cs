@@ -86,12 +86,12 @@ public sealed class FanCurveService : IDisposable
 
     // ── 启停控制 ──
 
-    public void Start(int intervalMs = 5000, int hysteresisC = 3)
+    public void Start(int? intervalMs = null, int? hysteresisC = null)
     {
         if (_active) return;
         _active = true;
-        _intervalMs = Math.Max(1000, intervalMs);
-        _hysteresisC = hysteresisC;
+        _intervalMs = Math.Max(1000, intervalMs ?? _intervalMs);
+        _hysteresisC = hysteresisC ?? _hysteresisC;
         _lastHotspot = null;
         _lastLargeTarget = 0;
         _lastSmallTarget = 0;

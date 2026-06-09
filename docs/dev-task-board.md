@@ -74,6 +74,57 @@
   - [x] [前端] 删除旧的 `design-override-layer.md`（已被 plan-override-layer.md 替代）
   - [x] [前端] custom 模式存储迁移：`douzhanzhe_params_custom` → `douzhanzhe_overrides_custom`（自动迁移旧数据）
 
+### 下发逻辑审计（28 项 · 2026-06-09）
+
+> 审计范围：模式切换 `dispatchFullMode`、恢复默认 `resetToFactoryDefaults`、单项调整 onChange、风扇曲线、状态管理
+> 严重度：🔴 严重 · 🟠 高 · 🟡 中 · 🟢 低
+
+#### 模式切换 (`dispatchFullMode`)
+
+- [x] ~~🔴 **1.1 快速切模式导致 SMU 重发覆盖**~~: `dispatchFullMode` 未 await，两次 `setTimeout`(500ms/1500ms) 的 SMU 重发闭包不可取消，快速连点模式按钮时旧模式的 SMU 值会覆盖新模式，最长影响 1.5s — `useControlState.js` L170/L182, `uxtuAdapter.js` L407-418
+- [x] ~~🟠 **1.2 isEmpty 路径 CPU reset 未 await**~~: 四路 CPU powercfg 命令（`setCpuFreqLimit(0)`, `setCpuTurbo(true)`, `setCpuCoreLimitPercent(100)`, `power_plan 0`）未 await 就 return，GPU/NVAPI 则已 await。切换后立即操作 CPU 控件可能与 reset 竞争 — `uxtuAdapter.js` L323-327
+- [x] ~~🟠 **1.3 SMU 重发不可取消**~~: 两个 `setTimeout` 无 timer ID 追踪，无 `clearTimeout` 入口。1.5s 内再次切模式时旧 SMU 值（PPT/温度墙/电压偏移）覆盖新值 — `uxtuAdapter.js` L407-418
+- [ ] 🟡 **1.4 自定义模式跳过非 EC 重置**: `thermalModeMap.custom = null` 跳过 thermal_mode，且 custom overrides 通常为完整 FULL_PARAMS 故 isEmpty 为 false，CPU powercfg 不经过 reset 直接从 overrides 设置。若 override 缺某 CPU 字段则旧值残留 — `uxtuAdapter.js` L301-328
+- [ ] 🟢 **1.5 风扇下发用 raw fetch 而非 adapter**: 其余通道均走专用 adapter 函数，唯独 fan target 内联 `fetch("/api/fan/set-target")`。破坏 adapter 抽象，改错/重试/URL 需多处修改 — `uxtuAdapter.js` L396-403
+- [x] ~~🟢 **1.6 NVAPI 温度重置值(87)与 FULL_PARAMS 默认值(85)不一致**~~: 两处 reset 路径用 `applyNvapiThermalLimit(87)` 但 `FULL_PARAMS.gpuTempLimitC = 85`。恢复默认后硬件 87°C 但 UI 显示 85°C — `uxtuAdapter.js` L293/L320 vs L143
+
+#### 恢复默认 (`resetToFactoryDefaults`)
+
+- [ ] 🟡 **2.1 SMU 参数未显式重置**: `resetToFactoryDefaults` 不发 cpuLongPptW/cpuShortPptW/cpuTempLimitC/cpuVoltageOffset 的重置值，依赖 thermal_mode 使 EC 恢复默认。若 SMU 写入独立于 thermal_mode 则用户覆盖会存活 — `uxtuAdapter.js` L274-294
+- [ ] 🟡 **2.2 硬件/UI 重置分两个函数无强制协调**: `resetToFactoryDefaults`(硬件) 和 `resetParams`(UI) 在调用端顺序调用，无组合函数或强制约束。任何新 reset 代码路径须记住两者 — `App.jsx` L149-150
+- [ ] 🟢 **2.3 恢复默认后 custom 模式再污染 localStorage**: custom 模式下恢复默认后 React 重渲染触发 custom save effect，把刚重置的默认值存回 localStorage 当 "overrides" — `App.jsx` L140-155, `useControlState.js` L187-201
+
+#### 单项调整 (onChange handlers)
+
+- [ ] 🟠 **3.1 自定义模式全量存储破坏稀疏语义**: custom 模式把完整 `uxtuParams`（FULL_PARAMS + 风扇默认 + overrides）存为 overrides，每个参数都显示"已自定义"。未来若 FULL_PARAMS 默认值变更，旧存储值会覆盖新默认 — `useControlState.js` L187-201
+- [ ] 🟡 **3.2 风扇滑块 onChange 捕获了另一风扇的过期值**: 拖动一个风扇滑块时另一风扇 RPM 从 render 闭包读取（stale），`setUxtuParams` 是异步的，`queueFan` 用了更新前的值。快速双拖会发混合对 — `SortableDashboard.jsx` L224-228/L243-247
+- [x] ~~🟡 **3.3 CPU 睿频开关无去抖无回滚**~~: 其余 CPU 控件均用 600ms 去抖队列，唯独 turbo toggle 立即下发。若硬件命令失败，UI 和 localStorage 已更新但硬件保持旧值，无回滚机制 — `PerformancePanel.jsx` L205-209
+- [x] ~~🟡 **3.4 GPU 显存档位无去抖**~~: 直接 async 调用无 debounce，快速连点 0→1→2→3 每档都发硬件命令。含重试逻辑(2 次/300ms) 可能多个重试循环重叠。对比 GPU 核心频率有 400ms 去抖 — `PerformancePanel.jsx` L289-293
+- [x] ~~🟢 **3.5 `applySmuBatch` 死代码**~~: 函数已定义但全项目无调用 — `PerformancePanel.jsx` L111-118
+- [ ] 🟢 **3.6 `handleApply` 与单项 SMU 滑块用不同 API 端点**: `handleApply` POST `/api/uxtu/apply`（批量），单项滑块 POST `/api/smu/set`（单条）。若后端行为不同，同逻辑操作可能产生不同硬件结果 — `PerformancePanel.jsx` L173-185
+- [ ] 🟢 **3.7 滑块 onChange 未用 `clampParam` 防御**: `clampParam` 存在于 `uxtuAdapter.js` 但仅在 `dispatchFullMode` 中使用，各滑块 onChange 完全依赖 UI min/max 属性。若存储值越界则无钳位直接下发硬件
+
+#### 风扇曲线 (`FanCurvePanel` / `SortableDashboard`)
+
+- [ ] 🟠 **4.1 `dispatchFullMode` 不感知风扇曲线运行状态**: 模式切换仅检查 overrides 中是否有风扇字段，不知曲线是否激活。切换瞬间手动 RPM 目标可能与曲线控制器短暂冲突 — `uxtuAdapter.js` L392-404
+- [ ] 🟡 **4.2 曲线启动后 3s 轮询间隔内未协调 override**: 风扇曲线启动不设 override 标记也不通知 useControlState，`fanCurveActive` 靠 3s 轮询检测。间隔内风扇滑块可能未正确禁用，允许与曲线冲突的手动命令 — `FanCurvePanel.jsx` L223-237, `App.jsx` L42-48
+- [x] ~~🟡 **4.3 快捷启动缺参数/缺保存**~~: Dashboard 快捷启动调 `startFanCurve()` 不先保存曲线配置，不传 `intervalMs`/`hysteresisC`（均为 undefined）。FanCurvePanel 正常流程先保存再传参。快捷启动可能用过期/默认曲线参数 — `SortableDashboard.jsx` L200-202
+- [ ] 🟢 **4.4 停止逻辑重复**: 风扇曲线停止逻辑在 FanCurvePanel 和 SortableDashboard 两处近乎相同地重复，任何变更须改两处 — `FanCurvePanel.jsx` L239-266, `SortableDashboard.jsx` L170-191
+
+#### 状态管理 (`useControlState`)
+
+- [x] ~~🟠 **5.1 `paramsLoaded` 缺失于模式切换 effect 依赖数组**~~: `paramsLoaded` 在 effect 内被读取但未列入 `[settings.mode]` 依赖数组。违反 React hooks 规则，严格模式或并发渲染下可能异常 — `useControlState.js` L141-183
+- [ ] 🟠 **5.2 自定义模式服务端 fetch 与 `dispatchFullMode` 竞争**: 切到 custom 模式时 localStorage overrides 先下发硬件，同时异步服务端 fetch 更新 UI 到可能不同的值。若 localStorage 与服务端不一致，UI 与硬件不同步 — `useControlState.js` L148-171
+- [ ] 🟡 **5.3 `resetParams`/`clearOverridesFn` 无模式校验即清 overrides**: 两函数直接 `setOverrides({})` 清空模式无关的 overrides React state。若传入错误 mode 或用户在 clear 和 re-render 间切模式，可能清错 overrides — `useControlState.js` L123-133/L304-307
+- [ ] 🟢 **5.4 `clearOldParams` 副作用写在 `useState` 初始化器内**: localStorage 删除操作放在 `useState` 初始化器里。初始化器应为纯计算。实践中因只跑一次故可工作，但不规范 — `useControlState.js` L102-112
+
+#### 横切面 (Cross-cutting)
+
+- [ ] 🟠 **C.1 全部下发路径无取消/中止机制**: 五条下发路径均无 abort/cancel 能力。`dispatchFullMode` 用裸 `setTimeout`，各去抖队列仅在同一组件实例内可取消，模式切换不取消 PerformancePanel 的待下去抖命令
+- [x] ~~🟡 **C.2 GPU 锁频状态未持久化**~~: `gpuFreqLocked` 仅存于 React state + ref，不写 localStorage 也不同步后端。用户锁频后导航离开（卸载），返回时 UI 显示"未锁"但硬件仍锁 — `PerformancePanel.jsx` L31-32
+- [ ] 🟡 **C.3 GPU 锁频条件耦合 `enabled` 与基频检查**: 锁频需同时满足 `gpuFreqLimitEnabled` 为真且 `gpuCoreFreqMhz !== GPU_BASE_CLOCK`(2750)。用户开启频率限制并设到恰好 2750 MHz 时 `limit-max` 和 `lock-exact` 都不发。隐式耦合易误导后续维护 — `uxtuAdapter.js` L341-347
+- [ ] 🟢 **C.4 `gpuMemFreqMhz` 作数组下标无越界检查**: 用作 4 元素数组 `memMap` 的索引，合法值 0-3。若 localStorage 损坏值 > 3 则取 `undefined`，向后端发 `{ action: "limit-memory", value: undefined }`。非 custom 模式 overrides 无校验 — `uxtuAdapter.js` L350-355
+
 ### 其他
 - [ ] **一键降压**: 参考游戏加加 Lite，实现 CPU/GPU 降压功能（降低电压以减少发热和功耗）
 - [ ] **游戏自动切换性能模式**: 参考机械革命控制台，监听游戏进程启动/退出，自动切换预设性能模式
@@ -296,6 +347,7 @@
 - - 2026-06-06: 持久化修复 — 风扇滑块/电压偏移 localStorage, fetch 非 custom 模式不覆盖, uxtuParams 初始值改 MODE_PRESETS
 - 2026-06-08: GPU 统一卡片 + NVAPI 偏移模式联动 + SMU BatchApply + CPU 性能控制 + 排序跳动修复 + SMU 死代码清理
 - 2026-06-09: thermal_mode WMI Method 8 修复 + UI 文案/主题修复 + 恢复默认先停曲线 + MODE_FAN_DEFAULTS 修正
+- 2026-06-09: GPU/NVAPI/CPU 非 EC 通道无条件重置 + 风扇竞态修复(thermal_mode await+500ms) + 背景图持久化修复 + 下发逻辑全链路审计(28 项发现写入看板)
 
 ---
 

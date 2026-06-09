@@ -547,9 +547,7 @@ app.MapPost("/api/fan-curve/start", (FanCurveService svc, FanCurveStartRequest? 
 {
     try
     {
-        var interval = req?.IntervalMs ?? 3000;
-        var hysteresis = req?.HysteresisC ?? 3;
-        svc.Start(interval, hysteresis);
+        svc.Start(req?.IntervalMs, req?.HysteresisC);
         return Results.Json(new { ok = true });
     }
     catch (Exception ex)
