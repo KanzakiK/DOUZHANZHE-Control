@@ -257,7 +257,11 @@
 
 ### 已修复 Bug
 - [x] ~~mockTelemetry.js cpuCores:32~~ — 已修复
-- [x] **模式切换竞态修复 (v1.3.1)**: onClick 精简为 setSettings + toast，dispatchFullMode 内部 SMU 两次延迟重发（500ms + 1500ms），消除前端重复 dispatch — 临时修复，根本方案见 [参数覆盖层重构](design-override-layer.md)
+- [x] **thermal_mode 走 WMI SystemPerMode 修复**: EC 寄存器直写不触发固件完整模式加载（官方控制台不随动、功率预设不生效）→ 改为 WMI Method 8，与官方控制台/验证脚本一致
+- [x] **UI 文案/主题修复**: SliderRow/SwitchRow 灰色状态「EC」→「默认」；灰色滑动条颜色跟随主题 `var(--muted)`
+- [x] **恢复默认先停风扇曲线**: App.jsx 恢复默认按钮先 `stopFanCurve()`（如曲线运行中），再发 `resetToFactoryDefaults`，防止 EC 被回写
+- [x] **MODE_FAN_DEFAULTS 修正**: 对照 reference-consoles.md 官方预设表修正全部模式风扇默认转速；resetParams/模式切换/启动初始化改为 `FULL_PARAMS + MODE_FAN_DEFAULTS[mode] + overrides` 三层合并
+- [x] **模式切换兑态修复 (v1.3.1)**: onClick 精简为 setSettings + toast，dispatchFullMode 内部 SMU 两次延迟重发（500ms + 1500ms），消除前端重复 dispatch — 临时修复，根本方案见 [参数覆盖层重构](design-override-layer.md)
 - [x] **前端模式按钮高亮加载时序**: 已修复 — uxtuParams 初始值改用 MODE_PRESETS 而非 defaultParams，消除 CPU 调节滑块闪跳
 - [x] **版本号不一致（CHANGELOG/iss/SettingsPanel/package.json）**: 已修复 — build-installer.ps1 新增 `-Version` 参数，构建时自动同步四处版本号 + 打包前自动验证前端版本号
 - [x] **WebView2 缓存导致前端版本号不更新**: 已修复 — Shell 启动时自动清除 Cache/Code Cache/GPUCache/Service Worker/Storage
@@ -291,6 +295,7 @@
 - - 2026-06-06: 电源计划按钮修复 — PerformancePanel.jsx POWER_PLANS 添加 halValue，按钮点击实际下发 C# HAL
 - - 2026-06-06: 持久化修复 — 风扇滑块/电压偏移 localStorage, fetch 非 custom 模式不覆盖, uxtuParams 初始值改 MODE_PRESETS
 - 2026-06-08: GPU 统一卡片 + NVAPI 偏移模式联动 + SMU BatchApply + CPU 性能控制 + 排序跳动修复 + SMU 死代码清理
+- 2026-06-09: thermal_mode WMI Method 8 修复 + UI 文案/主题修复 + 恢复默认先停曲线 + MODE_FAN_DEFAULTS 修正
 
 ---
 
