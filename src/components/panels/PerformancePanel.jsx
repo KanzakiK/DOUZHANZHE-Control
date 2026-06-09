@@ -3,7 +3,7 @@ import {
   applyUxtuLimits, applySmuSet, applyHardwareControl,
   powerPlanHALMap, applyGpuControl, applyNvapiOverclock, applyNvapiThermalLimit,
   fetchNvapiStatus, fetchCpuPowerStatus, setCpuFreqLimit, setCpuTurbo,
-  setCpuCoreLimitPercent, resetCpuPower, GPU_BASE_CLOCK, CPU_BASE_CLOCK,
+  setCpuCoreLimitPercent, resetCpuPower, GPU_BASE_CLOCK,
 } from "../../services/uxtuAdapter";
 import Card from "../ui/Card";
 import SliderRow from "../ui/SliderRow";
@@ -204,20 +204,7 @@ export default function PerformancePanel({
             isCustom={isC("cpuTurboDisabled")}
             onChange={async (disabled) => {
               update("cpuTurboDisabled")(disabled);
-              try {
-                // 后端 SetTurboAsync 已通过频率限制实现关闭睿频 (不再使用 boost=0)
-                await setCpuTurbo(!disabled);
-                // 同步前端频率限制 UI 状态
-                if (disabled) {
-                  // 关闭睿频 → 启用频率限制并设为基础频率
-                  update("cpuFreqLimitEnabled")(true);
-                  update("cpuFreqLimitMhz")(CPU_BASE_CLOCK);
-                } else {
-                  // 恢复睿频 → 取消频率限制
-                  update("cpuFreqLimitEnabled")(false);
-                  update("cpuFreqLimitMhz")(4500);
-                }
-              }
+              try { await setCpuTurbo(!disabled); }
               catch (err) { console.error("CPU turbo toggle failed:", err); }
             }}
             disabled={paramsLocked} />

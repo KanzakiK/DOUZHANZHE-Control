@@ -45,7 +45,6 @@ public sealed class CpuPowerController : IDisposable
 
     /// <summary>
     /// Ryzen 9 8940HX 基础频率 (WMI MaxClockSpeed ≈ 2401 MHz)
-    /// 用于"关闭睿频"时设置频率上限，替代 boost=0 (boost=0 会导致 CPU 锁定在基础频率无法提升)
     /// </summary>
     private const int CPU_BASE_CLOCK_MHZ = 2400;
 
@@ -71,11 +70,10 @@ public sealed class CpuPowerController : IDisposable
     }
 
     /// <summary>
-    /// 启用/禁用睿频 (Turbo Boost)
-    /// 禁用策略: 设置频率限制 = 基础频率 (2400 MHz)，不动 boost 位
-    ///   原因: SET_PERF_BOOST=0 会将 CPU 锁死在基础频率 (~2.4 GHz)，
-    ///   即使配合 min=max=100% 或频率限制也无法提升，因此完全避免使用 boost=0。
-    /// 启用策略: 取消频率限制 (设为 0)，恢复 boost=2 (激进)
+    /// 启用/禁用睿频 (锁频模式)
+    /// "关闭睿频" = 锁定 CPU 频率，禁止降频，使 CPU 始终运行在最大全核频率
+    /// 禁用策略: min=max=100% + boost=2 + freq_limit=0 → CPU 钉死在全速 (~3.8-3.9 GHz)
+    /// 启用策略: min=0% + max=100% + boost=2 + freq_limit=0 → 恢复正常按需调频
     /// </summary>
     public async Task SetTurboAsync(bool enabled)
     {
@@ -83,16 +81,20 @@ public sealed class CpuPowerController : IDisposable
         await DisableOverlayAsync();
         if (enabled)
         {
-            // 恢复睿频: 取消频率限制 + 恢复 boost 激进模式 + 最小状态 0%
-            await SetPowerValueAsync(scheme, SUB_PROCESSOR, SET_PROC_FREQ_LIMIT, "0");
+            // 恢复正常: 允许频率根据负载动态调节
             await SetPowerValueAsync(scheme, SUB_PROCESSOR, SET_PROC_MIN_STATE, "0");
+            await SetPowerValueAsync(scheme, SUB_PROCESSOR, SET_PROC_MAX_STATE, "100");
             await SetPowerValueAsync(scheme, SUB_PROCESSOR, SET_PERF_BOOST, "2");
+            await SetPowerValueAsync(scheme, SUB_PROCESSOR, SET_PROC_FREQ_LIMIT, "0");
         }
         else
         {
-            // 关闭睿频: 通过频率限制将 CPU 上限锁定在基础频率
-            // 不使用 SET_PERF_BOOST=0 (会导致 CPU 降频到基础频率且无法通过其他方式提升)
-            await SetPowerValueAsync(scheme, SUB_PROCESSOR, SET_PROC_FREQ_LIMIT, CPU_BASE_CLOCK_MHZ.ToString());
+            // 关闭睿频(锁频): min=max=100% 强制 CPU 始终运行在最高频率
+            // boost=2 保持启用，不使用 boost=0 (会锁死在基础频率 2.4GHz)
+            await SetPowerValueAsync(scheme, SUB_PROCESSOR, SET_PROC_MIN_STATE, "100");
+            await SetPowerValueAsync(scheme, SUB_PROCESSOR, SET_PROC_MAX_STATE, "100");
+            await SetPowerValueAsync(scheme, SUB_PROCESSOR, SET_PERF_BOOST, "2");
+            await SetPowerValueAsync(scheme, SUB_PROCESSOR, SET_PROC_FREQ_LIMIT, "0");
         }
         await Task.Delay(100);
         await SetActiveSchemeAsync(scheme);
@@ -145,23 +147,22 @@ public sealed class CpuPowerController : IDisposable
         var status = new CpuPowerStatus();
         try
         {
-            // 睿频状态: 通过频率限制判断 (不再依赖 boost 位)
-            // freq_limit == CPU_BASE_CLOCK 表示关闭睿频，0 或 > base 表示睿频已启用
-            var freqStr = QueryPowerValue(SUB_PROCESSOR, SET_PROC_FREQ_LIMIT);
-            if (int.TryParse(freqStr, out var freq))
-            {
-                status.FreqLimitMhz = freq;
-                status.TurboEnabled = freq != CPU_BASE_CLOCK_MHZ;
-            }
+            // 锁频状态: 通过 min_state 判断 (min=100% 表示锁频/关闭睿频)
+            var minStr = QueryPowerValue(SUB_PROCESSOR, SET_PROC_MIN_STATE);
+            if (int.TryParse(minStr, out var minState))
+                status.TurboEnabled = minState < 100; // min<100% 表示允许调频，即睿频正常
             else
-            {
-                status.TurboEnabled = true; // 默认启用
-            }
+                status.TurboEnabled = true;
 
             // 读取核心数限制
             var coreStr = QueryPowerValue(SUB_PROCESSOR, SET_PROC_MAX_STATE);
             if (int.TryParse(coreStr, out var core))
                 status.CoreLimitPercent = core;
+
+            // 读取频率限制
+            var freqStr = QueryPowerValue(SUB_PROCESSOR, SET_PROC_FREQ_LIMIT);
+            if (int.TryParse(freqStr, out var freq))
+                status.FreqLimitMhz = freq;
 
             status.Available = true;
         }
