@@ -172,18 +172,18 @@ dispatchFullMode(newMode, overrides);
 ```
 dispatchFullMode(mode, overrides)
 
-  ① thermal_mode     → 永远执行（切模式的基础）
+  ① thermal_mode     → 永远执行（切模式的基础），await + 500ms 等 EC 完成切换
 
   ② SMU 批量         → overrides 有 cpuLongPptW/cpuShortPptW/cpuTempLimitC/
-                        cpuVoltageOffset 任一才执行
-  ③ GPU 频率/显存     → overrides 有 gpuFreqLimitEnabled/gpuCoreFreqMhz/gpuMemFreqMhz 才执行
-  ④ NVAPI OC/温度     → overrides 有 ocCoreOffsetMhz/ocMemOffsetMhz/gpuTempLimitC 才执行
-  ⑤ CPU powercfg     → overrides 有 cpuFreqLimitEnabled/cpuTurboDisabled/cpuCoreLimit/cpuPowerPlan 才执行
-  ⑥ 风扇 RPM         → overrides 有 fanLargeRpmTarget/fanSmallRpmTarget 才执行
+                        cpuVoltageOffset 任一才执行（受 EC 管理）
+  ③ GPU 频率/显存     → 永远执行：先 reset-clocks 解锁，再按需 lock（不受 EC 管理）
+  ④ NVAPI OC/温度     → 永远执行：默认 0 偏移 / 87°C，按需覆盖（不受 EC 管理）
+  ⑤ CPU powercfg     → 永远执行：默认无限制/睿频开/全核心/平衡计划，按需覆盖（不受 EC 管理）
+  ⑥ 风扇 RPM         → overrides 有 fanLargeRpmTarget/fanSmallRpmTarget 才执行（受 EC 管理）
   ⑦ SMU 延迟重发 x2  → 仅当 ② 实际执行时触发
 ```
 
-overrides 为空时，只有步骤 ① 执行，其他全部跳过。
+overrides 为空时，执行 ① thermal_mode + ③④⑤ GPU/NVAPI/CPU 重置（不受 EC 管理的通道必须手动 reset），②⑥⑦ 跳过。
 
 ---
 
@@ -194,7 +194,7 @@ overrides 为空时，只有步骤 ① 执行，其他全部跳过。
 > **实验验证（2026-06-09）**：
 > - WMI 方法 8（SystemPerMode）和 EC 寄存器 0xE4 都会加载完整预设（包括风扇）
 > - 官方控制台切换模式保留风扇的机制：切换后立即重新下发用户风扇设置
-> - 因此「恢复默认」只需重发 thermal_mode + resetCpuPower() 即可
+> - **thermal_mode 仅管理 EC 侧参数**（CPU PPT/温度/风扇），不影响 GPU 频率锁定、NVAPI 超频、CPU powercfg
 
 ```
 用户点击「恢复默认」
@@ -203,12 +203,16 @@ overrides 为空时，只有步骤 ① 执行，其他全部跳过。
   ├─→ setUxtuParams({ ...FULL_PARAMS })        // UI 回到兜底值
   │
   └─→ resetToFactoryDefaults(mode)
-        ├─ 重发 thermal_mode（EC 重新加载出厂值，包括 CPU/GPU/风扇预设）
-        ├─ resetCpuPower()（CPU 频率/睿频/核心数回归默认）⚠️ 单独处理
-        └─ GPU/NVAPI 由 thermal_mode 自动恢复（不需要额外命令）
+        ├─ 重发 thermal_mode（EC 重新加载出厂值，包括 CPU PPT/温度/风扇预设）
+        ├─ resetCpuPower()（CPU 频率/睿频/核心数回归默认）
+        ├─ GPU reset-clocks + reset-memory-clocks（解除频率锁定）
+        └─ NVAPI OC 归零 + 温度限制恢复 87°C
 ```
 
-**重要**：CPU 频率控制（频率限制/睿频/核心数）通过 Windows powercfg 实现，不受 EC 管理，必须单独调用 `resetCpuPower()` 恢复。其他所有参数（CPU PPT/温度、GPU、风扇）都由 EC 管理，thermal_mode 重发即可恢复。
+**重要**：thermal_mode 仅恢复 EC 管理的参数（CPU PPT/温度、风扇）。以下通道不受 EC 管理，必须单独重置：
+- CPU 频率控制（频率限制/睿频/核心数）→ `resetCpuPower()`
+- GPU 频率锁定/显存频率 → `applyGpuControl("reset-clocks")` + `reset-memory-clocks`
+- NVAPI 超频偏移/温度限制 → `applyNvapiOverclock(0, 0)` + `applyNvapiThermalLimit(87)`
 
 #### 7.1 分组重置（已取消）
 
@@ -218,12 +222,11 @@ overrides 为空时，只有步骤 ① 执行，其他全部跳过。
 **控制域区分**：
 - **EC 管理**（thermal_mode 可恢复）：
   - CPU：PPT（长时/短时功耗墙）、温度墙、电压偏移 → `POST /api/smu/set` / `POST /api/uxtu/apply` ✅
-  - GPU：频率锁、显存频率 → `POST /api/gpu/set` ✅
-  - GPU：NVAPI 超频偏移、温度限制 → ⚠️ **需要新增 API 端点**（NvapiGpuController.cs 已存在，但未暴露为 HTTP API）
   - 风扇：大风扇/小风扇转速目标 → `POST /api/fan/set-target` ✅
-- **Windows 管理**（需单独 reset）：
-  - CPU 频率限制、睿频开关、核心数限制 → ⚠️ **需要新增 API 端点**（CpuPowerController.cs 已存在，但未暴露为 HTTP API）
-  - 全部重置 → ⚠️ **需要新增 `POST /api/cpu/reset` 端点**
+- **非 EC 管理**（必须单独 reset）：
+  - CPU 频率限制、睿频开关、核心数限制、电源计划 → Windows powercfg → `resetCpuPower()` ✅
+  - GPU 频率锁、显存频率 → nvidia-smi → `applyGpuControl("reset-clocks")` ✅
+  - GPU NVAPI 超频偏移、温度限制 → NVAPI P/Invoke → `applyNvapiOverclock(0,0)` + `applyNvapiThermalLimit(87)` ✅
 
 ---
 

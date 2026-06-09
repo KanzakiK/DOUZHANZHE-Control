@@ -270,12 +270,12 @@ export async function resetCpuPower() {
 }
 
 // ── 恢复官方默认 ──
-// 清空 overrides + 重发 thermal_mode (EC 恢复出厂值) + resetCpuPower
+// 清空 overrides + 重发 thermal_mode (EC 恢复出厂值) + CPU/GPU/NVAPI 重置
 export async function resetToFactoryDefaults(mode) {
   // 1. 清空 overrides (localStorage + UI 状态)
   localStorage.setItem("douzhanzhe_overrides_" + mode, "{}");
   
-  // 2. 重发 thermal_mode (EC 重新加载出厂值，包括 CPU/GPU/风扇预设)
+  // 2. 重发 thermal_mode (EC 重新加载出厂值，包括 CPU PPT/温度/风扇预设)
   const tv = thermalModeMap[mode];
   if (tv !== null && tv !== undefined) {
     await applyHardwareControl("thermal_mode", tv);
@@ -283,24 +283,47 @@ export async function resetToFactoryDefaults(mode) {
   
   // 3. CPU 频率/睿频/核心数通过 Windows powercfg 控制，必须单独恢复
   await resetCpuPower().catch(e => console.warn("resetCpuPower:", e));
+
+  // 4. GPU 频率锁定 + NVAPI 超频/温度限制不受 thermal_mode 管理，需要单独重置
+  await applyGpuControl("reset-clocks").catch(e => console.warn("[GPU] reset:", e));
+  await applyGpuControl("reset-memory-clocks").catch(e => console.warn("[GPU] mem-reset:", e));
+  await Promise.all([
+    applyNvapiOverclock(0, 0).catch(e => console.warn("[NVAPI] OC-reset:", e)),
+    applyNvapiThermalLimit(87).catch(e => console.warn("[NVAPI] thermal-reset:", e)),
+  ]);
 }
 
 
 // ── 全量模式下发（overrides 感知） ──
-// overrides 为空时只发 thermal_mode，非空时按通道下发用户改过的字段
+// thermal_mode + GPU/NVAPI 每次必发（不受 EC 管理），其余通道按 overrides 条件下发
 // 顺序: 1. thermal_mode → 2. SMU → 3. GPU → 4. NVAPI → 5. CPU powercfg → 6. 风扇 → 7. SMU 重发
 export async function dispatchFullMode(mode, overrides) {
   const tv = thermalModeMap[mode];
   const isEmpty = !overrides || Object.keys(overrides).length === 0;
 
-  // ① thermal_mode 永远执行（切模式的基础）
+  // ① thermal_mode 永远执行（切模式的基础）— 必须 await，等 EC 完成模式切换
+  // EC 切换模式会重置所有硬件值（CPU/GPU/风扇预设），后续 override 必须在重置完成后发送
   if (tv !== null && tv !== undefined) {
-    applyHardwareControl("thermal_mode", tv).catch(e => console.warn("[EC] thermal_mode:", e));
+    await applyHardwareControl("thermal_mode", tv).catch(e => console.warn("[EC] thermal_mode:", e));
+    // 等待 EC 完成内部状态切换，避免后续命令被 EC 的默认值覆盖
+    await new Promise(r => setTimeout(r, 500));
   }
 
-  // overrides 为空时，只发 thermal_mode，其他全部跳过
+  // overrides 为空时，发 thermal_mode + GPU/NVAPI/CPU 重置
+  // 这些通道不受 thermal_mode 管理，必须手动 reset 以防止前一个模式的设置残留
   if (isEmpty) {
-    console.log("[dispatch] overrides 为空，仅发送 thermal_mode");
+    console.log("[dispatch] overrides 为空，发送 thermal_mode + GPU/NVAPI/CPU 重置");
+    try { await applyGpuControl("reset-clocks"); } catch (e) { console.warn("[GPU] reset:", e); }
+    try { await applyGpuControl("reset-memory-clocks"); } catch (e) { console.warn("[GPU] mem-reset:", e); }
+    await Promise.all([
+      applyNvapiOverclock(0, 0).catch(e => console.warn("[NVAPI] OC-reset:", e)),
+      applyNvapiThermalLimit(87).catch(e => console.warn("[NVAPI] thermal-reset:", e)),
+    ]);
+    // CPU: 解除频率限制、开启睿频、全部核心、平衡电源计划
+    setCpuFreqLimit(0).catch(e => console.warn("[CPU] freq-reset:", e));
+    setCpuTurbo(true).catch(e => console.warn("[CPU] turbo-reset:", e));
+    setCpuCoreLimitPercent(100).catch(() => {});
+    applyHardwareControl("power_plan", 0).catch(e => console.warn("[CPU] power-plan-reset:", e));
     return;
   }
 
@@ -313,75 +336,57 @@ export async function dispatchFullMode(mode, overrides) {
     );
   }
 
-  // ③ GPU 频率控制（nvidia-smi: unlock → limit → lock）
-  const gpuFields = ["gpuFreqLimitEnabled", "gpuCoreFreqMhz", "gpuMemFreqMhz"];
-  const hasGpu = gpuFields.some(f => f in overrides);
-  if (hasGpu) {
-    try {
-      await applyGpuControl("reset-clocks");
-      if (overrides.gpuFreqLimitEnabled && overrides.gpuCoreFreqMhz !== GPU_BASE_CLOCK) {
-        await applyGpuControl("limit-max", overrides.gpuCoreFreqMhz);
-        await applyGpuControl("lock-exact", overrides.gpuCoreFreqMhz);
-      }
-    } catch (e) { console.warn("[GPU] freq:", e); }
+  // ③ GPU 频率控制（nvidia-smi: 先 reset 解锁，再按需 lock）
+  // GPU 频率锁定不受 thermal_mode 管理，每次切换都必须先 reset
+  try {
+    await applyGpuControl("reset-clocks");
+    if (overrides.gpuFreqLimitEnabled && overrides.gpuCoreFreqMhz !== GPU_BASE_CLOCK) {
+      await applyGpuControl("limit-max", overrides.gpuCoreFreqMhz);
+      await applyGpuControl("lock-exact", overrides.gpuCoreFreqMhz);
+    }
+  } catch (e) { console.warn("[GPU] freq:", e); }
 
-    // GPU 显存频率
-    try {
-      const memMap = [0, 9001, 11001, 12001];
-      if (overrides.gpuMemFreqMhz === 0 || overrides.gpuMemFreqMhz === undefined) {
-        await applyGpuControl("reset-memory-clocks");
-      } else {
-        await applyGpuControl("limit-memory", memMap[overrides.gpuMemFreqMhz]);
-      }
-    } catch (e) { console.warn("[GPU] memory:", e); }
-  }
+  // GPU 显存频率
+  try {
+    const memMap = [0, 9001, 11001, 12001];
+    await applyGpuControl("reset-memory-clocks");
+    if (overrides.gpuMemFreqMhz > 0) {
+      await applyGpuControl("limit-memory", memMap[overrides.gpuMemFreqMhz]);
+    }
+  } catch (e) { console.warn("[GPU] memory:", e); }
 
   // ④ NVAPI: 超频偏移 + 温度限制（并行）
-  const nvapiFields = ["ocCoreOffsetMhz", "ocMemOffsetMhz", "gpuTempLimitC"];
-  const hasNvapi = nvapiFields.some(f => f in overrides);
-  if (hasNvapi) {
-    const thermalC = clampParam("gpuTempLimitC", overrides.gpuTempLimitC ?? 87);
-    Promise.all([
-      applyNvapiOverclock(overrides.ocCoreOffsetMhz ?? 0, overrides.ocMemOffsetMhz ?? 0).catch(
-        e => console.warn("[NVAPI] OC:", e)
-      ),
-      applyNvapiThermalLimit(thermalC).catch(
-        e => console.warn("[NVAPI] thermal:", e)
-      ),
-    ]);
-  }
+  // NVAPI 不受 thermal_mode 管理，每次切换都重置/应用
+  const thermalC = clampParam("gpuTempLimitC", overrides.gpuTempLimitC ?? 87);
+  await Promise.all([
+    applyNvapiOverclock(overrides.ocCoreOffsetMhz ?? 0, overrides.ocMemOffsetMhz ?? 0).catch(
+      e => console.warn("[NVAPI] OC:", e)
+    ),
+    applyNvapiThermalLimit(thermalC).catch(
+      e => console.warn("[NVAPI] thermal:", e)
+    ),
+  ]);
 
   // ⑤ CPU powercfg: 频率限制 / 睿频 / 核心数 / 电源计划
-  const cpuFields = ["cpuFreqLimitEnabled", "cpuFreqLimitMhz", "cpuTurboDisabled", "cpuCoreLimit", "cpuPowerPlan"];
-  const hasCpu = cpuFields.some(f => f in overrides);
-  if (hasCpu) {
-    if ("cpuFreqLimitEnabled" in overrides || "cpuFreqLimitMhz" in overrides) {
-      setCpuFreqLimit(overrides.cpuFreqLimitEnabled ? overrides.cpuFreqLimitMhz : 0).catch(
-        e => console.warn("[CPU] freq:", e)
-      );
-    }
-    if ("cpuTurboDisabled" in overrides) {
-      setCpuTurbo(!overrides.cpuTurboDisabled).catch(
-        e => console.warn("[CPU] turbo:", e)
-      );
-    }
-    if ("cpuCoreLimit" in overrides) {
-      if (overrides.cpuCoreLimit > 0) {
-        setCpuCoreLimitPercent(Math.round(overrides.cpuCoreLimit / 16 * 100)).catch(
-          e => console.warn("[CPU] core-limit:", e)
-        );
-      } else {
-        setCpuCoreLimitPercent(100).catch(() => {});
-      }
-    }
-    if ("cpuPowerPlan" in overrides) {
-      const ppHal = powerPlanHALMap[overrides.cpuPowerPlan];
-      if (ppHal !== undefined) {
-        applyHardwareControl("power_plan", ppHal).catch(
-          e => console.warn("[CPU] power-plan:", e)
-        );
-      }
-    }
+  // CPU 频率控制通过 Windows powercfg 实现，不受 thermal_mode 管理，每次切换都必须重置
+  setCpuFreqLimit(overrides.cpuFreqLimitEnabled ? overrides.cpuFreqLimitMhz : 0).catch(
+    e => console.warn("[CPU] freq:", e)
+  );
+  setCpuTurbo(!(overrides.cpuTurboDisabled ?? false)).catch(
+    e => console.warn("[CPU] turbo:", e)
+  );
+  if ((overrides.cpuCoreLimit ?? 0) > 0) {
+    setCpuCoreLimitPercent(Math.round(overrides.cpuCoreLimit / 16 * 100)).catch(
+      e => console.warn("[CPU] core-limit:", e)
+    );
+  } else {
+    setCpuCoreLimitPercent(100).catch(() => {});
+  }
+  const ppHal = powerPlanHALMap[overrides.cpuPowerPlan ?? "balance"];
+  if (ppHal !== undefined) {
+    applyHardwareControl("power_plan", ppHal).catch(
+      e => console.warn("[CPU] power-plan:", e)
+    );
   }
 
   // ⑥ 风扇目标转速
