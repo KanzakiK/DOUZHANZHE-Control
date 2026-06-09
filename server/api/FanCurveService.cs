@@ -35,6 +35,16 @@ public sealed class FanCurveService : IDisposable
 
     public bool Active => _active;
 
+    // 各模式风扇转速合法区间 (RPM/100 单位，与前端 FAN_RANGES 对齐)
+    // EC 拒绝区间外的写入并在 ~8s 内回写到模式默认值
+    private static readonly Dictionary<byte, (int lMin, int lMax, int sMin, int sMax)> ModeFanRanges = new()
+    {
+        [2] = (19, 29, 17, 64),   // silent
+        [0] = (26, 35, 59, 69),   // office
+        [1] = (32, 38, 64, 72),   // beast
+        [3] = (40, 44, 75, 82),   // gaming
+    };
+
     /// <summary>曲线点：温度(°C) → 大扇/小扇目标 RPM</summary>
     /// <remarks>默认曲线: 40°C 最低转速 → 50-85°C 渐变 → 90-100°C 满载</remarks>
     public List<FanCurvePoint> Points { get; private set; } = new()
@@ -133,6 +143,21 @@ public sealed class FanCurveService : IDisposable
             var (largeRpm, smallRpm) = LookupTarget(hotspot);
             int largeTarget = Math.Clamp(largeRpm / 100, 0, 44); // Bellator 协议: RPM/100
             int smallTarget = Math.Clamp(smallRpm / 100, 0, 82);
+
+            // 读取当前散热模式，将曲线输出钳位到该模式的风扇合法区间
+            // EC 拒绝区间外的写入并在 ~8s 内回写到模式默认值
+            byte thermalMode = _wmi.GetThermalMode();
+            if (ModeFanRanges.TryGetValue(thermalMode, out var range))
+            {
+                int origLarge = largeTarget, origSmall = smallTarget;
+                largeTarget = Math.Clamp(largeTarget, range.lMin, range.lMax);
+                smallTarget = Math.Clamp(smallTarget, range.sMin, range.sMax);
+                if (origLarge != largeTarget || origSmall != smallTarget)
+                {
+                    _log.LogDebug("[FanCurve] 区间钳位 (mode={Mode}): large {OL}→{L} small {OS}→{S}",
+                        thermalMode, origLarge, largeTarget, origSmall, smallTarget);
+                }
+            }
 
             // ShouldWrite: 精确复现 BellatorFanControl 的回差策略
             if (!ShouldWrite(hotspot, largeTarget, smallTarget))
