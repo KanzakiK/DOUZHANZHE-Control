@@ -21,11 +21,21 @@ app.UseWebSockets();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.MapFallbackToFile("index.html");
-// ---- Config directory (always {app}/config) ----
-var configDir = Path.Combine(AppContext.BaseDirectory, "config");
-if (!Directory.Exists(configDir))
-    configDir = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "config"));
+// ---- Config directory (User-writable: %LOCALAPPDATA%) ----
+var appConfigDir = Path.Combine(AppContext.BaseDirectory, "config");
+var configDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Douzhanzhe Console", "config");
 Directory.CreateDirectory(configDir);
+
+// Migrate default configs from installation directory to user config dir (first run)
+try {
+    if (Directory.Exists(appConfigDir)) {
+        foreach (var file in Directory.GetFiles(appConfigDir, "*.json")) {
+            var dest = Path.Combine(configDir, Path.GetFileName(file));
+            if (!File.Exists(dest)) File.Copy(file, dest);
+        }
+    }
+} catch { /* ignore migration errors */ }
+
 var bgImagePath = Path.Combine(configDir, "background.png");
 // ---- JSON persistence helpers ----
 T JsonRead<T>(string fileName, T fallback) where T : class
