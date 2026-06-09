@@ -1,4 +1,4 @@
-# build-installer.ps1 - 一键构�?+ 打包安装程序
+﻿# build-installer.ps1 - 一键构建 + 打包安装程序
 # 用法: .\build-installer.ps1 [-Version "1.3.0"]
 #
 # 前置要求:
@@ -37,15 +37,15 @@ if ($Version) {
     Write-Host "  版本号已同步至 $Version (SettingsPanel/iss 由 ISCC /d 参数覆盖)" -ForegroundColor Green
 }
 
-# ── 1. 环境检�?──
-Write-Host "[1/6] 检查环�?.." -ForegroundColor Cyan
+# ── 1. 环境检查 ──
+Write-Host "[1/6] 检查环境..." -ForegroundColor Cyan
 if (-not (Test-Path $ISCC)) {
-    Write-Host "错误: 未找�?Inno Setup 6 编译器�? -ForegroundColor Red
-    Write-Host "请安�? https://jrsoftware.org/isdl.php" -ForegroundColor Yellow
+    Write-Host "错误: 未找到 Inno Setup 6 编译器！" -ForegroundColor Red
+    Write-Host "请安装 https://jrsoftware.org/isdl.php" -ForegroundColor Yellow
     exit 1
 }
 if (-not (Test-Path "C:\Program Files\dotnet\dotnet.exe")) {
-    Write-Host "错误: 未找�?.NET SDK�? -ForegroundColor Red; exit 1
+    Write-Host "错误: 未找到 .NET SDK！" -ForegroundColor Red; exit 1
 }
 
 # ── 2. 构建前端 ──
@@ -85,7 +85,7 @@ $ApiDir = Join-Path $Root "dist\publish\api"
 $ShellDir = Join-Path $Root "dist\publish\shell"
 $ToolsDir = Join-Path $Root "server\tools"
 
-# 复制 Shell �?API 目录
+# 复制 Shell 到 API 目录
 Copy-Item -Path (Join-Path $ShellDir "*") -Destination $ApiDir -Recurse -Force
 
 # 复制运行时工具
@@ -94,9 +94,9 @@ foreach ($f in $ToolFiles) {
     $src = Join-Path $ToolsDir $f
     if (Test-Path $src) {
         Copy-Item $src $ApiDir -Force
-        Write-Host "  已复�? $f" -ForegroundColor Green
+        Write-Host "  已复制: $f" -ForegroundColor Green
     } else {
-        Write-Host "  警告: 未找�?$f" -ForegroundColor Yellow
+        Write-Host "  警告: 未找到 $f" -ForegroundColor Yellow
     }
 }
 
@@ -104,7 +104,7 @@ foreach ($f in $ToolFiles) {
 $SysInfoPs1 = Join-Path $Root "server\api\sysinfo-ext.ps1"
 if (Test-Path $SysInfoPs1) {
     Copy-Item $SysInfoPs1 $ApiDir -Force
-    Write-Host "  已复�? sysinfo-ext.ps1" -ForegroundColor Green
+    Write-Host "  已复制: sysinfo-ext.ps1" -ForegroundColor Green
 }
 
 # 清理不需要的目录
@@ -137,8 +137,8 @@ if ($JsFile) {
     exit 1
 }
 
-# ── 6. 编译安装?──
-Write-Host "[6/6] 编译 Inno Setup 安装?.." -ForegroundColor Cyan
+# ── 6. 编译安装包 ──
+Write-Host "[6/6] 编译 Inno Setup 安装包..." -ForegroundColor Cyan
 $IssFile = Join-Path $PSScriptRoot_Fallback "douzhanzhe-setup.iss"
 $ISCCArgs = @($IssFile)
 if ($Version) {
@@ -146,7 +146,7 @@ if ($Version) {
 }
 & $ISCC $ISCCArgs
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "安装包编译失�?" -ForegroundColor Red; exit 1
+    Write-Host "安装包编译失败！" -ForegroundColor Red; exit 1
 }
 
 $SetupFile = Get-ChildItem (Join-Path $Root "dist\installer") -Filter "*.exe" | Select-Object -First 1
