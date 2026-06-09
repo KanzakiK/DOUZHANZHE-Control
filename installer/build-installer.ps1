@@ -28,26 +28,13 @@ if ($Version) {
     $ClText = [regex]::Replace($ClText, '(## \[)\d+\.\d+\.\d+(\] — \d{4}-\d{2}-\d{2})', "`${1}$Version`${2}", [System.Text.RegularExpressions.RegexOptions]::Singleline)
     Set-Content $Changelog -Value $ClText -NoNewline -Encoding UTF8
 
-    # SettingsPanel.jsx
-    $Settings = Join-Path $AbsRoot "src\components\panels\SettingsPanel.jsx"
-    $StText = Get-Content $Settings -Raw -Encoding UTF8
-    $StText = [regex]::Replace($StText, '(<p>Douzhanzhe Console v)\d+\.\d+\.\d+(</p>)', "`${1}$Version`${2}")
-    Set-Content $Settings -Value $StText -NoNewline -Encoding UTF8
-
-    # douzhanzhe-setup.iss
-    $IssFile = Join-Path $PSScriptRoot_Fallback "douzhanzhe-setup.iss"
-    $IssText = Get-Content $IssFile -Raw -Encoding UTF8
-    $IssText = $IssText -replace '(; 版本: )\d+\.\d+\.\d+', "`${1}$Version"
-    $IssText = $IssText -replace '(#define MyAppVersion ")\d+\.\d+\.\d+(")', "`${1}$Version`${2}"
-    Set-Content $IssFile -Value $IssText -NoNewline -Encoding UTF8
-
     # package.json
     $PkgJson = Join-Path $AbsRoot "package.json"
     $PkgText = Get-Content $PkgJson -Raw -Encoding UTF8
     $PkgText = [regex]::Replace($PkgText, '("version":\s*")\d+\.\d+\.\d+(")', "`${1}$Version`${2}")
     Set-Content $PkgJson -Value $PkgText -NoNewline -Encoding UTF8
 
-    Write-Host "  版本号已同步至 $Version" -ForegroundColor Green
+    Write-Host "  版本号已同步至 $Version (SettingsPanel/iss 由 ISCC /d 参数覆盖)" -ForegroundColor Green
 }
 
 # ── 1. 环境检�?──
@@ -153,7 +140,11 @@ if ($JsFile) {
 # ── 6. 编译安装?──
 Write-Host "[6/6] 编译 Inno Setup 安装?.." -ForegroundColor Cyan
 $IssFile = Join-Path $PSScriptRoot_Fallback "douzhanzhe-setup.iss"
-& $ISCC $IssFile
+$ISCCArgs = @($IssFile)
+if ($Version) {
+    $ISCCArgs += "/dMyAppVersion=$Version"
+}
+& $ISCC $ISCCArgs
 if ($LASTEXITCODE -ne 0) {
     Write-Host "安装包编译失�?" -ForegroundColor Red; exit 1
 }
