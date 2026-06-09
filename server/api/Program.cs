@@ -1011,7 +1011,14 @@ app.MapPost("/api/auto-start", async (HttpContext ctx) =>
 });
 
 // ---- Custom background image ----
-var bgOptsPath = Path.Combine(AppContext.BaseDirectory, "config", "background-opts.json");
+var bgOptsPath = Path.Combine(configDir, "background-opts.json");
+// 只匹配图片文件，排除 background-opts.json / background.json 等
+string[] BgImageFiles() => Directory.GetFiles(configDir, "background.*")
+    .Where(f => f.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
+             || f.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase)
+             || f.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase)
+             || f.EndsWith(".webp", StringComparison.OrdinalIgnoreCase))
+    .ToArray();
 
 app.MapGet("/api/background-opts", () =>
 {
@@ -1025,7 +1032,7 @@ app.MapGet("/api/background-opts", () =>
             var enabled = root.TryGetProperty("enabled", out var ev) && ev.ValueKind == JsonValueKind.True;
             var opacity = root.TryGetProperty("opacity", out var ov) ? Math.Clamp(ov.GetInt32(), 0, 100) : 50;
             var maskColor = root.TryGetProperty("maskColor", out var mv) && mv.GetString() == "white" ? "white" : "black";
-            var hasImage = Directory.GetFiles(Path.GetDirectoryName(bgOptsPath)!, "background.*").Length > 0;
+            var hasImage = BgImageFiles().Length > 0;
             return Results.Json(new { enabled, opacity, maskColor, hasImage });
         }
         return Results.Json(new { enabled = false, opacity = 50, maskColor = "black", hasImage = false });
@@ -1085,9 +1092,8 @@ app.MapPost("/api/background", async (HttpContext ctx) =>
         if (meta.Contains("jpeg") || meta.Contains("jpg")) ext = "jpg";
         else if (meta.Contains("webp")) ext = "webp";
 
-        // 清理旧的背景图片
-        var configDir = Path.GetDirectoryName(bgOptsPath)!;
-        foreach (var old in Directory.GetFiles(configDir, "background.*"))
+        // 清理旧的背景图片（只删图片文件，不碰 JSON 配置）
+        foreach (var old in BgImageFiles())
         {
             try { File.Delete(old); }
             catch { /* 忽略被占用的文件，写入时会被覆盖 */ }
@@ -1104,12 +1110,11 @@ app.MapPost("/api/background", async (HttpContext ctx) =>
     catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }); }
 });
 
-app.MapGet("/api/background", async () =>
+app.MapGet("/api/background", async (HttpContext ctx) =>
 {
     try
     {
-        var configDir = Path.GetDirectoryName(bgOptsPath)!;
-        var files = Directory.GetFiles(configDir, "background.*");
+        var files = BgImageFiles();
         if (files.Length == 0) return Results.NotFound();
 
         var filePath = files[0];
@@ -1120,6 +1125,11 @@ app.MapGet("/api/background", async () =>
             ".webp" => "image/webp",
             _ => "image/png"
         };
+
+        // HEAD 请求：Results.File(byte[]) 对 HEAD 不兼容，直接返回 200
+        if (ctx.Request.Method == "HEAD")
+            return Results.Ok();
+
         // 读入内存以释放文件句柄，避免与上传操作冲突
         var bytes = await File.ReadAllBytesAsync(filePath);
         return Results.File(bytes, contentType);
@@ -1131,8 +1141,7 @@ app.MapDelete("/api/background", () =>
 {
     try
     {
-        var configDir = Path.GetDirectoryName(bgOptsPath)!;
-        foreach (var f in Directory.GetFiles(configDir, "background.*"))
+        foreach (var f in BgImageFiles())
             File.Delete(f);
         // 同时禁用
         int opacity = 50; string maskColor = "black";

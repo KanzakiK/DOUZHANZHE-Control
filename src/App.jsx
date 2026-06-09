@@ -73,8 +73,8 @@ export default function App() {
           localStorage.setItem("dz_bg", JSON.stringify({ enabled: next.enabled, opacity: next.opacity, maskColor: next.maskColor, hasImage: true }));
           return next;
         });
-      } else {
-        // 图片不存在：清除本地 hasImage
+      } else if (r.status === 404) {
+        // 服务端明确返回 404：图片已被删除，清除本地 hasImage
         setBg(prev => {
           if (!prev.hasImage) return prev;
           const next = { ...prev, hasImage: false, url: null };
@@ -82,7 +82,10 @@ export default function App() {
           return next;
         });
       }
-    }).catch(() => {});
+      // 其他错误 (5xx 等)：不修改状态，信任 localStorage 缓存
+    }).catch(() => {
+      // 网络错误 / 服务端不可达：保留 localStorage 中的缓存状态
+    });
   }, []);
   const updateBg = useCallback((patch) => {
     setBg(prev => {
