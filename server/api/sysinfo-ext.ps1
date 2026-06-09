@@ -1,5 +1,6 @@
 # sysinfo-ext.ps1 - 一次性采集扩展系统信息，输出 JSON
 $ErrorActionPreference = 'SilentlyContinue'
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 # BIOS
 $bios = Get-CimInstance Win32_BIOS
