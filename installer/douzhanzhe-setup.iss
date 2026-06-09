@@ -12,7 +12,7 @@
 
 #define MyAppName "斗战者控制台"
 #define MyAppNameEn "Douzhanzhe Console"
-#define MyAppVersion "1.2.0"
+#define MyAppVersion "1.2.1"
 #define MyAppPublisher "Douzhanzhe"
 #define MyAppExeName "Douzhanzhe.Shell.exe"
 #define MyAppApiExeName "Douzhanzhe.API.exe"

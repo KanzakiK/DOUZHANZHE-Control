@@ -5,6 +5,22 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
+## [1.2.1] — 2026-06-09
+
+### 修复
+
+- **自定义背景重启丢失修复**：移除前端启动时强制覆盖逻辑，开关状态、透明度、遮罩颜色由本地 `localStorage` 决定，重启后不再被重置
+- **自定义背景 API 实现**：新增 `/api/background` 和 `/api/background-opts` 端点，支持图片上传/读取/删除与配置持久化
+- **开机自启丢失修复**：移除计划任务 XML 中不兼容的 `DisallowStartOnRemoteAppSession` 节点，解决部分 Windows 版本创建失败问题
+- **安装包权限错误修复**：Shell/API 添加 `app.manifest` 引用获取管理员权限，安装脚本使用 `runascurrentuser` 避免覆盖安装时错误 740
+- **配置目录权限修复**：后端配置统一写入 `%LOCALAPPDATA%`，避免 `Program Files` 下的权限拦截
+- **WebView2 缓存自动清理**：Shell 启动时自动清除旧缓存，确保前端更新后立即生效
+
+### 基础设施
+
+- **构建脚本版本号自动化**：`build-installer.ps1` 新增 `-Version` 参数，构建时自动同步四处版本号（CHANGELOG/SettingsPanel/iss/package.json）+ 打包前验证
+- **版本号统一**：统一源码四处版本号为 `1.2.0`
+
 ## [1.2.0] — 2026-06-08
 
 ### 新增
