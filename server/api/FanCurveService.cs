@@ -27,6 +27,7 @@ public sealed class FanCurveService : IDisposable
     private int _intervalMs = 5000;   // BellatorFanControl 默认 5s
     private int _hysteresisC = 3;     // 回差 3°C
     private string _configDir;
+    private readonly object _tickLock = new(); // 防止 Tick 重叠执行
 
     // ShouldWrite 状态跟踪 (对应 BellatorFanControl 的 lastHotspot / lastCpuGpuTarget / lastSysTarget)
     private int? _lastHotspot;
@@ -126,6 +127,8 @@ public sealed class FanCurveService : IDisposable
     private void Tick(object? state)
     {
         if (!_active) return;
+        // 防止上一次 Tick 尚未完成时重叠执行（WMI 并发访问可能导致崩溃）
+        if (!Monitor.TryEnter(_tickLock)) return;
         try
         {
             int cpuTemp = _hal.CpuTemperature;
@@ -187,6 +190,10 @@ public sealed class FanCurveService : IDisposable
         catch (Exception ex)
         {
             _log.LogWarning("[FanCurve] Tick 异常: {Msg}", ex.ToString());
+        }
+        finally
+        {
+            Monitor.Exit(_tickLock);
         }
     }
 
