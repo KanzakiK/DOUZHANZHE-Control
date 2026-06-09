@@ -5,6 +5,24 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
+## [1.3.6] — 2026-06-09
+
+### 修复
+
+- **SMU 重发取消机制**: 快速切模式时旧 SMU 重发定时器自动取消 + generation 计数器二次校验，防止旧闭包覆盖新模式值
+- **CPU reset await**: isEmpty 路径 CPU 四路 powercfg 命令改为 `await Promise.all`，防止与后续手动操作竞争
+- **NVAPI 温度默认值对齐**: `FULL_PARAMS.gpuTempLimitC` 85→87，与 NVAPI 硬件重置值一致
+- **CPU 睿频开关去抖**: 加 600ms 去抖 + 硬件命令失败自动回滚 UI
+- **GPU 显存档位去抖**: 加 400ms 去抖，防止快速连点导致多个重试循环重叠
+- **GPU 锁频持久化**: `gpuFreqLocked` 状态写入 localStorage，组件卸载后不丢失
+- **风扇曲线快捷启动**: 后端 `Start()` 改为 nullable 参数，无参时复用已保存的 interval/hysteresis 配置
+- **paramsLoaded ref 追踪**: 模式切换 effect 用 `paramsLoadedRef` 消除 hooks 依赖数组违规
+- **删除 applySmuBatch 死代码**: PerformancePanel 中未使用的函数已移除
+
+### 开发
+
+- 下发逻辑全链路审计（28 项发现），8 项已修复并标记看板
+
 ## [1.3.2] — 2026-06-09
 
 ### 新增
