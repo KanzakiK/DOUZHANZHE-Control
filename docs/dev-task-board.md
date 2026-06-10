@@ -125,7 +125,44 @@
 - [ ] 🟡 **C.3 GPU 锁频条件耦合 `enabled` 与基频检查**: 锁频需同时满足 `gpuFreqLimitEnabled` 为真且 `gpuCoreFreqMhz !== GPU_BASE_CLOCK`(2750)。用户开启频率限制并设到恰好 2750 MHz 时 `limit-max` 和 `lock-exact` 都不发。隐式耦合易误导后续维护 — `uxtuAdapter.js` L341-347
 - [ ] 🟢 **C.4 `gpuMemFreqMhz` 作数组下标无越界检查**: 用作 4 元素数组 `memMap` 的索引，合法值 0-3。若 localStorage 损坏值 > 3 则取 `undefined`，向后端发 `{ action: "limit-memory", value: undefined }`。非 custom 模式 overrides 无校验 — `uxtuAdapter.js` L350-355
 
+### 自定义风扇曲线 · EC 直写 ITSM 方案（设计方案: [custom-fan-curve-design-2026-06-10.md](custom-fan-curve-design-2026-06-10.md)）
+
+> 核心思路：ModeFanRanges 从钳位器变为路由表，EC 直写 ITSM(0xE4) 选择风扇区间（不触发 ALIB/GPUD），WMI 0x1500 写入目标转速。全范围可用：大扇 1900-4400，小扇 1700-8200。
+> 依赖调查报告：[fan-write-investigation-2026-06-10.md](fan-write-investigation-2026-06-10.md) Section 6-7
+
+> **Phase 1 — 后端核心**
+- [ ] **① RouteMode 路由函数**: FanCurveService.cs 新增 `RouteMode(largeRpm, smallRpm)` — 遍历 ModeFanRanges 找到同时覆盖大扇和小扇目标的最低模式编号，无交集时优先满足大扇，fallback 斗战(3)
+- [ ] **② Tick 替换钳位为路由 + EC 直写**: FanCurveService.Tick() 中删除现有 ModeFanRanges 钳位逻辑，替换为 RouteMode → 读取 ITSM(0xE4) → 不匹配时 EC 直写 → Thread.Sleep(100) → 在目标模式区间内钳位 → WMI 写转速
+- [ ] **③ ReadEcPort 公开**: 确认 HardwareAbstractionLayer 中 ReadEcPort(0xE4) 可被 FanCurveService 调用（如为 private 则改为 internal/public）
+- [ ] **④ 启动/停止保护**: Start() 时保存当前 ITSM 到 _savedThermalMode；Stop() 时通过 WMI SetThermalMode(_savedThermalMode) 恢复正常模式链（触发完整 DPTB/GPUD），再 SetFanManual(false) 交还固件
+- [ ] **⑤ ITSM 守护 + 偏离统计**: 每个 tick 读 ITSM 对比预期值，偏离时重写并递增 _itsmDeviationCount；1 分钟内偏离 ≥5 次记录 Warning 日志
+- [ ] **⑤b WMI 风扇写入验证 + 锁定检测**: Tick 写入后读回 EC 0x5E/0x5A 确认值生效；连续 3 次写后不生效标记 WMI 通道为"锁定"，触发 Toast 警告并尝试 SetFanManual 重激活（应对 CPU 频率限制导致的通道锁定，见设计方案 §6.7）
+- [ ] **⑥ /api/fan-curve/route-info 端点**: Program.cs 新增 GET 端点，返回 currentItsm / routedMode / lastLargeTarget / lastSmallTarget / modeChangeCount / itsmDeviationCount
+
+> **Phase 2 — 前端适配**
+- [ ] **⑦ FanCurvePanel 移除模式区间带**: 删除蓝色/紫色区间矩形 + 区间标签 + 钳位警告环（`largeClamped` / `smallClamped` 判定）；Y 轴标注改为全范围大扇 1900-4400 / 小扇 1700-8200
+- [ ] **⑧ 路由状态指示**: 状态栏新增"当前路由模式: [安静]"指示，通过轮询 /api/fan-curve/route-info 或 curve status 返回的路由信息更新显示
+- [ ] **⑨ uxtuAdapter getFanRange 改全范围**: `getFanRange(mode)` 不再按模式返回区间，改为返回 `FULL_FAN_RANGE = { largeMin:1900, largeMax:4400, smallMin:1700, smallMax:8200 }`
+- [ ] **⑩ 曲线激活时禁用手动风扇滑块**: SortableDashboard.jsx 中 queueFan 在 `fanCurveActive` 时不下发，风扇滑块显示为只读状态
+
+> **Phase 3 — 验证测试**
+- [ ] **⑪ ITSM 长期稳定性测试**: 运行 test-itsm-stability.ps1（30 分钟，游戏负载），确认 ITSM 不被 EC 固件覆写
+- [ ] **⑫ Fn 热键恢复测试**: 自定义曲线运行中按 Fn+模式切换键，确认 5 秒内 ITSM 被自动重写恢复
+- [ ] **⑬ AC 插拔恢复测试**: 曲线运行中拔插电源，确认 ITSM 恢复 + 功耗不受影响
+- [ ] **⑭ 跨模式曲线测试**: 设置场景 3 曲线（安静→均衡→斗战），确认路由正确切换 + 风扇转速连续过渡
+- [ ] **⑮ GPU 功耗保持测试**: 曲线运行 + 游戏负载，监控 GPU 功耗不降频（保持 D1）
+- [ ] **⑯ 停止恢复测试**: 启动曲线 → 停止 → 确认系统恢复到 _savedThermalMode + 固件风扇控制
+- [ ] **⑯b CPU 频率限制干扰测试（严重）**: 曲线运行中通过 `/api/cpu/freq-limit` 设定频率限制，监控 WMI 风扇写入是否被 EC 静默拒绝；测试 beast/gaming/quiet/office 四种 ITSM 下的阻断行为；验证 SetFanManual(false→true) 重激活是否可恢复
+
+> **Phase 4 — 打磨与降级**
+- [ ] **⑰ WMI 事件监听加速恢复（可选）**: 订阅 _WDG 事件 GUID，检测到模式切换 notify 时立即触发 ITSM 重写，不等下个 tick
+- [ ] **⑱ EC 写入失败降级**: 连续 3 次 EC 直写 ITSM 后被覆写回原值 → 自动降级到 WMI SetThermalMode + SMU 功耗覆盖，前端提示"降级模式"
+- [ ] **⑲ 睡眠/唤醒处理**: 注册系统电源事件回调，唤醒后立即执行一次 ITSM 修复 tick
+- [ ] **⑳ 日志完善**: Tick 日志增加路由决策（L→mode, S→mode, 交集/回退）、ITSM 读值、偏离计数；降级模式下日志频率提高
+
 ### 其他
+- [x] **Debug 页重构**: 将 debug HTML 从 Program.cs 内嵌字符串（~33KB 单行）提取到 `wwwroot/debug.html` 独立文件，补齐缺失的控制区：SMU 功率/温度、CPU powercfg（freq-limit/turbo/core-limit/reset）、GPU NVAPI（超频/温度限制/P-State dump）、风扇曲线服务（start/stop/status/route-info）、EC scan、系统信息。现有 54 个 API 端点中 debug 页仅覆盖 ~10 个
+- [ ] **CPU 频率限制改用 ryzenadj/SMU 实现**: 砍掉 CpuPowerController 中的 powercfg `SET_PROC_FREQ_LIMIT` 路径，改为通过 SMU 寄存器（ryzenadj）设置 CPU 频率上限。powercfg 路径会触发 EC 锁定 WMI 风扇写入通道（详见 [custom-fan-curve-design §6.7](custom-fan-curve-design-2026-06-10.md)），SMU 路径不经过 EC，从根本上消除此冲突。现有 SmuController + `/api/smu/set` 基础设施可复用
 - [ ] **一键降压**: 参考游戏加加 Lite，实现 CPU/GPU 降压功能（降低电压以减少发热和功耗）
 - [ ] **游戏自动切换性能模式**: 参考机械革命控制台，监听游戏进程启动/退出，自动切换预设性能模式
 - [ ] **提升控制台进程优先级**: 设置 Douzhanzhe 进程为高优先级（High/Above Normal），减少系统资源竞争导致的性能问题
@@ -348,6 +385,8 @@
 - 2026-06-08: GPU 统一卡片 + NVAPI 偏移模式联动 + SMU BatchApply + CPU 性能控制 + 排序跳动修复 + SMU 死代码清理
 - 2026-06-09: thermal_mode WMI Method 8 修复 + UI 文案/主题修复 + 恢复默认先停曲线 + MODE_FAN_DEFAULTS 修正
 - 2026-06-09: GPU/NVAPI/CPU 非 EC 通道无条件重置 + 风扇竞态修复(thermal_mode await+500ms) + 背景图持久化修复 + 下发逻辑全链路审计(28 项发现写入看板)
+- 2026-06-10: 风扇+功耗解耦验证 + ITSM 直写绕过 GPUD 验证 + DPTB 9 条 ALIB 完整解码 (fan-write-investigation §6-7)
+- 2026-06-10: 自定义风扇曲线产品设计方案 + 任务组排入看板 (EC 直写 ITSM, 20 项原子任务, 4 阶段)
 
 ---
 

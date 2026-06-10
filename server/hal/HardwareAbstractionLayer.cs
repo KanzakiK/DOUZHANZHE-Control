@@ -229,38 +229,45 @@ public sealed class HardwareAbstractionLayer : IDisposable
     }
 
     // ================================================================
-    // 风扇目标转速控制 — EC 0xB2 (CPU) / 0xB3 (GPU)
-    // 写入公式: val = round(rpm / maxRpm * 255)
-    // 读取公式: rpm = val * maxRpm / 255
+    // 风扇目标转速状态寄存器 — EC 0x5E (大扇/CPU) / 0x5A (小扇/GPU)
+    // 编码公式: val = RPM / 100  (如 3200 RPM → val=32)
+    // 注意: 这些寄存器由 EC 固件通过 WMI ACPI 通道写入，
+    //       通过 EC IO 端口 (0x62/0x66) 直写会被固件在 <30ms 内覆写回原值。
+    //       风扇转速控制应使用 WMI Method 20/21 (Bellator 协议)。
+    //       0xB2/0xB3 是 GPU 区域温度传感器，非风扇寄存器。
     // ================================================================
 
-    /// <summary>CPU 风扇目标转速 (RPM) — EC 0x5F (value = RPM / 100)</summary>
+    /// <summary>大扇(CPU)目标转速状态 (RPM) — EC 0x5E (只读, value = RPM / 100)</summary>
+    [Obsolete("EC 直写无效，请使用 WMI Method 20/21 (WmiInterface.SetFanSpeed)")]
     public ushort CpuFanControl
     {
         get
         {
-            var raw = _io.ReadEc(0x5F);
+            var raw = _io.ReadEc(0x5E);
             return (ushort)(raw * 100);
         }
         set
         {
+            // 警告: EC IO 写入会被固件覆写，实际无效。保留供参考。
             var raw = (byte)(Math.Clamp(value / 100, 0, 255));
-            _io.WriteEc(0x5F, raw);
+            _io.WriteEc(0x5E, raw);
         }
     }
 
-    /// <summary>GPU 风扇目标转速 (RPM) — EC 0x5B (value = RPM / 100)</summary>
+    /// <summary>小扇(GPU/SYS)目标转速状态 (RPM) — EC 0x5A (只读, value = RPM / 100)</summary>
+    [Obsolete("EC 直写无效，请使用 WMI Method 20/21 (WmiInterface.SetFanSpeed)")]
     public ushort GpuFanControl
     {
         get
         {
-            var raw = _io.ReadEc(0x5B);
+            var raw = _io.ReadEc(0x5A);
             return (ushort)(raw * 100);
         }
         set
         {
+            // 警告: EC IO 写入会被固件覆写，实际无效。保留供参考。
             var raw = (byte)(Math.Clamp(value / 100, 0, 255));
-            _io.WriteEc(0x5B, raw);
+            _io.WriteEc(0x5A, raw);
         }
     }
 
