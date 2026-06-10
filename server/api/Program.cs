@@ -520,6 +520,58 @@ app.MapPost("/api/fan/set-target", (FanSetRequest req, WmiInterface wmi) =>
         return Results.Problem(ex.Message, statusCode: 500);
     }
 });
+// ---- Fan write strategy test (compare manual flag behavior) ----
+app.MapPost("/api/fan/test-write", (FanTestWriteRequest req, WmiInterface wmi) =>
+{
+    try
+    {
+        var strategy = req.Strategy ?? "manual-true";
+        var largeSpeed = (byte)Math.Clamp((req.LargeRpm ?? 2900) / 100, 0, 44);
+        var smallSpeed = (byte)Math.Clamp((req.SmallRpm ?? 6900) / 100, 0, 82);
+
+        switch (strategy)
+        {
+            case "manual-true":
+                // Current approach: Manual(true) + Speed, interleaved
+                wmi.SetFanManual(0, true);
+                wmi.SetFanSpeed(0, largeSpeed);
+                wmi.SetFanManual(1, true);
+                wmi.SetFanSpeed(1, smallSpeed);
+                break;
+
+            case "speed-only":
+                // No manual flag change, just speed writes
+                wmi.SetFanSpeed(0, largeSpeed);
+                wmi.SetFanSpeed(1, smallSpeed);
+                break;
+
+            case "manual-false":
+                // Set manual to false first, then speed
+                wmi.SetFanManual(0, false);
+                wmi.SetFanSpeed(0, largeSpeed);
+                wmi.SetFanManual(1, false);
+                wmi.SetFanSpeed(1, smallSpeed);
+                break;
+
+            case "speed-then-manual":
+                // Speed first, then manual (reversed order)
+                wmi.SetFanSpeed(0, largeSpeed);
+                wmi.SetFanSpeed(1, smallSpeed);
+                wmi.SetFanManual(0, true);
+                wmi.SetFanManual(1, true);
+                break;
+
+            default:
+                return Results.Json(new { ok = false, error = "Unknown strategy: " + strategy });
+        }
+
+        return Results.Json(new { ok = true, strategy, largeSpeed, smallSpeed });
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new { ok = false, error = ex.Message });
+    }
+});
 app.MapPost("/api/fan/restore", (WmiInterface wmi) =>
 {
     try
@@ -1312,6 +1364,11 @@ record ControlRequest(
 public record SmuRawRequest(uint Cmd, uint Arg0);
 record SmuSetRequest(string Parameter, int ValueM);
 public record FanSetRequest(
+    [property: System.Text.Json.Serialization.JsonPropertyName("largeRpm")] int? LargeRpm,
+    [property: System.Text.Json.Serialization.JsonPropertyName("smallRpm")] int? SmallRpm
+);
+public record FanTestWriteRequest(
+    [property: System.Text.Json.Serialization.JsonPropertyName("strategy")] string? Strategy,
     [property: System.Text.Json.Serialization.JsonPropertyName("largeRpm")] int? LargeRpm,
     [property: System.Text.Json.Serialization.JsonPropertyName("smallRpm")] int? SmallRpm
 );
