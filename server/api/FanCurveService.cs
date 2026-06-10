@@ -34,10 +34,28 @@ public sealed class FanCurveService : IDisposable
     private int _lastLargeTarget;     // 上次写入的大扇目标 (RPM/100 单位)
     private int _lastSmallTarget;     // 上次写入的小扇目标 (RPM/100 单位)
 
+    // ── ITSM 路由 + 守护状态 (NEW: EC 直写方案) ──
+    private byte _savedThermalMode;           // 启动时保存的 ITSM 值，停止时恢复
+    private int _modeChangeCount;             // 统计：模式路由切换次数
+    private int _itsmDeviationCount;          // 统计：ITSM 偏离次数
+    private DateTime _itsmDeviationWindowStart = DateTime.Now; // 偏离计数窗口起始
+    private int _itsmDeviationInWindow;       // 当前窗口内偏离次数
+    private bool _wmiChannelLocked;           // WMI 风扇写入通道锁定检测
+    private int _wmiWriteFailStreak;          // 连续写入失败计数
+
     public bool Active => _active;
 
+    // ── API 查询属性 (供 /api/fan-curve/route-info 使用) ──
+    public byte CurrentItsm { get; private set; }
+    public byte RoutedMode { get; private set; }
+    public int LastLargeTarget => _lastLargeTarget;
+    public int LastSmallTarget => _lastSmallTarget;
+    public int ModeChangeCount => _modeChangeCount;
+    public int ItsmDeviationCount => _itsmDeviationCount;
+    public bool WmiChannelLocked => _wmiChannelLocked;
+
     // 各模式风扇转速合法区间 (RPM/100 单位，与前端 FAN_RANGES 对齐)
-    // EC 拒绝区间外的写入并在 ~8s 内回写到模式默认值
+    // EC 直写方案中：从钳位器变为路由表 — 根据目标转速找到能覆盖它的模式
     private static readonly Dictionary<byte, (int lMin, int lMax, int sMin, int sMax)> ModeFanRanges = new()
     {
         [2] = (19, 29, 17, 64),   // silent
@@ -45,6 +63,9 @@ public sealed class FanCurveService : IDisposable
         [1] = (32, 38, 64, 72),   // beast
         [3] = (40, 44, 75, 82),   // gaming
     };
+
+    private static readonly string[] ModeNames = { "均衡", "野兽", "安静", "斗战" };
+    private static string ModeName(byte m) => m <= 3 ? ModeNames[m] : $"未知({m})";
 
     /// <summary>曲线点：温度(°C) → 大扇/小扇目标 RPM</summary>
     /// <remarks>默认曲线: 40°C 最低转速 → 50-85°C 渐变 → 90-100°C 满载</remarks>
@@ -96,8 +117,18 @@ public sealed class FanCurveService : IDisposable
         _lastLargeTarget = 0;
         _lastSmallTarget = 0;
 
+        // 保存当前 ITSM，停止时通过 WMI 恢复正常模式链
+        _savedThermalMode = _hal.ReadEcPort(0xE4);
+        _modeChangeCount = 0;
+        _itsmDeviationCount = 0;
+        _itsmDeviationInWindow = 0;
+        _itsmDeviationWindowStart = DateTime.Now;
+        _wmiChannelLocked = false;
+        _wmiWriteFailStreak = 0;
+
         _timer = new Timer(Tick, null, 0, _intervalMs);
-        _log.LogInformation("[FanCurve] 自定义曲线已启动, 间隔 {Ms}ms, 回差 {H}°C", _intervalMs, _hysteresisC);
+        _log.LogInformation("[FanCurve] 自定义曲线已启动, 间隔 {Ms}ms, 回差 {H}°C, 保存ITSM={Itsm}",
+            _intervalMs, _hysteresisC, _savedThermalMode);
     }
 
     public void Stop()
@@ -107,9 +138,20 @@ public sealed class FanCurveService : IDisposable
         _timer?.Dispose();
         _timer = null;
         _lastHotspot = null;
-        // 仅停定时器，不碰 EC 风扇状态
-        // 由前端决定：有 override → 回写用户转速；无 override → 调 /api/fan/restore 恢复固件
-        _log.LogInformation("[FanCurve] 自定义曲线已停止 (定时器已关闭)");
+
+        // 通过 WMI 正常切换回保存的模式（触发完整 DPTB/GPUD 链），恢复固件控制
+        try
+        {
+            _wmi.SetThermalMode(_savedThermalMode);
+            _wmi.SetFanManual(0, false);
+            _wmi.SetFanManual(1, false);
+            _log.LogInformation("[FanCurve] 自定义曲线已停止, 恢复到模式 {Mode}({Val}), 模式切换 {MC} 次, ITSM偏离 {DC} 次",
+                ModeName(_savedThermalMode), _savedThermalMode, _modeChangeCount, _itsmDeviationCount);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning("[FanCurve] 停止恢复异常: {Msg}", ex.Message);
+        }
     }
 
     /// <summary>显式恢复固件风扇控制（进程退出时调用）</summary>
@@ -122,7 +164,38 @@ public sealed class FanCurveService : IDisposable
 
     public void Dispose() => RestoreFirmwareControl();
 
-    // ── 定时回调 (核心逻辑，对齐 BellatorFanControl.PollAndApply) ──
+    // ── 模式路由 (NEW: 从钳位器到路由表) ──
+
+    /// <summary>
+    /// 根据目标大扇/小扇 RPM 找到能同时覆盖两者的最优模式。
+    /// 优先级：安静(2) → 均衡(0) → 野兽(1) → 斗战(3)
+    /// 无完美匹配时优先满足大扇（对 CPU 温度影响更大），fallback 斗战(3)。
+    /// </summary>
+    private static byte RouteMode(int largeTargetDiv100, int smallTargetDiv100)
+    {
+        byte[] priority = { 2, 0, 1, 3 };
+
+        // 第一轮：找同时覆盖大扇和小扇的模式
+        foreach (var mode in priority)
+        {
+            var range = ModeFanRanges[mode];
+            if (largeTargetDiv100 >= range.lMin && largeTargetDiv100 <= range.lMax &&
+                smallTargetDiv100 >= range.sMin && smallTargetDiv100 <= range.sMax)
+                return mode;
+        }
+
+        // 第二轮：无完美匹配，优先满足大扇
+        foreach (var mode in priority)
+        {
+            var range = ModeFanRanges[mode];
+            if (largeTargetDiv100 >= range.lMin && largeTargetDiv100 <= range.lMax)
+                return mode;
+        }
+
+        return 3; // fallback: 斗战模式（最宽上限）
+    }
+
+    // ── 定时回调 (核心逻辑：路由 + EC 直写 ITSM + WMI 写转速) ──
 
     private void Tick(object? state)
     {
@@ -142,28 +215,58 @@ public sealed class FanCurveService : IDisposable
                 return;
             }
 
-            // 查找目标曲线点
+            // 1. 曲线查找 → 原始 RPM 值
             var (largeRpm, smallRpm) = LookupTarget(hotspot);
-            int largeTarget = Math.Clamp(largeRpm / 100, 0, 44); // Bellator 协议: RPM/100
-            int smallTarget = Math.Clamp(smallRpm / 100, 0, 82);
+            int largeTarget = largeRpm / 100;  // RPM → RPM/100 (Bellator 协议)
+            int smallTarget = smallRpm / 100;
 
-            // 读取当前散热模式，将曲线输出钳位到该模式的风扇合法区间
-            // EC 拒绝区间外的写入并在 ~8s 内回写到模式默认值
-            byte thermalMode = _wmi.GetThermalMode();
-            if (ModeFanRanges.TryGetValue(thermalMode, out var range))
+            // 2. 模式路由：根据目标转速找到最优 ITSM 模式
+            byte targetMode = RouteMode(largeTarget, smallTarget);
+
+            // 3. 读取当前 ITSM，按需 EC 直写（不触发 ALIB/GPUD 副作用链）
+            byte currentItsm = _hal.ReadEcPort(0xE4);
+            CurrentItsm = currentItsm;
+
+            if (currentItsm != targetMode)
             {
-                int origLarge = largeTarget, origSmall = smallTarget;
-                largeTarget = Math.Clamp(largeTarget, range.lMin, range.lMax);
-                smallTarget = Math.Clamp(smallTarget, range.sMin, range.sMax);
-                if (origLarge != largeTarget || origSmall != smallTarget)
+                // 检查是否为外部偏离（Fn 热键 / AC 插拔 / 睡眠唤醒）
+                if (_active && _lastHotspot.HasValue) // 非首次 tick
                 {
-                    _log.LogDebug("[FanCurve] 区间钳位 (mode={Mode}): large {OL}→{L} small {OS}→{S}",
-                        thermalMode, origLarge, largeTarget, origSmall, smallTarget);
+                    _itsmDeviationCount++;
+                    _itsmDeviationInWindow++;
+
+                    // 1 分钟窗口内偏离统计
+                    if ((DateTime.Now - _itsmDeviationWindowStart).TotalSeconds > 60)
+                    {
+                        _itsmDeviationWindowStart = DateTime.Now;
+                        _itsmDeviationInWindow = 1;
+                    }
+                    if (_itsmDeviationInWindow >= 5)
+                    {
+                        _log.LogWarning("[FanCurve] ITSM 频繁偏离: 1分钟内 {Count} 次 (cur={Cur} tgt={Tgt})",
+                            _itsmDeviationInWindow, currentItsm, targetMode);
+                    }
                 }
+
+                // EC 直写 ITSM — 绕开 WMAA Case 0x0800 的完整副作用链
+                _hal.WriteEcPort(0xE4, targetMode);
+                _modeChangeCount++;
+                _log.LogInformation("[FanCurve] ITSM 路由: {Cur}({CurName}) → {Tgt}({TgtName}) (L={L} S={S})",
+                    currentItsm, ModeName(currentItsm), targetMode, ModeName(targetMode), largeRpm, smallRpm);
+                // 短暂等待 EC 切换风扇曲线区间（~100ms）
+                Thread.Sleep(100);
             }
 
-            // ShouldWrite 回差策略：仅控制是否更新目标值，不阻止写入
-            // 每个 tick 都必须重发 SetFanManual + SetFanSpeed，对抗 EC 回写覆盖
+            RoutedMode = targetMode;
+
+            // 4. 钳位到目标模式的合法区间（防止 EC 拒绝写入）
+            if (ModeFanRanges.TryGetValue(targetMode, out var range))
+            {
+                largeTarget = Math.Clamp(largeTarget, range.lMin, range.lMax);
+                smallTarget = Math.Clamp(smallTarget, range.sMin, range.sMax);
+            }
+
+            // 5. ShouldWrite 回差策略
             if (ShouldWrite(hotspot, largeTarget, smallTarget))
             {
                 _lastHotspot = hotspot;
@@ -177,15 +280,19 @@ public sealed class FanCurveService : IDisposable
                 smallTarget = _lastSmallTarget;
             }
 
-            // 每个 tick 都写入 (交错式)，确保 EC 手动模式不被回收
+            // 6. WMI 写入风扇转速（每个 tick 都写入，对抗 EC 回写覆盖）
             bool manual0 = _wmi.SetFanManual(0, true);
             bool largeOk = _wmi.SetFanSpeed(0, (byte)largeTarget);
             bool manual1 = _wmi.SetFanManual(1, true);
             bool smallOk = _wmi.SetFanSpeed(1, (byte)smallTarget);
 
+            // 7. 写入验证：读回 EC 寄存器确认值生效
+            VerifyFanWrite(largeTarget, smallTarget, largeOk, smallOk);
+
             _log.LogInformation(
-                "[FanCurve] Tick: hotspot={Hot}°C → large={L}x100rpm small={S}x100rpm | WMI: m0={M0} large={Lr} m1={M1} small={Sr}",
-                hotspot, largeTarget, smallTarget, manual0, largeOk, manual1, smallOk);
+                "[FanCurve] Tick: hot={Hot}°C → route={Mode}({ModeName}) L={L}x100 S={S}x100 | WMI: m0={M0} l={Lr} m1={M1} s={Sr} | ITSM={Itsm}",
+                hotspot, targetMode, ModeName(targetMode), largeTarget, smallTarget,
+                manual0, largeOk, manual1, smallOk, currentItsm);
         }
         catch (Exception ex)
         {
@@ -194,6 +301,59 @@ public sealed class FanCurveService : IDisposable
         finally
         {
             Monitor.Exit(_tickLock);
+        }
+    }
+
+    /// <summary>
+    /// WMI 风扇写入验证 + 通道锁定检测。
+    /// 写入后读回 EC 0x5E(大扇)/0x5A(小扇) 确认值生效。
+    /// 连续 3 次写入后不匹配 → 标记 WMI 通道为"锁定"（可能由 CPU 频率限制导致）。
+    /// </summary>
+    private void VerifyFanWrite(int expectedLarge, int expectedSmall, bool wmiLargeOk, bool wmiSmallOk)
+    {
+        // WMI 返回 false 或 EC 读回值不匹配 → 计数
+        if (!wmiLargeOk || !wmiSmallOk)
+        {
+            _wmiWriteFailStreak++;
+            if (_wmiWriteFailStreak >= 3 && !_wmiChannelLocked)
+            {
+                _wmiChannelLocked = true;
+                _log.LogWarning("[FanCurve] WMI 风扇写入通道疑似锁定 (连续 {N} 次 WMI 返回失败)",
+                    _wmiWriteFailStreak);
+            }
+            return;
+        }
+
+        // WMI 返回 OK，进一步读回 EC 验证（给 EC 100ms 处理时间）
+        Thread.Sleep(100);
+        byte actualLarge = _hal.ReadEcPort(0x5E);
+        byte actualSmall = _hal.ReadEcPort(0x5A);
+
+        // 允许 ±1 偏差（EC 可能四舍五入）
+        bool largeMatch = Math.Abs(actualLarge - expectedLarge) <= 1;
+        bool smallMatch = Math.Abs(actualSmall - expectedSmall) <= 1;
+
+        if (!largeMatch || !smallMatch)
+        {
+            _wmiWriteFailStreak++;
+            _log.LogDebug("[FanCurve] 写入验证偏差: large exp={E} act={A} small exp={E2} act={A2} streak={S}",
+                expectedLarge, actualLarge, expectedSmall, actualSmall, _wmiWriteFailStreak);
+            if (_wmiWriteFailStreak >= 3 && !_wmiChannelLocked)
+            {
+                _wmiChannelLocked = true;
+                _log.LogWarning("[FanCurve] WMI 风扇写入通道锁定检测: 连续 {N} 次写入后 EC 值不匹配",
+                    _wmiWriteFailStreak);
+            }
+        }
+        else
+        {
+            // 写入成功，重置失败计数
+            if (_wmiChannelLocked)
+            {
+                _wmiChannelLocked = false;
+                _log.LogInformation("[FanCurve] WMI 风扇写入通道已恢复");
+            }
+            _wmiWriteFailStreak = 0;
         }
     }
 

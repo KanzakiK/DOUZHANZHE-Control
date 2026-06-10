@@ -657,6 +657,24 @@ app.MapPost("/api/fan-curve/stop", (FanCurveService svc) =>
         return Results.Json(new { ok = false, error = ex.Message });
     }
 });
+
+// ---- Fan Curve Route Info (路由状态查询) ----
+app.MapGet("/api/fan-curve/route-info", (FanCurveService svc) =>
+{
+    return Results.Json(new
+    {
+        ok = true,
+        active = svc.Active,
+        currentItsm = svc.CurrentItsm,
+        routedMode = svc.RoutedMode,
+        lastLargeTarget = svc.LastLargeTarget,
+        lastSmallTarget = svc.LastSmallTarget,
+        modeChangeCount = svc.ModeChangeCount,
+        itsmDeviationCount = svc.ItsmDeviationCount,
+        wmiChannelLocked = svc.WmiChannelLocked,
+    });
+});
+
 // ---- GPU 控制 (nvidia-smi 子进程) ----
 app.MapPost("/api/gpu/set", (GpuController gpu, GpuSetRequest req) =>
 {
