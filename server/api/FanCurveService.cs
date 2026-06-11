@@ -254,10 +254,7 @@ public sealed class FanCurveService : IDisposable
             int lt = _guardLargeTarget, st = _guardSmallTarget;
             if (lt >= 0 && st >= 0)
             {
-                // WMI 通道 (ACPI 链)
-                _wmi.SetFanSpeed(0, (byte)lt);
-                _wmi.SetFanSpeed(1, (byte)st);
-                // EC 直写通道 (绕过 ACPI)
+                // EC 直写：绕过 ACPI 直接操作风扇目标寄存器
                 _hal.WriteEcPort(0x5E, (byte)lt);
                 _hal.WriteEcPort(0x5A, (byte)st);
             }
