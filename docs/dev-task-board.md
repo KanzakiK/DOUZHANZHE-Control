@@ -160,6 +160,8 @@
 - [ ] **⑲ 睡眠/唤醒处理**: 注册系统电源事件回调，唤醒后立即执行一次 ITSM 修复 tick
 - [ ] **⑳ 日志完善**: Tick 日志增加路由决策（L→mode, S→mode, 交集/回退）、ITSM 读值、偏离计数；降级模式下日志频率提高
 
+> **多配置预设（后续迭代）**: 将单文件 `fan-curve.json` 改为多配置存储（命名预设），后端新增 list/save-named/load/delete 端点，前端增加预设列表 + 命名保存交互。场景：安静办公曲线 / 游戏曲线一键切换。当前"保存配置"按钮功能冗余（"应用曲线"已内含保存），此功能使其真正有用
+
 ### 其他
 - [x] **Debug 页重构**: 将 debug HTML 从 Program.cs 内嵌字符串（~33KB 单行）提取到 `wwwroot/debug.html` 独立文件，补齐缺失的控制区：SMU 功率/温度、CPU powercfg（freq-limit/turbo/core-limit/reset）、GPU NVAPI（超频/温度限制/P-State dump）、风扇曲线服务（start/stop/status/route-info）、EC scan、系统信息。现有 54 个 API 端点中 debug 页仅覆盖 ~10 个
 - [ ] **CPU 频率限制改用 ryzenadj/SMU 实现**: 砍掉 CpuPowerController 中的 powercfg `SET_PROC_FREQ_LIMIT` 路径，改为通过 SMU 寄存器（ryzenadj）设置 CPU 频率上限。powercfg 路径会触发 EC 锁定 WMI 风扇写入通道（详见 [custom-fan-curve-design §6.7](custom-fan-curve-design-2026-06-10.md)），SMU 路径不经过 EC，从根本上消除此冲突。现有 SmuController + `/api/smu/set` 基础设施可复用
