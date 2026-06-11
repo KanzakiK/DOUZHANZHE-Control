@@ -11,11 +11,12 @@
 
 - **WMI 通道锁定误报**: VerifyFanWrite 不再将 EC 读回偏差计入锁定计数（EC 固件 PID 在 ~30ms 内覆写 0x5E 属正常行为），仅 WMI 返回 false 才触发锁定检测；移除验证中多余的 100ms sleep
 
-## [1.3.8] — 2026-06-11
+## [1.3.7] — 2026-06-11
+
+FanCurveService 核心改造 — ModeFanRanges 从钳位器变为路由表，通过 EC 直写 ITSM(0xE4) 选择风扇区间，绕开 WMAA 副作用链（CPU/GPU 功耗不受影响）
 
 ### 新增
 
-- **EC 直写 ITSM 风扇曲线方案**: FanCurveService 核心改造 — ModeFanRanges 从钳位器变为路由表，通过 EC 直写 ITSM(0xE4) 选择风扇区间，绕开 WMAA 副作用链（CPU 功耗/ GPU 功耗不受影响）
 - **RouteMode 路由函数**: 根据目标大扇/小扇转速自动选择最优散热模式（安静→均衡→野兽→斗战），实现全范围曲线：大扇 1900-4400 RPM，小扇 1700-8200 RPM
 - **ITSM 守护机制**: 每 tick 校验 ITSM 寄存器，自动修复 Fn 热键/ AC 插拔/ 睡眠唤醒导致的外部偏离；1 分钟内偏离 ≥5 次告警
 - **WMI 写入验证 + 通道锁定检测**: 写入后读回 EC 0x5E/0x5A 确认生效，连续 3 次失败标记锁定（应对 CPU 频率限制导致的通道锁定）
@@ -25,11 +26,13 @@
 
 ### 改动
 
+- **Debug 页抽取**: 将 `/debug` 端点的内联 HTML（~30KB）抽取为独立文件 `wwwroot/debug.html`，Program.cs 改为 `Results.File` 静态引用
+- **图标改版**: 重新设计 favicon.svg / logo.svg / logo.png，更新 Shell 应用图标 app.ico
 - **FanCurvePanel**: 移除模式区间带（蓝色/紫色矩形）和钳位警告，Y 轴改为全范围显示
 - **uxtuAdapter**: `getFanRange()` 改为返回 `FULL_FAN_RANGE` 全范围常量，不再按模式返回区间
 - **FanCurveService.Stop()**: 从"仅停定时器"改为"恢复保存的散热模式 + 交还固件控制"
 
-## [1.3.8] — 2026-06-09
+## [1.3.6] — 2026-06-09
 
 ### 重构
 

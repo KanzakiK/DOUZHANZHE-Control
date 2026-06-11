@@ -18,7 +18,8 @@ dist-ssr
 # C# build artifacts (all projects)
 **/bin/
 **/obj/
-**/wwwroot/
+**/wwwroot/**
+!**/wwwroot/debug.html
 
 # Editor directories and files
 .vscode/*
