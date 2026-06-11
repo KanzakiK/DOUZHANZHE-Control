@@ -304,8 +304,10 @@ export async function resetToFactoryDefaults(mode) {
     await applyHardwareControl("thermal_mode", tv);
   }
   
-  // 3. CPU 频率/睿频/核心数通过 Windows powercfg 控制，必须单独恢复
-  await resetCpuPower().catch(e => console.warn("resetCpuPower:", e));
+  // [已禁用] CPU 频率/睿频/核心数通过 Windows powercfg 控制
+  // powercfg 写 SET_PROC_FREQ_LIMIT 会导致 EC 锁定 WMI 风扇写入通道 (Section 6.7)
+  // 暂时完全禁用，待风扇曲线验证通过后再评估是否恢复
+  // await resetCpuPower().catch(e => console.warn("resetCpuPower:", e));
 
   // 4. GPU 频率锁定 + NVAPI 超频/温度限制不受 thermal_mode 管理，需要单独重置
   await applyGpuControl("reset-clocks").catch(e => console.warn("[GPU] reset:", e));
@@ -346,13 +348,14 @@ export async function dispatchFullMode(mode, overrides) {
       applyNvapiOverclock(0, 0).catch(e => console.warn("[NVAPI] OC-reset:", e)),
       applyNvapiThermalLimit(87).catch(e => console.warn("[NVAPI] thermal-reset:", e)),
     ]);
-    // CPU: 解除频率限制、开启睿频、全部核心、平衡电源计划 — await 防止与后续手动操作竞争
-    await Promise.all([
-      setCpuFreqLimit(0).catch(e => console.warn("[CPU] freq-reset:", e)),
-      setCpuTurbo(true).catch(e => console.warn("[CPU] turbo-reset:", e)),
-      setCpuCoreLimitPercent(100).catch(() => {}),
-      applyHardwareControl("power_plan", 0).catch(e => console.warn("[CPU] power-plan-reset:", e)),
-    ]);
+    // [已禁用] CPU powercfg 调用 — 写 SET_PROC_FREQ_LIMIT 会锁定 EC 风扇写入通道
+    // 暂时完全禁用，待风扇曲线验证通过后再评估是否恢复
+    // await Promise.all([
+    //   setCpuFreqLimit(0).catch(e => console.warn("[CPU] freq-reset:", e)),
+    //   setCpuTurbo(true).catch(e => console.warn("[CPU] turbo-reset:", e)),
+    //   setCpuCoreLimitPercent(100).catch(() => {}),
+    //   applyHardwareControl("power_plan", 0).catch(e => console.warn("[CPU] power-plan-reset:", e)),
+    // ]);
     return;
   }
 
@@ -396,27 +399,28 @@ export async function dispatchFullMode(mode, overrides) {
     ),
   ]);
 
-  // ⑤ CPU powercfg: 频率限制 / 睿频 / 核心数 / 电源计划
-  // CPU 频率控制通过 Windows powercfg 实现，不受 thermal_mode 管理，每次切换都必须重置
-  setCpuFreqLimit(overrides.cpuFreqLimitEnabled ? overrides.cpuFreqLimitMhz : 0).catch(
-    e => console.warn("[CPU] freq:", e)
-  );
-  setCpuTurbo(!(overrides.cpuTurboDisabled ?? false)).catch(
-    e => console.warn("[CPU] turbo:", e)
-  );
-  if ((overrides.cpuCoreLimit ?? 0) > 0) {
-    setCpuCoreLimitPercent(Math.round(overrides.cpuCoreLimit / 16 * 100)).catch(
-      e => console.warn("[CPU] core-limit:", e)
-    );
-  } else {
-    setCpuCoreLimitPercent(100).catch(() => {});
-  }
-  const ppHal = powerPlanHALMap[overrides.cpuPowerPlan ?? "balance"];
-  if (ppHal !== undefined) {
-    applyHardwareControl("power_plan", ppHal).catch(
-      e => console.warn("[CPU] power-plan:", e)
-    );
-  }
+  // ⑤ [已禁用] CPU powercfg: 频率限制 / 睿频 / 核心数 / 电源计划
+  // powercfg 写 SET_PROC_FREQ_LIMIT 会导致 EC 锁定 WMI 风扇写入通道 (Section 6.7)
+  // 暂时完全禁用，待风扇曲线验证通过后再评估是否恢复
+  // setCpuFreqLimit(overrides.cpuFreqLimitEnabled ? overrides.cpuFreqLimitMhz : 0).catch(
+  //   e => console.warn("[CPU] freq:", e)
+  // );
+  // setCpuTurbo(!(overrides.cpuTurboDisabled ?? false)).catch(
+  //   e => console.warn("[CPU] turbo:", e)
+  // );
+  // if ((overrides.cpuCoreLimit ?? 0) > 0) {
+  //   setCpuCoreLimitPercent(Math.round(overrides.cpuCoreLimit / 16 * 100)).catch(
+  //     e => console.warn("[CPU] core-limit:", e)
+  //   );
+  // } else {
+  //   setCpuCoreLimitPercent(100).catch(() => {});
+  // }
+  // const ppHal = powerPlanHALMap[overrides.cpuPowerPlan ?? "balance"];
+  // if (ppHal !== undefined) {
+  //   applyHardwareControl("power_plan", ppHal).catch(
+  //     e => console.warn("[CPU] power-plan:", e)
+  //   );
+  // }
 
   // ⑥ 风扇目标转速
   const fanFields = ["fanLargeRpmTarget", "fanSmallRpmTarget"];
