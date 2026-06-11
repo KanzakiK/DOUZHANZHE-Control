@@ -23,6 +23,8 @@ public sealed class FanCurveService : IDisposable
     private readonly ILogger<FanCurveService> _log;
 
     private Timer? _timer;
+    private Timer? _itsmGuardTimer;         // ITSM 高频守护 (500ms)，对抗 EC ~5-8s 回写周期
+    private volatile byte _itsmTargetMode;   // Tick 更新、Guard 读取的目标模式
     private bool _active;
     private int _intervalMs = 5000;   // BellatorFanControl 默认 5s
     private int _hysteresisC = 3;     // 回差 3°C
@@ -127,7 +129,13 @@ public sealed class FanCurveService : IDisposable
         _wmiWriteFailStreak = 0;
 
         _timer = new Timer(Tick, null, 0, _intervalMs);
-        _log.LogInformation("[FanCurve] 自定义曲线已启动, 间隔 {Ms}ms, 回差 {H}°C, 保存ITSM={Itsm}",
+
+        // ITSM 高频守护: 每 500ms 写一次 ITSM，对抗 EC ~5-8s 回写周期
+        // Tick 间隔 5s 太慢，EC 在两个 tick 之间就把 ITSM 覆写回去了
+        _itsmTargetMode = _savedThermalMode;
+        _itsmGuardTimer = new Timer(ItsmGuardCallback, null, 0, 500);
+
+        _log.LogInformation("[FanCurve] 自定义曲线已启动, 间隔 {Ms}ms, 回差 {H}°C, 保存ITSM={Itsm}, ITSM守护=500ms",
             _intervalMs, _hysteresisC, _savedThermalMode);
     }
 
@@ -137,6 +145,8 @@ public sealed class FanCurveService : IDisposable
         _active = false;
         _timer?.Dispose();
         _timer = null;
+        _itsmGuardTimer?.Dispose();
+        _itsmGuardTimer = null;
         _lastHotspot = null;
 
         // 通过 WMI 正常切换回保存的模式（触发完整 DPTB/GPUD 链），恢复固件控制
@@ -195,7 +205,22 @@ public sealed class FanCurveService : IDisposable
         return 3; // fallback: 斗战模式（最宽上限）
     }
 
-    // ── 定时回调 (核心逻辑：路由 + EC 直写 ITSM 每 tick 对抗回写 + WMI 写转速) ──
+    // ── ITSM 高频守护 (500ms) ──
+    // EC 固件有 ~5-8 秒的 ITSM 回写周期，Tick 间隔 5s 太慢无法对抗。
+    // 独立守护线程每 500ms 写一次 ITSM，确保 EC 回写后最多 500ms 就被纠正。
+
+    private void ItsmGuardCallback(object? state)
+    {
+        if (!_active) return;
+        try
+        {
+            _hal.WriteEcPort(0xE4, _itsmTargetMode);
+        }
+        catch { /* 静默忽略，下一个 500ms 会重试 */ }
+    }
+
+    // ── 定时回调 (核心逻辑：路由 + 曲线查找 + WMI 写转速) ──
+    // ITSM 写入由 ItsmGuardCallback 高频处理，Tick 只负责更新 _itsmTargetMode
 
     private void Tick(object? state)
     {
@@ -223,14 +248,17 @@ public sealed class FanCurveService : IDisposable
             // 2. 模式路由：根据目标转速找到最优 ITSM 模式
             byte targetMode = RouteMode(largeTarget, smallTarget);
 
-            // 3. EC 直写 ITSM — 每个 tick 无条件写入，对抗 EC 回写
-            //    (与风扇转速策略一致：风扇每 tick 写，ITSM 也每 tick 写)
+            // 3. 更新 ITSM 目标模式 — 由 ItsmGuardCallback 每 500ms 实际写入
+            //    Tick 只负责更新目标值，不再直接写 EC（避免与 guard 竞争）
             byte currentItsm = _hal.ReadEcPort(0xE4);
             CurrentItsm = currentItsm;
 
+            // 通知 guard 新的目标模式
+            _itsmTargetMode = targetMode;
+
             if (currentItsm != targetMode)
             {
-                // 偏离统计（仅诊断用，不影响写入策略）
+                // 偏离统计（仅诊断用）
                 if (_active && _lastHotspot.HasValue)
                 {
                     _itsmDeviationCount++;
@@ -251,9 +279,6 @@ public sealed class FanCurveService : IDisposable
                 _log.LogInformation("[FanCurve] ITSM 偏离: {Cur}({CurName}) → {Tgt}({TgtName}) (L={L} S={S})",
                     currentItsm, ModeName(currentItsm), targetMode, ModeName(targetMode), largeRpm, smallRpm);
             }
-
-            // 每 tick 无条件 EC 直写 ITSM（不用 WMI SetThermalMode，避免 ALIB/GPUD 副作用链）
-            _hal.WriteEcPort(0xE4, targetMode);
 
             RoutedMode = targetMode;
 
