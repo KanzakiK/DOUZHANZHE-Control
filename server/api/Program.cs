@@ -669,9 +669,7 @@ app.MapGet("/api/fan-curve/route-info", (FanCurveService svc) =>
         routedMode = svc.RoutedMode,
         lastLargeTarget = svc.LastLargeTarget,
         lastSmallTarget = svc.LastSmallTarget,
-        modeChangeCount = svc.ModeChangeCount,
         itsmDeviationCount = svc.ItsmDeviationCount,
-        wmiChannelLocked = svc.WmiChannelLocked,
         // EC 读回诊断
         actualCpuFanRpm = svc.ActualCpuFanRpm,
         actualGpuFanRpm = svc.ActualGpuFanRpm,

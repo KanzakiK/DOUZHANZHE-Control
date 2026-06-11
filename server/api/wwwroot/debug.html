@@ -5,7 +5,6 @@
 <div style="background:#0d1117;border:1px solid #30363d;border-radius:4px;padding:6px 10px"><div style="color:#8b949e;font-size:11px">曲线状态</div><div id="fcActive" style="color:#d2a8ff;font-size:15px;font-weight:700">-</div></div>
 <div style="background:#0d1117;border:1px solid #30363d;border-radius:4px;padding:6px 10px"><div style="color:#8b949e;font-size:11px">当前 ITSM</div><div id="fcItsm" style="color:#d2a8ff;font-size:15px;font-weight:700">-</div></div>
 <div style="background:#0d1117;border:1px solid #30363d;border-radius:4px;padding:6px 10px"><div style="color:#8b949e;font-size:11px">路由模式</div><div id="fcMode" style="color:#d2a8ff;font-size:15px;font-weight:700">-</div></div>
-<div style="background:#0d1117;border:1px solid #30363d;border-radius:4px;padding:6px 10px"><div style="color:#8b949e;font-size:11px">WMI 通道</div><div id="fcWmiLock" style="color:#3fb950;font-size:15px;font-weight:700">正常</div></div>
 <div style="background:#0d1117;border:1px solid #30363d;border-radius:4px;padding:6px 10px"><div style="color:#8b949e;font-size:11px">大扇目标</div><div id="fcLarge" style="color:#7ee787;font-size:15px;font-weight:700">- RPM</div></div>
 <div style="background:#0d1117;border:1px solid #30363d;border-radius:4px;padding:6px 10px"><div style="color:#8b949e;font-size:11px">小扇目标</div><div id="fcSmall" style="color:#7ee787;font-size:15px;font-weight:700">- RPM</div></div>
 <div style="background:#0d1117;border:1px solid #30363d;border-radius:4px;padding:6px 10px"><div style="color:#8b949e;font-size:11px">大扇实际 RPM</div><div id="fcActLarge" style="color:#ffa657;font-size:15px;font-weight:700">-</div></div>
@@ -47,9 +46,6 @@ document.getElementById('fcMode').textContent=mName;
 document.getElementById('fcLarge').textContent=(d.lastLargeTarget*100)+' RPM';
 document.getElementById('fcSmall').textContent=(d.lastSmallTarget*100)+' RPM';
 document.getElementById('fcTicks').textContent=d.tickCount||0;
-var wl=document.getElementById('fcWmiLock');
-if(d.wmiChannelLocked){wl.textContent='锁定';wl.style.color='#f85149';}
-else{wl.textContent='正常';wl.style.color='#3fb950';}
 // EC 读回诊断
 var actL=d.actualCpuFanRpm||0, actS=d.actualGpuFanRpm||0;
 var ecL=d.ecFanTargetLarge||0, ecS=d.ecFanTargetSmall||0;
