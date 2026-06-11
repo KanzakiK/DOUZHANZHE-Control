@@ -20,6 +20,7 @@ public sealed class FanCurveService : IDisposable
 {
     private readonly HardwareAbstractionLayer _hal;
     private readonly WmiInterface _wmi;
+    private readonly SmuController _smu;
     private readonly ILogger<FanCurveService> _log;
 
     private Timer? _timer;
@@ -73,6 +74,7 @@ public sealed class FanCurveService : IDisposable
     public int TickCount { get; private set; }           // Tick 执行总次数
     public int RecoveryCount => _recoveryCount;           // SetThermalMode 自动恢复次数
     public string EcRegDiff { get; private set; } = "";   // 最近一次跌落时变化的 EC 寄存器
+    public string LastSmuDiff { get; private set; } = ""; // 最近一次恢复前后 SMU 参数差异
 
     // 各模式风扇转速合法区间 (RPM/100 单位)
     // 路由表：根据目标转速找到能覆盖它的模式，通过 WMI SetThermalMode 切换
@@ -110,10 +112,12 @@ public sealed class FanCurveService : IDisposable
     public FanCurveService(
         HardwareAbstractionLayer hal,
         WmiInterface wmi,
+        SmuController smu,
         ILogger<FanCurveService> log)
     {
         _hal = hal;
         _wmi = wmi;
+        _smu = smu;
         _log = log;
 
         // 定位 config 目录（与 Program.cs 逻辑一致）
@@ -439,6 +443,9 @@ public sealed class FanCurveService : IDisposable
                 {
                     try
                     {
+                        // ── SMU 参数快照: 恢复前 ──
+                        string smuBefore = _smu.DumpInfo();
+
                         byte altMode = targetMode == 0 ? (byte)1 : (byte)0;
                         _wmi.SetThermalMode(altMode);
                         Thread.Sleep(200);
@@ -446,9 +453,23 @@ public sealed class FanCurveService : IDisposable
                         _recoveryCount++;
                         _lastRecoveryTime = DateTime.UtcNow;
                         _consecutiveDeviation = 0;
+
+                        // ── SMU 参数快照: 恢复后 (等 500ms 让 ACPI 链执行完) ──
+                        Thread.Sleep(500);
+                        string smuAfter = _smu.DumpInfo();
+
+                        // 对比 SMU 快照
+                        string smuDiff = CompareSmuSnapshots(smuBefore, smuAfter);
+                        LastSmuDiff = smuDiff;
+
                         _log.LogInformation(
                             "[FanCurve] 自动恢复 #{N}: SetThermalMode({Alt}→{Mode}) — 连续偏离 {D} 次, RPM={Rpm}/{Target}",
                             _recoveryCount, altMode, targetMode, DeviationThreshold, ActualCpuFanRpm, largeTarget * 100);
+
+                        if (string.IsNullOrEmpty(smuDiff))
+                            _log.LogInformation("[FanCurve] SMU 参数未受影响");
+                        else
+                            _log.LogWarning("[FanCurve] SMU 参数变化:\n{Diff}", smuDiff);
                     }
                     catch (Exception ex)
                     {
@@ -495,6 +516,51 @@ public sealed class FanCurveService : IDisposable
 
         // 其他 (温度不变或微降但未达回差)
         return false;
+    }
+
+    // ── SMU 快照对比工具 ──
+    // 解析 ryzenadj -i 输出，对比前后变化的参数
+
+    private static string CompareSmuSnapshots(string before, string after)
+    {
+        if (string.IsNullOrWhiteSpace(before) || string.IsNullOrWhiteSpace(after))
+            return $"快照不完整: before={(before?.Length ?? 0)}B after={(after?.Length ?? 0)}B";
+
+        static bool TryParseLine(string line, out string label, out string value)
+        {
+            label = ""; value = "";
+            var trimmed = line.Trim();
+            if (string.IsNullOrEmpty(trimmed)) return false;
+            // 找最后一个连续空格段作为分隔
+            int lastSpace = -1;
+            for (int i = trimmed.Length - 1; i >= 0; i--)
+            {
+                if (trimmed[i] == ' ') { lastSpace = i; break; }
+            }
+            if (lastSpace <= 0) return false;
+            label = trimmed[..lastSpace].Trim();
+            value = trimmed[(lastSpace + 1)..].Trim();
+            return !string.IsNullOrEmpty(label) && !string.IsNullOrEmpty(value);
+        }
+
+        var beforeMap = new Dictionary<string, string>();
+        foreach (var line in before.Split('\n'))
+        {
+            if (TryParseLine(line, out var lbl, out var val))
+                beforeMap[lbl] = val;
+        }
+
+        var diffs = new List<string>();
+        foreach (var line in after.Split('\n'))
+        {
+            if (!TryParseLine(line, out var lbl, out var val)) continue;
+            if (beforeMap.TryGetValue(lbl, out var oldVal) && oldVal != val)
+            {
+                diffs.Add($"{lbl}: {oldVal} → {val}");
+            }
+        }
+
+        return diffs.Count == 0 ? "" : string.Join("; ", diffs);
     }
 
     // ── 曲线查找 ──

@@ -16,6 +16,7 @@
 <div style="background:#0d1117;border:1px solid #30363d;border-radius:4px;padding:6px 10px"><div style="color:#8b949e;font-size:11px">WMI 写入</div><div id="fcWmiRes" style="color:#3fb950;font-size:15px;font-weight:700">-</div></div>
 <div style="background:#0d1117;border:1px solid #30363d;border-radius:4px;padding:6px 10px"><div style="color:#8b949e;font-size:11px">Tick 计数</div><div id="fcTicks" style="color:#79c0ff;font-size:15px;font-weight:700">-</div></div>
 <div style="background:#0d1117;border:1px solid #30363d;border-radius:4px;padding:6px 10px"><div style="color:#8b949e;font-size:11px">自动恢复</div><div id="fcRecovery" style="color:#ffa657;font-size:15px;font-weight:700">0</div></div>
+<div style="background:#0d1117;border:1px solid #30363d;border-radius:4px;padding:6px 10px"><div style="color:#8b949e;font-size:11px">SMU 影响</div><div id="fcSmuDiff" style="color:#3fb950;font-size:13px;font-weight:700">未触发</div></div>
 </div>
 <h2 style="font-size:12px;margin-bottom:6px">运行日志</h2>
 <pre id="fcLog" style="max-height:320px;font-size:11px;color:#8b949e">等待曲线启动...</pre>
@@ -53,8 +54,11 @@ document.getElementById('fcTicks').textContent=d.tickCount||0;
 var rc=d.recoveryCount||0;
 document.getElementById('fcRecovery').textContent=rc+' 次';
 document.getElementById('fcRecovery').style.color=rc>0?'#f85149':'#ffa657';
-if(prevRecovery>=0&&rc>prevRecovery)addLog('[恢复] 自动恢复 #'+rc+' — SetThermalMode 重置 EC PID');
+if(prevRecovery>=0&&rc>prevRecovery){addLog('[恢复] 自动恢复 #'+rc+' — SetThermalMode 重置 EC PID');if(d.lastSmuDiff)addLog('[SMU] 参数变化: '+d.lastSmuDiff);else addLog('[SMU] 参数未受影响');}
 prevRecovery=rc;
+// SMU 影响卡片
+var smuEl=document.getElementById('fcSmuDiff');
+if(d.lastSmuDiff){smuEl.textContent=d.lastSmuDiff;smuEl.style.color='#f85149';}else if(rc>0){smuEl.textContent='无变化';smuEl.style.color='#3fb950';}
 // EC 读回诊断
 var actL=d.actualCpuFanRpm||0, actS=d.actualGpuFanRpm||0;
 var ecL=d.ecFanTargetLarge||0, ecS=d.ecFanTargetSmall||0;
