@@ -45,6 +45,13 @@ public sealed class FanCurveService : IDisposable
     private readonly byte[] _lastGoodEcRegs = new byte[0x100]; // 风扇正常时的 EC 快照
     private bool _ecRegsInitialized;
 
+    // ── 自动恢复 (EC PID 跌落对抗) ──
+    private int _consecutiveDeviation;        // 连续偏离 tick 计数
+    private DateTime _lastRecoveryTime = DateTime.MinValue; // 上次 SetThermalMode 恢复时间
+    private int _recoveryCount;               // 恢复执行总次数
+    private const int DeviationThreshold = 3;  // 连续偏离 N 次 tick 后触发恢复
+    private static readonly TimeSpan RecoveryCooldown = TimeSpan.FromMinutes(5); // 恢复冷却期
+
     public bool Active => _active;
 
     // ── API 查询属性 (供 /api/fan-curve/route-info 使用) ──
@@ -59,9 +66,12 @@ public sealed class FanCurveService : IDisposable
     public int ActualGpuFanRpm { get; private set; }     // 实际 GPU 风扇 RPM (EC 0x96/0x97)
     public int EcFanTargetLarge { get; private set; }    // EC 大扇目标寄存器 (0x5E, RPM/100)
     public int EcFanTargetSmall { get; private set; }    // EC 小扇目标寄存器 (0x5A, RPM/100)
+    public int EcFanShadowLarge { get; private set; }    // EC 大扇影子寄存器 (0x5D)
+    public int EcFanShadowSmall { get; private set; }    // EC 小扇影子寄存器 (0x59)
     public bool LastWmiLargeOk { get; private set; }     // 最近一次 WMI 大扇写入返回
     public bool LastWmiSmallOk { get; private set; }     // 最近一次 WMI 小扇写入返回
     public int TickCount { get; private set; }           // Tick 执行总次数
+    public int RecoveryCount => _recoveryCount;           // SetThermalMode 自动恢复次数
     public string EcRegDiff { get; private set; } = "";   // 最近一次跌落时变化的 EC 寄存器
 
     // 各模式风扇转速合法区间 (RPM/100 单位)
@@ -148,6 +158,13 @@ public sealed class FanCurveService : IDisposable
         _guardLargeTarget = -1;
         _guardSmallTarget = -1;
         _ecRegsInitialized = false;
+        _consecutiveDeviation = 0;
+        _lastRecoveryTime = DateTime.MinValue;
+        _recoveryCount = 0;
+
+        // 启动时不主动切模式 — RouteMode + Guard 在第一轮 Tick 自然写入目标模式，
+        // 这个模式切换本身就触发 ACPI 链重置 EC PID 状态。
+        // 手动 SetThermalMode 反而可能导致模式冲突（saved vs routed）。
 
         _timer = new Timer(Tick, null, 0, _intervalMs);
 
@@ -247,8 +264,10 @@ public sealed class FanCurveService : IDisposable
 
     // ── 高频守护 (500ms) ──
     // EC 固件会周期性回写 ITSM 寄存器并覆盖风扇转速目标。
-    // 独立守护线程每 500ms 同时写入 ITSM + SetFanSpeed(WMI) + EC 直写(0x5E/0x5A)，
-    // 双通道写入对比：WMI 走 ACPI 链，EC 直写绕过 ACPI 直接操作寄存器。
+    // 独立守护线程每 500ms 同时写入 ITSM + SetFanSpeed(WMI) + EC 直写(6 个风扇寄存器)，
+    // 双通道对比：WMI 走 ACPI 链，EC 直写绕过 ACPI 直接操作寄存器。
+    // EC 风扇寄存器组（模式切换时全部跟随变化，推测 PID 控制器实际读取的是这组内部寄存器）：
+    //   0x5E / 0x5D = 大扇目标  0x5A / 0x59 = 小扇目标
 
     private void ItsmGuardCallback(object? state)
     {
@@ -262,9 +281,12 @@ public sealed class FanCurveService : IDisposable
                 // WMI: 持续刷手动模式标志，防止 EC 超时退回自动 PID
                 _wmi.SetFanManual(0, true);
                 _wmi.SetFanManual(1, true);
-                // EC 直写：绕过 ACPI 直接操作风扇目标寄存器
-                _hal.WriteEcPort(0x5E, (byte)lt);
-                _hal.WriteEcPort(0x5A, (byte)st);
+                // EC 直写：6 个风扇目标寄存器全覆盖
+                byte lb = (byte)lt, sb = (byte)st;
+                _hal.WriteEcPort(0x5E, lb); // 大扇目标 (已知)
+                _hal.WriteEcPort(0x5D, lb); // 大扇目标 (影子寄存器)
+                _hal.WriteEcPort(0x5A, sb); // 小扇目标 (已知)
+                _hal.WriteEcPort(0x59, sb); // 小扇目标 (影子寄存器)
             }
         }
         catch { /* 静默忽略，下一个 500ms 会重试 */ }
@@ -334,9 +356,14 @@ public sealed class FanCurveService : IDisposable
             bool largeOk = _wmi.SetFanSpeed(0, (byte)largeTarget);
             _wmi.SetFanManual(1, true);
             bool smallOk = _wmi.SetFanSpeed(1, (byte)smallTarget);
-            // EC 直写：绕过 ACPI 直接操作风扇目标寄存器
-            _hal.WriteEcPort(0x5E, (byte)largeTarget);
-            _hal.WriteEcPort(0x5A, (byte)smallTarget);
+            // EC 直写：6 个风扇目标寄存器全覆盖 (0x5E/0x5D=大扇, 0x5A/0x59=小扇)
+            {
+                byte lb = (byte)largeTarget, sb = (byte)smallTarget;
+                _hal.WriteEcPort(0x5E, lb);
+                _hal.WriteEcPort(0x5D, lb);
+                _hal.WriteEcPort(0x5A, sb);
+                _hal.WriteEcPort(0x59, sb);
+            }
 
             // 6. EC 读回诊断
             TickCount++;
@@ -348,6 +375,8 @@ public sealed class FanCurveService : IDisposable
                 ActualGpuFanRpm = _hal.GpuFanRpm;
                 EcFanTargetLarge = _hal.ReadEcPort(0x5E);
                 EcFanTargetSmall = _hal.ReadEcPort(0x5A);
+                EcFanShadowLarge = _hal.ReadEcPort(0x5D);
+                EcFanShadowSmall = _hal.ReadEcPort(0x59);
             }
             catch { /* 读回诊断失败不影响主流程 */ }
 
@@ -391,11 +420,48 @@ public sealed class FanCurveService : IDisposable
             }
             catch { /* 诊断失败不影响主流程 */ }
 
+            // 8. 自动恢复：EC PID 跌落对抗
+            //    连续偏离 >= DeviationThreshold 次 tick 且冷却期已过 → WMI SetThermalMode 重置 EC PID
+            {
+                bool fanDeviated = ActualCpuFanRpm > 0 &&
+                    Math.Abs(ActualCpuFanRpm - largeTarget * 100) > 500;
+                if (fanDeviated)
+                {
+                    _consecutiveDeviation++;
+                }
+                else
+                {
+                    _consecutiveDeviation = 0;
+                }
+
+                if (_consecutiveDeviation >= DeviationThreshold &&
+                    DateTime.UtcNow - _lastRecoveryTime > RecoveryCooldown)
+                {
+                    try
+                    {
+                        byte altMode = targetMode == 0 ? (byte)1 : (byte)0;
+                        _wmi.SetThermalMode(altMode);
+                        Thread.Sleep(200);
+                        _wmi.SetThermalMode(targetMode);
+                        _recoveryCount++;
+                        _lastRecoveryTime = DateTime.UtcNow;
+                        _consecutiveDeviation = 0;
+                        _log.LogInformation(
+                            "[FanCurve] 自动恢复 #{N}: SetThermalMode({Alt}→{Mode}) — 连续偏离 {D} 次, RPM={Rpm}/{Target}",
+                            _recoveryCount, altMode, targetMode, DeviationThreshold, ActualCpuFanRpm, largeTarget * 100);
+                    }
+                    catch (Exception ex)
+                    {
+                        _log.LogWarning("[FanCurve] 自动恢复异常: {Msg}", ex.Message);
+                    }
+                }
+            }
+
             _log.LogInformation(
-                "[FanCurve] Tick: hot={Hot}°C → route={Mode}({ModeName}) L={L}x100 S={S}x100 | WMI: l={Lr} s={Sr} | ITSM={Itsm} | EC: L={EcL} S={EcS} RPM={CpuRpm}/{GpuRpm}",
+                "[FanCurve] Tick: hot={Hot}°C → route={Mode}({ModeName}) L={L}x100 S={S}x100 | WMI: l={Lr} s={Sr} | ITSM={Itsm} | EC: 5E={EcL} 5A={EcS} 5D={EcD} 59={Ec9} RPM={CpuRpm}/{GpuRpm}",
                 hotspot, targetMode, ModeName(targetMode), largeTarget, smallTarget,
                 largeOk, smallOk, currentItsm,
-                EcFanTargetLarge, EcFanTargetSmall, ActualCpuFanRpm, ActualGpuFanRpm);
+                EcFanTargetLarge, EcFanTargetSmall, EcFanShadowLarge, EcFanShadowSmall, ActualCpuFanRpm, ActualGpuFanRpm);
         }
         catch (Exception ex)
         {

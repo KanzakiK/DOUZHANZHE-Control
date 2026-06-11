@@ -11,8 +11,11 @@
 <div style="background:#0d1117;border:1px solid #30363d;border-radius:4px;padding:6px 10px"><div style="color:#8b949e;font-size:11px">小扇实际 RPM</div><div id="fcActSmall" style="color:#ffa657;font-size:15px;font-weight:700">-</div></div>
 <div style="background:#0d1117;border:1px solid #30363d;border-radius:4px;padding:6px 10px"><div style="color:#8b949e;font-size:11px">EC 大扇目标</div><div id="fcEcLarge" style="color:#79c0ff;font-size:15px;font-weight:700">-</div></div>
 <div style="background:#0d1117;border:1px solid #30363d;border-radius:4px;padding:6px 10px"><div style="color:#8b949e;font-size:11px">EC 小扇目标</div><div id="fcEcSmall" style="color:#79c0ff;font-size:15px;font-weight:700">-</div></div>
+<div style="background:#0d1117;border:1px solid #30363d;border-radius:4px;padding:6px 10px"><div style="color:#8b949e;font-size:11px">EC 0x5D 影子</div><div id="fcShadowL" style="color:#d2a8ff;font-size:15px;font-weight:700">-</div></div>
+<div style="background:#0d1117;border:1px solid #30363d;border-radius:4px;padding:6px 10px"><div style="color:#8b949e;font-size:11px">EC 0x59 影子</div><div id="fcShadowS" style="color:#d2a8ff;font-size:15px;font-weight:700">-</div></div>
 <div style="background:#0d1117;border:1px solid #30363d;border-radius:4px;padding:6px 10px"><div style="color:#8b949e;font-size:11px">WMI 写入</div><div id="fcWmiRes" style="color:#3fb950;font-size:15px;font-weight:700">-</div></div>
 <div style="background:#0d1117;border:1px solid #30363d;border-radius:4px;padding:6px 10px"><div style="color:#8b949e;font-size:11px">Tick 计数</div><div id="fcTicks" style="color:#79c0ff;font-size:15px;font-weight:700">-</div></div>
+<div style="background:#0d1117;border:1px solid #30363d;border-radius:4px;padding:6px 10px"><div style="color:#8b949e;font-size:11px">自动恢复</div><div id="fcRecovery" style="color:#ffa657;font-size:15px;font-weight:700">0</div></div>
 </div>
 <h2 style="font-size:12px;margin-bottom:6px">运行日志</h2>
 <pre id="fcLog" style="max-height:320px;font-size:11px;color:#8b949e">等待曲线启动...</pre>
@@ -24,6 +27,7 @@ var logLines=[];
 var maxLog=300;
 var prevItsm=-1;
 var prevMode=-1;
+var prevRecovery=-1;
 var heartbeatCounter=0;
 function addLog(msg){
 var ts=new Date().toLocaleTimeString('zh-CN',{hour12:false});
@@ -46,6 +50,11 @@ document.getElementById('fcMode').textContent=mName;
 document.getElementById('fcLarge').textContent=(d.lastLargeTarget*100)+' RPM';
 document.getElementById('fcSmall').textContent=(d.lastSmallTarget*100)+' RPM';
 document.getElementById('fcTicks').textContent=d.tickCount||0;
+var rc=d.recoveryCount||0;
+document.getElementById('fcRecovery').textContent=rc+' 次';
+document.getElementById('fcRecovery').style.color=rc>0?'#f85149':'#ffa657';
+if(prevRecovery>=0&&rc>prevRecovery)addLog('[恢复] 自动恢复 #'+rc+' — SetThermalMode 重置 EC PID');
+prevRecovery=rc;
 // EC 读回诊断
 var actL=d.actualCpuFanRpm||0, actS=d.actualGpuFanRpm||0;
 var ecL=d.ecFanTargetLarge||0, ecS=d.ecFanTargetSmall||0;
@@ -58,6 +67,12 @@ document.getElementById('fcEcLarge').textContent=ecL+' ('+ecL*100+' RPM)';
 document.getElementById('fcEcSmall').textContent=ecS+' ('+ecS*100+' RPM)';
 document.getElementById('fcEcLarge').style.color=(ecL>0&&Math.abs(ecL-d.lastLargeTarget)>2)?'#f85149':'#79c0ff';
 document.getElementById('fcEcSmall').style.color=(ecS>0&&Math.abs(ecS-d.lastSmallTarget)>2)?'#f85149':'#79c0ff';
+// 影子寄存器诊断
+var shL=d.ecFanShadowLarge||0, shS=d.ecFanShadowSmall||0;
+document.getElementById('fcShadowL').textContent=shL+' ('+shL*100+' RPM)';
+document.getElementById('fcShadowS').textContent=shS+' ('+shS*100+' RPM)';
+document.getElementById('fcShadowL').style.color=(shL>0&&Math.abs(shL-d.lastLargeTarget)>2)?'#f85149':'#d2a8ff';
+document.getElementById('fcShadowS').style.color=(shS>0&&Math.abs(shS-d.lastSmallTarget)>2)?'#f85149':'#d2a8ff';
 var wmiOk=d.lastWmiLargeOk&&d.lastWmiSmallOk;
 document.getElementById('fcWmiRes').textContent=wmiOk?'OK':'FAIL';
 document.getElementById('fcWmiRes').style.color=wmiOk?'#3fb950':'#f85149';
@@ -71,7 +86,7 @@ if(heartbeatCounter>=5){
 heartbeatCounter=0;
 var mismatch=(actL>0&&Math.abs(actL-tgtL)>300)||(actS>0&&Math.abs(actS-tgtS)>300);
 var prefix=mismatch?'[偏离] ':'[心跳] ';
-var logLine=prefix+'目标='+tgtL+'/'+tgtS+', 实际='+actL+'/'+actS+', EC目标='+ecL+'/'+ecS+', WMI='+(wmiOk?'OK':'FAIL')+', Tick='+d.tickCount;
+var logLine=prefix+'目标='+tgtL+'/'+tgtS+', 实际='+actL+'/'+actS+', EC='+ecL+'/'+ecS+', 影子='+shL+'/'+shS+', WMI='+(wmiOk?'OK':'FAIL')+', Tick='+d.tickCount;
 if(mismatch&&d.ecRegDiff)logLine+=' | EC变化: '+d.ecRegDiff;
 addLog(logLine);
 }
