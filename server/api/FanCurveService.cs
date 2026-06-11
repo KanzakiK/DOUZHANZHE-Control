@@ -114,6 +114,19 @@ public sealed class FanCurveService : IDisposable
                 _configDir = devConfig;
         }
         Directory.CreateDirectory(_configDir);
+
+        // 启动时清理残留状态：如果上次进程被强杀（重启/崩溃），EC 可能残留手动模式
+        // 退出 SetFanManual 让 EC 恢复自动 PID 控制，避免重启后风扇转速异常
+        try
+        {
+            _wmi.SetFanManual(0, false);
+            _wmi.SetFanManual(1, false);
+            _log.LogInformation("[FanCurve] 启动清理: 已退出手动风扇模式");
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning("[FanCurve] 启动清理失败: {Msg}", ex.Message);
+        }
     }
 
     // ── 启停控制 ──
@@ -176,9 +189,20 @@ public sealed class FanCurveService : IDisposable
     /// <summary>显式恢复固件风扇控制（进程退出时调用）</summary>
     public void RestoreFirmwareControl()
     {
-        _wmi.SetFanManual(0, false);
-        _wmi.SetFanManual(1, false);
-        _log.LogInformation("[FanCurve] 固件风扇控制已恢复");
+        try
+        {
+            // 先恢复 ITSM 模式（触发 ACPI 链让 EC 重新加载正确的风扇表）
+            // 再退出手动模式，让 EC 恢复自动 PID 控制
+            if (_savedThermalMode > 0)
+                _wmi.SetThermalMode(_savedThermalMode);
+            _wmi.SetFanManual(0, false);
+            _wmi.SetFanManual(1, false);
+            _log.LogInformation("[FanCurve] 固件风扇控制已恢复, ITSM={Mode}", _savedThermalMode);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning("[FanCurve] 固件恢复异常: {Msg}", ex.Message);
+        }
     }
 
     public void Dispose() => RestoreFirmwareControl();
