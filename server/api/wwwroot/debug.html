@@ -71,7 +71,9 @@ if(heartbeatCounter>=5){
 heartbeatCounter=0;
 var mismatch=(actL>0&&Math.abs(actL-tgtL)>300)||(actS>0&&Math.abs(actS-tgtS)>300);
 var prefix=mismatch?'[偏离] ':'[心跳] ';
-addLog(prefix+'目标='+tgtL+'/'+tgtS+', 实际='+actL+'/'+actS+', EC目标='+ecL+'/'+ecS+', WMI='+(wmiOk?'OK':'FAIL')+', Tick='+d.tickCount);
+var logLine=prefix+'目标='+tgtL+'/'+tgtS+', 实际='+actL+'/'+actS+', EC目标='+ecL+'/'+ecS+', WMI='+(wmiOk?'OK':'FAIL')+', Tick='+d.tickCount;
+if(mismatch&&d.ecRegDiff)logLine+=' | EC变化: '+d.ecRegDiff;
+addLog(logLine);
 }
 }
 prevItsm=d.currentItsm;

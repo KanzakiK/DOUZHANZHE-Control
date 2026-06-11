@@ -61,6 +61,7 @@ public sealed class FanCurveService : IDisposable
     public bool LastWmiLargeOk { get; private set; }     // 最近一次 WMI 大扇写入返回
     public bool LastWmiSmallOk { get; private set; }     // 最近一次 WMI 小扇写入返回
     public int TickCount { get; private set; }           // Tick 执行总次数
+    public string EcRegDiff { get; private set; } = "";   // 最近一次跌落时变化的 EC 寄存器
 
     // 各模式风扇转速合法区间 (RPM/100 单位)
     // 路由表：根据目标转速找到能覆盖它的模式，通过 WMI SetThermalMode 切换
@@ -374,8 +375,14 @@ public sealed class FanCurveService : IDisposable
                     foreach (var r in scanRegs)
                         if (cur[r] != _lastEcRegs[r])
                             diffs.Add($"0x{r:X2}:{_lastEcRegs[r]:X2}→{cur[r]:X2}");
+                    var diffStr = diffs.Count > 0 ? string.Join(" ", diffs) : "无";
+                    EcRegDiff = diffStr;
                     _log.LogWarning("[FanCurve] EC跌落诊断: RPM={Rpm} tgt={Tgt} 变化寄存器=[{Diffs}]",
-                        cpuRpm, largeTarget * 100, diffs.Count > 0 ? string.Join(" ", diffs) : "无");
+                        cpuRpm, largeTarget * 100, diffStr);
+                }
+                else if (!deviated)
+                {
+                    EcRegDiff = "";
                 }
 
                 Array.Copy(cur, _lastEcRegs, 0x100);
