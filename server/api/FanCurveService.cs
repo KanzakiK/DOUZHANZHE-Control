@@ -293,20 +293,50 @@ public sealed class FanCurveService : IDisposable
             int largeTarget = largeRpm / 100;  // RPM → RPM/100 (Bellator 协议)
             int smallTarget = smallRpm / 100;
 
-            // 2. 模式路由：根据目标转速找到最优 ITSM 模式
+            // 2. 初步路由：找到能覆盖曲线原始输出的模式，用于钳位
+            byte curveMode = RouteMode(largeTarget, smallTarget);
+
+            // 3. 钳位到初步路由模式的合法区间
+            if (ModeFanRanges.TryGetValue(curveMode, out var curveRange))
+            {
+                int origLarge = largeTarget, origSmall = smallTarget;
+                largeTarget = Math.Clamp(largeTarget, curveRange.lMin, curveRange.lMax);
+                smallTarget = Math.Clamp(smallTarget, curveRange.sMin, curveRange.sMax);
+                if (largeTarget != origLarge || smallTarget != origSmall)
+                {
+                    _log.LogInformation(
+                        "[FanCurve] 钳位: L {OrigL}→{L} S {OrigS}→{S} (mode={Mode} range=L:{LMin}-{LMax} S:{SMin}-{SMax})",
+                        origLarge, largeTarget, origSmall, smallTarget,
+                        ModeName(curveMode), curveRange.lMin, curveRange.lMax, curveRange.sMin, curveRange.sMax);
+                }
+            }
+
+            // 4. ShouldWrite 回差策略 — 决定是否更新目标值
+            if (ShouldWrite(hotspot, largeTarget, smallTarget))
+            {
+                _lastHotspot = hotspot;
+                _lastLargeTarget = largeTarget;
+                _lastSmallTarget = smallTarget;
+            }
+            else
+            {
+                // 回差范围内：保持上次的目标值
+                largeTarget = _lastLargeTarget;
+                smallTarget = _lastSmallTarget;
+            }
+
+            // 5. 最终路由：用实际要写入的值决定模式（修复：避免回差导致 RoutedMode 与实际写入值不一致）
+            //    之前用曲线原始输出决定模式，但 ShouldWrite 回差后实际值可能不同，
+            //    导致 ITSM guard 写入与实际风扇转速不匹配的模式 → EC 反复切换风扇表 → 转速跌落
             byte targetMode = RouteMode(largeTarget, smallTarget);
 
-            // 3. 更新 ITSM 目标模式 — 由 ItsmGuardCallback 每 500ms 实际写入
-            //    Tick 只负责更新目标值，不再直接写 EC（避免与 guard 竞争）
+            // 6. 更新 ITSM 目标模式 — 由 ItsmGuardCallback 每 500ms 实际写入
             byte currentItsm = _hal.ReadEcPort(0xE4);
             CurrentItsm = currentItsm;
-
-            // 通知 guard 新的目标模式
             _itsmTargetMode = targetMode;
 
             if (currentItsm != targetMode)
             {
-                // 偏离统计（仅诊断用）
                 if (_active && _lastHotspot.HasValue)
                 {
                     _itsmDeviationCount++;
@@ -325,38 +355,16 @@ public sealed class FanCurveService : IDisposable
                 }
                 _modeChangeCount++;
                 _log.LogInformation("[FanCurve] ITSM 偏离: {Cur}({CurName}) → {Tgt}({TgtName}) (L={L} S={S})",
-                    currentItsm, ModeName(currentItsm), targetMode, ModeName(targetMode), largeRpm, smallRpm);
+                    currentItsm, ModeName(currentItsm), targetMode, ModeName(targetMode), largeTarget * 100, smallTarget * 100);
             }
 
             RoutedMode = targetMode;
 
-            // 4. 钳位到目标模式的合法区间（防止 EC 拒绝写入）
+            // 7. 二次钳位：确保最终值在最终路由模式的合法区间内
             if (ModeFanRanges.TryGetValue(targetMode, out var range))
             {
-                int origLarge = largeTarget, origSmall = smallTarget;
                 largeTarget = Math.Clamp(largeTarget, range.lMin, range.lMax);
                 smallTarget = Math.Clamp(smallTarget, range.sMin, range.sMax);
-                if (largeTarget != origLarge || smallTarget != origSmall)
-                {
-                    _log.LogInformation(
-                        "[FanCurve] 钳位: L {OrigL}→{L} S {OrigS}→{S} (mode={Mode} range=L:{LMin}-{LMax} S:{SMin}-{SMax})",
-                        origLarge, largeTarget, origSmall, smallTarget,
-                        ModeName(targetMode), range.lMin, range.lMax, range.sMin, range.sMax);
-                }
-            }
-
-            // 5. ShouldWrite 回差策略
-            if (ShouldWrite(hotspot, largeTarget, smallTarget))
-            {
-                _lastHotspot = hotspot;
-                _lastLargeTarget = largeTarget;
-                _lastSmallTarget = smallTarget;
-            }
-            else
-            {
-                // 回差范围内：保持上次的目标值
-                largeTarget = _lastLargeTarget;
-                smallTarget = _lastSmallTarget;
             }
 
             // 6. WMI 写入风扇转速（每个 tick 都写入，对抗 EC 回写覆盖）
