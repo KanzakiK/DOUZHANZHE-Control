@@ -20,6 +20,10 @@ public sealed class FanCurveService : IDisposable
 {
     private readonly HardwareAbstractionLayer _hal;
     private readonly WmiInterface _wmi;
+    private readonly SmuController _smu;
+    private readonly GpuController _gpu;
+    private readonly NvapiGpuController _nvapi;
+    private readonly CpuPowerController _cpuPower;
     private readonly ILogger<FanCurveService> _log;
 
     private Timer? _timer;
@@ -106,10 +110,18 @@ public sealed class FanCurveService : IDisposable
     public FanCurveService(
         HardwareAbstractionLayer hal,
         WmiInterface wmi,
+        SmuController smu,
+        GpuController gpu,
+        NvapiGpuController nvapi,
+        CpuPowerController cpuPower,
         ILogger<FanCurveService> log)
     {
         _hal = hal;
         _wmi = wmi;
+        _smu = smu;
+        _gpu = gpu;
+        _nvapi = nvapi;
+        _cpuPower = cpuPower;
         _log = log;
 
         // 定位 config 目录（与 Program.cs 逻辑一致）
@@ -387,6 +399,10 @@ public sealed class FanCurveService : IDisposable
                         _log.LogInformation(
                             "[FanCurve] 自动恢复 #{N}: SetThermalMode({Mode}) RPM={Rpm}/{Target}",
                             _recoveryCount, targetMode, ActualCpuFanRpm, largeTarget * 100);
+
+                        // 等 EC 完成内部状态切换，然后重发全部自定义参数（与前端 dispatchFullMode 对齐）
+                        Thread.Sleep(500);
+                        ReapplyParams();
                     }
                     catch (Exception ex)
                     {
@@ -433,6 +449,129 @@ public sealed class FanCurveService : IDisposable
 
         // 其他 (温度不变或微降但未达回差)
         return false;
+    }
+
+    // ── 自动恢复：重发全部自定义参数（对齐前端 dispatchFullMode，排除风扇） ──
+    // SetThermalMode 触发 ACPI 链会重置 EC 硬件预设，用户自定义的 SMU/GPU/NVAPI/powercfg 全部丢失
+    // 此方法从 custom-params.json 读取用户保存的覆盖值，依次重发
+    private void ReapplyParams()
+    {
+        var path = Path.Combine(_configDir, "custom-params.json");
+        if (!File.Exists(path))
+        {
+            _log.LogInformation("[FanCurve] ReapplyParams: custom-params.json 不存在，跳过");
+            return;
+        }
+
+        Dictionary<string, JsonElement>? p = null;
+        try
+        {
+            var json = File.ReadAllText(path);
+            p = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning("[FanCurve] ReapplyParams: 读取 custom-params.json 失败: {Msg}", ex.Message);
+            return;
+        }
+        if (p == null || p.Count == 0) return;
+
+        // 辅助：安全读取 int
+        int Int(string key, int def = 0) =>
+            p.TryGetValue(key, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetInt32() : def;
+        bool Bool(string key, bool def = false) =>
+            p.TryGetValue(key, out var v) && v.ValueKind is JsonValueKind.True or JsonValueKind.False ? v.GetBoolean() : def;
+        string? Str(string key) =>
+            p.TryGetValue(key, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+
+        // ① SMU 批量写入 (ryzenadj)
+        try
+        {
+            int longPpt = Int("cpuLongPptW"), shortPpt = Int("cpuShortPptW");
+            int tempC = Int("cpuTempLimitC"), voltage = Int("cpuVoltageOffset");
+            bool freqEnabled = Bool("cpuFreqLimitEnabled");
+            int freqMhz = Int("cpuFreqLimitMhz");
+            bool turboOff = Bool("cpuTurboDisabled");
+
+            uint? stapmMw = longPpt > 0 ? (uint)(longPpt * 1000) : null;
+            uint? fastMw = shortPpt > 0 ? (uint)(shortPpt * 1000) : stapmMw;
+            _smu.BatchApply(stapmMw, fastMw, fastMw,
+                tempC > 0 ? (uint)tempC : null,
+                voltage, freqEnabled ? (uint?)freqMhz : null, turboOff);
+            _log.LogInformation("[FanCurve] ReapplyParams: SMU 重发完成");
+        }
+        catch (Exception ex) { _log.LogWarning("[FanCurve] ReapplyParams SMU: {Msg}", ex.Message); }
+
+        // ② GPU 频率 (nvidia-smi)
+        try
+        {
+            _gpu.ResetGpuClocks();
+            if (Bool("gpuFreqLimitEnabled") && Int("gpuCoreFreqMhz") > 0)
+            {
+                int freq = Int("gpuCoreFreqMhz");
+                _gpu.SetMaxGpuClock(freq);
+                _gpu.SetExactGpuClock(freq);
+            }
+            _gpu.ResetMemoryClocks();
+            int memIdx = Int("gpuMemFreqMhz");
+            int[] memMap = { 0, 9001, 11001, 12001 };
+            if (memIdx > 0 && memIdx < memMap.Length)
+                _gpu.SetMaxMemoryClock(memMap[memIdx]);
+            _log.LogInformation("[FanCurve] ReapplyParams: GPU 频率重发完成");
+        }
+        catch (Exception ex) { _log.LogWarning("[FanCurve] ReapplyParams GPU: {Msg}", ex.Message); }
+
+        // ③ NVAPI 超频偏移 + 温度限制
+        try
+        {
+            int ocCore = Int("gpuCoreOffsetMhz"), ocMem = Int("gpuMemOffsetMhz");
+            if (_nvapi.IsAvailable)
+            {
+                _nvapi.SetP0Offset(ocCore, ocMem);
+                float thermalC = Int("gpuTempLimitC", 87);
+                _nvapi.SetThermalLimit(thermalC);
+            }
+            _log.LogInformation("[FanCurve] ReapplyParams: NVAPI 重发完成 (OC={OC}/{OM})", ocCore, ocMem);
+        }
+        catch (Exception ex) { _log.LogWarning("[FanCurve] ReapplyParams NVAPI: {Msg}", ex.Message); }
+
+        // ④ CPU powercfg (频率限制 / 睿频 / 核心数)
+        try
+        {
+            if (Bool("cpuFreqLimitEnabled"))
+                _cpuPower.SetFreqLimitAsync(Int("cpuFreqLimitMhz")).Wait(3000);
+            else
+                _cpuPower.SetFreqLimitAsync(0).Wait(3000);
+
+            _cpuPower.SetTurboAsync(!Bool("cpuTurboDisabled")).Wait(3000);
+
+            int coreLimit = Int("cpuCoreLimit");
+            if (coreLimit > 0)
+            {
+                int percent = (int)Math.Round(coreLimit / 16.0 * 100);
+                _cpuPower.SetCoreLimitAsync(percent).Wait(3000);
+            }
+            else
+            {
+                _cpuPower.SetCoreLimitAsync(100).Wait(3000);
+            }
+            _log.LogInformation("[FanCurve] ReapplyParams: CPU powercfg 重发完成");
+        }
+        catch (Exception ex) { _log.LogWarning("[FanCurve] ReapplyParams CPU power: {Msg}", ex.Message); }
+
+        // ⑤ 电源计划
+        try
+        {
+            var plan = Str("cpuPowerPlan") ?? "balance";
+            int planVal = plan switch
+            {
+                "performance" => 1,
+                "efficiency" => 2,
+                _ => 0, // balance
+            };
+            _hal.PowerPlan = planVal;
+        }
+        catch (Exception ex) { _log.LogWarning("[FanCurve] ReapplyParams power plan: {Msg}", ex.Message); }
     }
 
     // ── 曲线查找 ──
