@@ -5,7 +5,13 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
-## [1.3.7] — 2026-06-11
+## [1.3.8] — 2026-06-11
+
+### 修复
+
+- **WMI 通道锁定误报**: VerifyFanWrite 不再将 EC 读回偏差计入锁定计数（EC 固件 PID 在 ~30ms 内覆写 0x5E 属正常行为），仅 WMI 返回 false 才触发锁定检测；移除验证中多余的 100ms sleep
+
+## [1.3.8] — 2026-06-11
 
 ### 新增
 
@@ -23,7 +29,7 @@
 - **uxtuAdapter**: `getFanRange()` 改为返回 `FULL_FAN_RANGE` 全范围常量，不再按模式返回区间
 - **FanCurveService.Stop()**: 从"仅停定时器"改为"恢复保存的散热模式 + 交还固件控制"
 
-## [1.3.7] — 2026-06-09
+## [1.3.8] — 2026-06-09
 
 ### 重构
 
