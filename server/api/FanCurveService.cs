@@ -162,9 +162,8 @@ public sealed class FanCurveService : IDisposable
         _lastRecoveryTime = DateTime.MinValue;
         _recoveryCount = 0;
 
-        // 启动时不主动切模式 — RouteMode + Guard 在第一轮 Tick 自然写入目标模式，
-        // 这个模式切换本身就触发 ACPI 链重置 EC PID 状态。
-        // 手动 SetThermalMode 反而可能导致模式冲突（saved vs routed）。
+        // 启动时不主动切模式 — Guard 在第一轮 Tick 写入用户保存的模式，
+        // 保持用户的模式选择不变。
 
         _timer = new Timer(Tick, null, 0, _intervalMs);
 
@@ -418,24 +417,24 @@ public sealed class FanCurveService : IDisposable
                         }
                         else
                         {
-                            // 模式限幅：尝试升档
-                            byte nextMode = GetNextEscalation(targetMode);
-                            if (nextMode != targetMode)
+                            // 模式限幅：根据目标转速一步到位
+                            byte neededMode = RouteMode(largeTarget, smallTarget);
+                            if (neededMode != targetMode)
                             {
-                                _wmi.SetThermalMode(nextMode);
-                                _activeMode = nextMode;
-                                _itsmTargetMode = nextMode;
+                                _wmi.SetThermalMode(neededMode);
+                                _activeMode = neededMode;
+                                _itsmTargetMode = neededMode;
                                 _log.LogInformation(
-                                    "[FanCurve] 自动恢复 #{N}: 限幅升档 {Old}({OldName})→{New}({NewName}) RPM={Rpm}/{Target}",
+                                    "[FanCurve] 自动恢复 #{N}: 限幅跳档 {Old}({OldName})→{New}({NewName}) RPM={Rpm}/{Target}",
                                     ++_recoveryCount, targetMode, ModeName(targetMode),
-                                    nextMode, ModeName(nextMode), ActualCpuFanRpm, targetRpm);
+                                    neededMode, ModeName(neededMode), ActualCpuFanRpm, targetRpm);
                             }
                             else
                             {
-                                // 已到最高模式，只能重置 PID
+                                // RouteMode 结果和当前模式一样，只是 PID 问题
                                 _wmi.SetThermalMode(targetMode);
                                 _log.LogInformation(
-                                    "[FanCurve] 自动恢复 #{N}: 已是最高模式({Mode}) RPM={Rpm}/{Target}",
+                                    "[FanCurve] 自动恢复 #{N}: 同模式重置({Mode}) RPM={Rpm}/{Target}",
                                     ++_recoveryCount, targetMode, ActualCpuFanRpm, targetRpm);
                             }
                         }
