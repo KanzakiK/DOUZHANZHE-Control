@@ -38,6 +38,7 @@ public sealed class FanCurveService : IDisposable
 
     // ── ITSM 路由 + 守护状态 (WMI SetThermalMode 方案) ──
     private byte _savedThermalMode;           // 启动时保存的 ITSM 值，停止时恢复
+    private byte _lastRoutedMode = 0xFF;      // 上一次路由结果（粘性模式：优先保持不变）
     private int _modeChangeCount;             // 统计：模式路由切换次数
     private int _itsmDeviationCount;          // 统计：ITSM 偏离次数
     private DateTime _itsmDeviationWindowStart = DateTime.Now; // 偏离计数窗口起始
@@ -149,6 +150,7 @@ public sealed class FanCurveService : IDisposable
         _itsmDeviationWindowStart = DateTime.Now;
         _wmiChannelLocked = false;
         _wmiWriteFailStreak = 0;
+        _lastRoutedMode = 0xFF;
 
         _timer = new Timer(Tick, null, 0, _intervalMs);
 
@@ -170,6 +172,7 @@ public sealed class FanCurveService : IDisposable
         _itsmGuardTimer?.Dispose();
         _itsmGuardTimer = null;
         _lastHotspot = null;
+        _lastRoutedMode = 0xFF;
 
         // 通过 WMI 正常切换回保存的模式（触发完整 DPTB/GPUD 链），恢复固件控制
         try
@@ -325,10 +328,26 @@ public sealed class FanCurveService : IDisposable
                 smallTarget = _lastSmallTarget;
             }
 
-            // 5. 最终路由：用实际要写入的值决定模式（修复：避免回差导致 RoutedMode 与实际写入值不一致）
-            //    之前用曲线原始输出决定模式，但 ShouldWrite 回差后实际值可能不同，
-            //    导致 ITSM guard 写入与实际风扇转速不匹配的模式 → EC 反复切换风扇表 → 转速跌落
-            byte targetMode = RouteMode(largeTarget, smallTarget);
+            // 5. 最终路由：用实际要写入的值决定模式
+            //    粘性策略：如果当前路由模式仍然能覆盖目标值，就不切换
+            //    防止温度波动导致曲线输出跨越模式边界时 RouteMode 反复跳动
+            //    例：gaming(40-44) → 温度降 → 曲线输出 38(beast 范围) → 如果没有粘性
+            //    RouteMode 跳到 beast/office → ITSM 变 → EC 换表 → 不稳定
+            byte targetMode;
+            if (_lastRoutedMode != 0xFF &&
+                ModeFanRanges.TryGetValue(_lastRoutedMode, out var stickyRange) &&
+                largeTarget >= stickyRange.lMin && largeTarget <= stickyRange.lMax &&
+                smallTarget >= stickyRange.sMin && smallTarget <= stickyRange.sMax)
+            {
+                // 当前模式仍然覆盖目标值 → 保持不变（粘性）
+                targetMode = _lastRoutedMode;
+            }
+            else
+            {
+                // 当前模式无法覆盖 → 重新路由
+                targetMode = RouteMode(largeTarget, smallTarget);
+            }
+            _lastRoutedMode = targetMode;
 
             // 6. 更新 ITSM 目标模式 — 由 ItsmGuardCallback 每 500ms 实际写入
             byte currentItsm = _hal.ReadEcPort(0xE4);
