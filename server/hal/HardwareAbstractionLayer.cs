@@ -347,6 +347,26 @@ public sealed class HardwareAbstractionLayer : IDisposable
     }
 
     // ================================================================
+    // ECF3 区域 (SystemMemory 0xFE800B00)
+    // DSDT: OperationRegion (ECF3, SystemMemory, 0xFE800B00, 0xFF)
+    // 包含 TFLG (风扇表刷新触发器) 等控制寄存器
+    // ================================================================
+
+    private const uint ECF3_BASE = 0xFE800B00;
+    private const uint OFF_TFLG  = 0x02;   // 风扇表刷新标志 (0x55 = 触发)
+
+    /// <summary>
+    /// 触发 EC 固件重新加载当前 ITSM 对应的风扇转速表。
+    /// DSDT CHMD 方法在每次模式切换后写入 TFLG=0x55，
+    /// EC 固件检测到此标志后刷新内部风扇 PID 表。
+    /// 仅写 ITSM 而不触发 TFLG 会导致风扇表不切换，实际转速偏离目标。
+    /// </summary>
+    public void TriggerFanTableReload()
+    {
+        _io.WritePhys(ECF3_BASE + OFF_TFLG, 0x55);
+    }
+
+    // ================================================================
     // SMU 通信 (预留)
     // ================================================================
 

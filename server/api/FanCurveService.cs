@@ -250,8 +250,12 @@ public sealed class FanCurveService : IDisposable
 
                 // EC 直写 ITSM — 绕开 WMAA Case 0x0800 的完整副作用链
                 _hal.WriteEcPort(0xE4, targetMode);
+                // 触发 EC 固件重新加载目标模式的风扇转速表 (TFLG=0x55)
+                // 仅写 ITSM 不够 — DSDT CHMD 方法每次切模式都写 TFLG，
+                // EC 固件检测到此标志后才刷新内部 PID 表
+                _hal.TriggerFanTableReload();
                 _modeChangeCount++;
-                _log.LogInformation("[FanCurve] ITSM 路由: {Cur}({CurName}) → {Tgt}({TgtName}) (L={L} S={S})",
+                _log.LogInformation("[FanCurve] ITSM 路由: {Cur}({CurName}) → {Tgt}({TgtName}) (L={L} S={S}) +TFLG",
                     currentItsm, ModeName(currentItsm), targetMode, ModeName(targetMode), largeRpm, smallRpm);
                 // 短暂等待 EC 切换风扇曲线区间（~100ms）
                 Thread.Sleep(100);
