@@ -242,7 +242,8 @@ public sealed class FanCurveService : IDisposable
 
     // ── 高频守护 (500ms) ──
     // EC 固件会周期性回写 ITSM 寄存器并覆盖风扇转速目标。
-    // 独立守护线程每 500ms 同时写入 ITSM + SetFanSpeed，确保 EC 回写后最多 500ms 就被纠正。
+    // 独立守护线程每 500ms 同时写入 ITSM + SetFanSpeed(WMI) + EC 直写(0x5E/0x5A)，
+    // 双通道写入对比：WMI 走 ACPI 链，EC 直写绕过 ACPI 直接操作寄存器。
 
     private void ItsmGuardCallback(object? state)
     {
@@ -253,8 +254,12 @@ public sealed class FanCurveService : IDisposable
             int lt = _guardLargeTarget, st = _guardSmallTarget;
             if (lt >= 0 && st >= 0)
             {
+                // WMI 通道 (ACPI 链)
                 _wmi.SetFanSpeed(0, (byte)lt);
                 _wmi.SetFanSpeed(1, (byte)st);
+                // EC 直写通道 (绕过 ACPI)
+                _hal.WriteEcPort(0x5E, (byte)lt);
+                _hal.WriteEcPort(0x5A, (byte)st);
             }
         }
         catch { /* 静默忽略，下一个 500ms 会重试 */ }
@@ -319,11 +324,14 @@ public sealed class FanCurveService : IDisposable
 
             RoutedMode = targetMode;
 
-            // 5. WMI 写入风扇转速 — 曲线原始值直接写入，不钳位
+            // 5. WMI + EC 直写双通道写入风扇转速
             _wmi.SetFanManual(0, true);
             bool largeOk = _wmi.SetFanSpeed(0, (byte)largeTarget);
             _wmi.SetFanManual(1, true);
             bool smallOk = _wmi.SetFanSpeed(1, (byte)smallTarget);
+            // EC 直写：绕过 ACPI 直接操作风扇目标寄存器
+            _hal.WriteEcPort(0x5E, (byte)largeTarget);
+            _hal.WriteEcPort(0x5A, (byte)smallTarget);
 
             // 6. EC 读回诊断
             TickCount++;
