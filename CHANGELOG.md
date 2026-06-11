@@ -10,6 +10,12 @@
 ### 修复
 
 - **WMI 通道锁定误报**: VerifyFanWrite 不再将 EC 读回偏差计入锁定计数（EC 固件 PID 在 ~30ms 内覆写 0x5E 属正常行为），仅 WMI 返回 false 才触发锁定检测；移除验证中多余的 100ms sleep
+- **Debug 页中文乱码**: 修复构建脚本编码截断导致的 33 处 UTF-8 三字节字符损坏（从 git 历史恢复原始内容）
+- **Debug 页 WebSocket 连不上**: URL 从硬编码 `ws://127.0.0.1:3100/ws` 改为 `location.host` 相对地址；TelemetryBackgroundService 的 `SendAsync` 从 fire-and-forget 改为 `await`（锁内快照 + 锁外发送，避免并发写入异常）
+
+### 新增
+
+- **Debug 页风扇曲线监控**: 新增 ITSM 路由面板，2 秒轮询 `/api/fan-curve/route-info`，实时显示曲线状态/路由模式/风扇目标/模式切换次数/ITSM 偏离/WMI 通道锁定，运行日志自动记录模式切换和 ITSM 变化
 
 ## [1.3.7] — 2026-06-11
 
