@@ -212,7 +212,7 @@ public sealed class FanCurveService : IDisposable
     /// <summary>
     /// 根据目标大扇/小扇 RPM 找到能同时覆盖两者的最优模式。
     /// 优先级：安静(2) → 均衡(0) → 野兽(1) → 斗战(3)
-    /// 无完美匹配时优先满足大扇（对 CPU 温度影响更大），fallback 斗战(3)。
+    /// 无完美匹配时选择钳位代价最小的模式（优先向下钳位，避免目标值低于模式下限被 EC 拒绝）。
     /// </summary>
     private static byte RouteMode(int largeTargetDiv100, int smallTargetDiv100)
     {
@@ -227,15 +227,30 @@ public sealed class FanCurveService : IDisposable
                 return mode;
         }
 
-        // 第二轮：无完美匹配，优先满足大扇
+        // 第二轮：无完美匹配 — 选择总钳位量最小的模式
+        // 关键：目标值低于模式下限（EC 会拒绝）的代价远高于高于上限（仅损失少量 RPM）
+        // 例: 目标 39 路由到斗战(min=40) → EC 拒绝 38/39 → 转速掉到 3300
+        //     目标 39 路由到野兽(max=38) → 钳位到 38 → 仅损失 100 RPM，EC 接受
+        byte bestMode = 1; // 默认野兽（最安全的中间模式）
+        int bestCost = int.MaxValue;
         foreach (var mode in priority)
         {
             var range = ModeFanRanges[mode];
-            if (largeTargetDiv100 >= range.lMin && largeTargetDiv100 <= range.lMax)
-                return mode;
-        }
+            int lUnder = Math.Max(0, range.lMin - largeTargetDiv100); // 目标低于下限的量
+            int sUnder = Math.Max(0, range.sMin - smallTargetDiv100);
+            int lOver  = Math.Max(0, largeTargetDiv100 - range.lMax); // 目标高于上限的量
+            int sOver  = Math.Max(0, smallTargetDiv100 - range.sMax);
 
-        return 3; // fallback: 斗战模式（最宽上限）
+            // 低于下限 = EC 拒绝（致命）→ 权重 100x
+            // 高于上限 = 钳位损失（安全）→ 权重 1x
+            int cost = (lUnder + sUnder) * 100 + lOver + sOver;
+            if (cost < bestCost)
+            {
+                bestCost = cost;
+                bestMode = mode;
+            }
+        }
+        return bestMode;
     }
 
     // ── ITSM 高频守护 (500ms) ──
@@ -318,8 +333,16 @@ public sealed class FanCurveService : IDisposable
             // 4. 钳位到目标模式的合法区间（防止 EC 拒绝写入）
             if (ModeFanRanges.TryGetValue(targetMode, out var range))
             {
+                int origLarge = largeTarget, origSmall = smallTarget;
                 largeTarget = Math.Clamp(largeTarget, range.lMin, range.lMax);
                 smallTarget = Math.Clamp(smallTarget, range.sMin, range.sMax);
+                if (largeTarget != origLarge || smallTarget != origSmall)
+                {
+                    _log.LogInformation(
+                        "[FanCurve] 钳位: L {OrigL}→{L} S {OrigS}→{S} (mode={Mode} range=L:{LMin}-{LMax} S:{SMin}-{SMax})",
+                        origLarge, largeTarget, origSmall, smallTarget,
+                        ModeName(targetMode), range.lMin, range.lMax, range.sMin, range.sMax);
+                }
             }
 
             // 5. ShouldWrite 回差策略
