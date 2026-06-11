@@ -1,11 +1,29 @@
-# Changelog
+﻿# Changelog
 
 该项目所有重要变更均会记录在此文件中。
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
-## [1.3.6] — 2026-06-09
+## [1.3.7] — 2026-06-11
+
+### 新增
+
+- **EC 直写 ITSM 风扇曲线方案**: FanCurveService 核心改造 — ModeFanRanges 从钳位器变为路由表，通过 EC 直写 ITSM(0xE4) 选择风扇区间，绕开 WMAA 副作用链（CPU 功耗/ GPU 功耗不受影响）
+- **RouteMode 路由函数**: 根据目标大扇/小扇转速自动选择最优散热模式（安静→均衡→野兽→斗战），实现全范围曲线：大扇 1900-4400 RPM，小扇 1700-8200 RPM
+- **ITSM 守护机制**: 每 tick 校验 ITSM 寄存器，自动修复 Fn 热键/ AC 插拔/ 睡眠唤醒导致的外部偏离；1 分钟内偏离 ≥5 次告警
+- **WMI 写入验证 + 通道锁定检测**: 写入后读回 EC 0x5E/0x5A 确认生效，连续 3 次失败标记锁定（应对 CPU 频率限制导致的通道锁定）
+- **路由状态 API**: 新增 `GET /api/fan-curve/route-info`，返回 currentItsm / routedMode / modeChangeCount / itsmDeviationCount / wmiChannelLocked
+- **前端路由状态指示**: FanCurvePanel 状态栏实时显示路由模式和切换次数（3 秒轮询），WMI 通道锁定时黄色告警
+- **启动/停止保护**: 启动时保存 ITSM，停止时通过 WMI SetThermalMode 恢复正常模式链
+
+### 改动
+
+- **FanCurvePanel**: 移除模式区间带（蓝色/紫色矩形）和钳位警告，Y 轴改为全范围显示
+- **uxtuAdapter**: `getFanRange()` 改为返回 `FULL_FAN_RANGE` 全范围常量，不再按模式返回区间
+- **FanCurveService.Stop()**: 从"仅停定时器"改为"恢复保存的散热模式 + 交还固件控制"
+
+## [1.3.7] — 2026-06-09
 
 ### 重构
 

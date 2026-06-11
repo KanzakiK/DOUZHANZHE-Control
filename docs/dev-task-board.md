@@ -131,19 +131,19 @@
 > 依赖调查报告：[fan-write-investigation-2026-06-10.md](fan-write-investigation-2026-06-10.md) Section 6-7
 
 > **Phase 1 — 后端核心**
-- [ ] **① RouteMode 路由函数**: FanCurveService.cs 新增 `RouteMode(largeRpm, smallRpm)` — 遍历 ModeFanRanges 找到同时覆盖大扇和小扇目标的最低模式编号，无交集时优先满足大扇，fallback 斗战(3)
-- [ ] **② Tick 替换钳位为路由 + EC 直写**: FanCurveService.Tick() 中删除现有 ModeFanRanges 钳位逻辑，替换为 RouteMode → 读取 ITSM(0xE4) → 不匹配时 EC 直写 → Thread.Sleep(100) → 在目标模式区间内钳位 → WMI 写转速
-- [ ] **③ ReadEcPort 公开**: 确认 HardwareAbstractionLayer 中 ReadEcPort(0xE4) 可被 FanCurveService 调用（如为 private 则改为 internal/public）
-- [ ] **④ 启动/停止保护**: Start() 时保存当前 ITSM 到 _savedThermalMode；Stop() 时通过 WMI SetThermalMode(_savedThermalMode) 恢复正常模式链（触发完整 DPTB/GPUD），再 SetFanManual(false) 交还固件
-- [ ] **⑤ ITSM 守护 + 偏离统计**: 每个 tick 读 ITSM 对比预期值，偏离时重写并递增 _itsmDeviationCount；1 分钟内偏离 ≥5 次记录 Warning 日志
-- [ ] **⑤b WMI 风扇写入验证 + 锁定检测**: Tick 写入后读回 EC 0x5E/0x5A 确认值生效；连续 3 次写后不生效标记 WMI 通道为"锁定"，触发 Toast 警告并尝试 SetFanManual 重激活（应对 CPU 频率限制导致的通道锁定，见设计方案 §6.7）
-- [ ] **⑥ /api/fan-curve/route-info 端点**: Program.cs 新增 GET 端点，返回 currentItsm / routedMode / lastLargeTarget / lastSmallTarget / modeChangeCount / itsmDeviationCount
+- [x] **① RouteMode 路由函数**: FanCurveService.cs 新增 `RouteMode(largeRpm, smallRpm)` — 遍历 ModeFanRanges 找到同时覆盖大扇和小扇目标的最低模式编号，无交集时优先满足大扇，fallback 斗战(3)
+- [x] **② Tick 替换钳位为路由 + EC 直写**: FanCurveService.Tick() 中删除现有 ModeFanRanges 钳位逻辑，替换为 RouteMode → 读取 ITSM(0xE4) → 不匹配时 EC 直写 → Thread.Sleep(100) → 在目标模式区间内钳位 → WMI 写转速
+- [x] **③ ReadEcPort 公开**: 确认 HardwareAbstractionLayer 中 ReadEcPort(0xE4) 可被 FanCurveService 调用（已确认为 public）
+- [x] **④ 启动/停止保护**: Start() 时保存当前 ITSM 到 _savedThermalMode；Stop() 时通过 WMI SetThermalMode(_savedThermalMode) 恢复正常模式链（触发完整 DPTB/GPUD），再 SetFanManual(false) 交还固件
+- [x] **⑤ ITSM 守护 + 偏离统计**: 每个 tick 读 ITSM 对比预期值，偏离时重写并递增 _itsmDeviationCount；1 分钟内偏离 ≥5 次记录 Warning 日志
+- [x] **⑤b WMI 风扇写入验证 + 锁定检测**: Tick 写入后读回 EC 0x5E/0x5A 确认值生效；连续 3 次写后不生效标记 WMI 通道为"锁定"，触发 Toast 警告并尝试 SetFanManual 重激活（应对 CPU 频率限制导致的通道锁定，见设计方案 §6.7）
+- [x] **⑥ /api/fan-curve/route-info 端点**: Program.cs 新增 GET 端点，返回 currentItsm / routedMode / lastLargeTarget / lastSmallTarget / modeChangeCount / itsmDeviationCount / wmiChannelLocked
 
 > **Phase 2 — 前端适配**
-- [ ] **⑦ FanCurvePanel 移除模式区间带**: 删除蓝色/紫色区间矩形 + 区间标签 + 钳位警告环（`largeClamped` / `smallClamped` 判定）；Y 轴标注改为全范围大扇 1900-4400 / 小扇 1700-8200
-- [ ] **⑧ 路由状态指示**: 状态栏新增"当前路由模式: [安静]"指示，通过轮询 /api/fan-curve/route-info 或 curve status 返回的路由信息更新显示
-- [ ] **⑨ uxtuAdapter getFanRange 改全范围**: `getFanRange(mode)` 不再按模式返回区间，改为返回 `FULL_FAN_RANGE = { largeMin:1900, largeMax:4400, smallMin:1700, smallMax:8200 }`
-- [ ] **⑩ 曲线激活时禁用手动风扇滑块**: SortableDashboard.jsx 中 queueFan 在 `fanCurveActive` 时不下发，风扇滑块显示为只读状态
+- [x] **⑦ FanCurvePanel 移除模式区间带**: 删除蓝色/紫色区间矩形 + 区间标签 + 钳位警告环（`largeClamped` / `smallClamped` 判定）；Y 轴标注改为全范围大扇 1900-4400 / 小扇 1700-8200
+- [x] **⑧ 路由状态指示**: 状态栏新增"当前路由模式: [安静]"指示，通过轮询 /api/fan-curve/route-info（3s 间隔）返回的路由信息更新显示
+- [x] **⑨ uxtuAdapter getFanRange 改全范围**: `getFanRange(mode)` 不再按模式返回区间，改为返回 `FULL_FAN_RANGE = { largeMin:1900, largeMax:4400, smallMin:1700, smallMax:8200 }`
+- [x] **⑩ 曲线激活时禁用手动风扇滑块**: SortableDashboard.jsx 中 queueFan 在 `fanCurveActive` 时不下发，风扇滑块显示为只读状态（已有 disabled + opacity 实现）
 
 > **Phase 3 — 验证测试**
 - [ ] **⑪ ITSM 长期稳定性测试**: 运行 test-itsm-stability.ps1（30 分钟，游戏负载），确认 ITSM 不被 EC 固件覆写
@@ -387,6 +387,7 @@
 - 2026-06-09: GPU/NVAPI/CPU 非 EC 通道无条件重置 + 风扇竞态修复(thermal_mode await+500ms) + 背景图持久化修复 + 下发逻辑全链路审计(28 项发现写入看板)
 - 2026-06-10: 风扇+功耗解耦验证 + ITSM 直写绕过 GPUD 验证 + DPTB 9 条 ALIB 完整解码 (fan-write-investigation §6-7)
 - 2026-06-10: 自定义风扇曲线产品设计方案 + 任务组排入看板 (EC 直写 ITSM, 20 项原子任务, 4 阶段)
+- 2026-06-11: Phase 1+2 实施完成 — RouteMode 路由函数 + Tick EC 直写 ITSM + Start/Stop 保护 + ITSM 守护统计 + WMI 写入验证锁定检测 + route-info API + FanCurvePanel 全范围 + 路由状态轮询 + getFanRange 改全范围 (后端构建 0 error / 前端构建 0 error)
 
 ---
 

@@ -134,8 +134,14 @@ export async function applyNvapiThermalLimit(tempC) {
 }
 
 
-// 散热模式风扇区间（硬件限制：大扇 0-4400, 小扇 0-8200，受散热模式约束）
-// 数值来源：docs/reference-consoles.md 官方预设表（大扇下限/上限/预设，小扇下限/上限/预设）
+// 全范围风扇转速（EC 直写 ITSM 方案：全区间可用，不再受模式限制）
+// 大扇: 安静下限 1900 ~ 斗战上限 4400，小扇: 安静下限 1700 ~ 斗战上限 8200
+export const FULL_FAN_RANGE = {
+  largeMin: 1900, largeMax: 4400,
+  smallMin: 1700, smallMax: 8200,
+};
+
+// 保留各模式区间作为参考（仅供路由表使用，前端不再显示区间限制）
 const FAN_RANGES = {
   silent: { largeMin: 1900, largeMax: 2900, smallMin: 1700, smallMax: 6400 },
   office: { largeMin: 2600, largeMax: 3500, smallMin: 5900, smallMax: 6900 },
@@ -216,14 +222,20 @@ export async function stopFanCurve() {
   return res.json();
 }
 
+export async function fetchRouteInfo() {
+  const res = await fetch("/api/fan-curve/route-info");
+  if (!res.ok) throw new Error("Route info returned " + res.status);
+  return res.json();
+}
+
 export function clampParam(key, value) {
   const r = PARAM_RANGES[key];
   if (!r) return value;
   return Math.max(r.min, Math.min(r.max, value));
 }
 
-export function getFanRange(mode) {
-  return FAN_RANGES[mode] || FAN_RANGES.silent;
+export function getFanRange(_mode) {
+  return FULL_FAN_RANGE; // EC 直写方案：全范围可用
 }
 
 export async function applySmuSet(parameter, valueM) {

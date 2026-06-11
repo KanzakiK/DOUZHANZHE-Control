@@ -6,7 +6,8 @@ import {
   saveFanCurve,
   startFanCurve,
   stopFanCurve,
-  getFanRange,
+  fetchRouteInfo,
+  FULL_FAN_RANGE,
 } from "../../services/uxtuAdapter";
 
 // ── 图表常量 ──
@@ -107,16 +108,19 @@ export default function FanCurvePanel({ telemetry, overrides, settings }) {
     ? Math.max(telemetry.cpuTemp || 0, telemetry.gpuTemp || 0)
     : null;
 
-  // ── 当前模式的风扇合法区间 ──
-  const mode = settings?.mode || "silent";
-  const fanRange = getFanRange(mode);
-  const MODE_LABELS = { silent: "安静", office: "均衡", beast: "野兽", gaming: "斗战", custom: "自定义" };
-  const modeLabel = MODE_LABELS[mode] || mode;
+  // ── 全范围风扇转速 ──
+  const fullRange = FULL_FAN_RANGE;
+  const MODE_LABELS = { 2: "安静", 0: "均衡", 1: "野兽", 3: "斗战" };
 
-  // 检测曲线中有多少点超出区间
-  const clampedLargeCount = points.filter(p => p.largeRpm > fanRange.largeMax || p.largeRpm < fanRange.largeMin).length;
-  const clampedSmallCount = points.filter(p => p.smallRpm > fanRange.smallMax || p.smallRpm < fanRange.smallMin).length;
-  const hasClampedPoints = clampedLargeCount > 0 || clampedSmallCount > 0;
+  // ── 路由状态（轮询 route-info） ──
+  const [routeInfo, setRouteInfo] = useState(null);
+  useEffect(() => {
+    if (!curveActive) { setRouteInfo(null); return; }
+    const poll = () => fetchRouteInfo().then(setRouteInfo).catch(() => {});
+    poll();
+    const id = setInterval(poll, 3000);
+    return () => clearInterval(id);
+  }, [curveActive]);
 
   // ══════════════════════════════════════
   //  SVG 拖拽处理
@@ -319,11 +323,14 @@ export default function FanCurvePanel({ telemetry, overrides, settings }) {
         >
           <span
             className="inline-block w-2 h-2 rounded-full"
-            style={{ background: "var(--ok)", animation: "pulse 1.5s infinite" }}
+            style={{ background: routeInfo?.wmiChannelLocked ? "var(--warn)" : "var(--ok)", animation: "pulse 1.5s infinite" }}
           />
-          <span style={{ color: "var(--ok)" }}>
+          <span style={{ color: routeInfo?.wmiChannelLocked ? "var(--warn)" : "var(--ok)" }}>
             自定义曲线运行中 · 间隔 {pollSec}s · 回差 {hysteresis}°C
-            {hotspot ? ` · 当前热点 ${hotspot}°C` : ""}
+            {hotspot ? ` · 热点 ${hotspot}°C` : ""}
+            {routeInfo && ` · 路由: ${MODE_LABELS[routeInfo.routedMode] || routeInfo.routedMode}`}
+            {routeInfo?.modeChangeCount > 0 && ` · 切换${routeInfo.modeChangeCount}次`}
+            {routeInfo?.wmiChannelLocked && " · ⚠ WMI通道锁定"}
           </span>
         </div>
       )}
@@ -335,11 +342,11 @@ export default function FanCurvePanel({ telemetry, overrides, settings }) {
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1 text-xs" style={{ color: "#4fc3f7" }}>
               <span style={{ width: 14, height: 3, background: "#4fc3f7", borderRadius: 2, display: "inline-block" }} />
-              大扇 {fanRange.largeMin}-{fanRange.largeMax}
+              大扇 {fullRange.largeMin}-{fullRange.largeMax}
             </span>
             <span className="flex items-center gap-1 text-xs" style={{ color: "#ce93d8" }}>
               <span style={{ width: 14, height: 3, background: "#ce93d8", borderRadius: 2, display: "inline-block" }} />
-              小扇 {fanRange.smallMin}-{fanRange.smallMax}
+              小扇 {fullRange.smallMin}-{fullRange.smallMax}
             </span>
           </div>
         }
@@ -356,35 +363,6 @@ export default function FanCurvePanel({ telemetry, overrides, settings }) {
         >
           {/* 图表背景 */}
           <rect x={PL} y={PT} width={CW} height={CH} rx="4" fill="var(--card-2)" opacity="0.5" />
-
-          {/* ── 当前模式风扇合法区间 ── */}
-          {/* 大扇区间带 (蓝色) */}
-          <rect
-            x={PL} y={rY(fanRange.largeMax)}
-            width={CW} height={rY(fanRange.largeMin) - rY(fanRange.largeMax)}
-            fill="#4fc3f7" opacity="0.07"
-          />
-          <line x1={PL} y1={rY(fanRange.largeMax)} x2={PL + CW} y2={rY(fanRange.largeMax)}
-            stroke="#4fc3f7" strokeWidth="1" strokeDasharray="6,3" opacity="0.5" />
-          <line x1={PL} y1={rY(fanRange.largeMin)} x2={PL + CW} y2={rY(fanRange.largeMin)}
-            stroke="#4fc3f7" strokeWidth="1" strokeDasharray="6,3" opacity="0.3" />
-          {/* 小扇区间带 (紫色) */}
-          <rect
-            x={PL} y={rY(fanRange.smallMax)}
-            width={CW} height={rY(fanRange.smallMin) - rY(fanRange.smallMax)}
-            fill="#ce93d8" opacity="0.07"
-          />
-          <line x1={PL} y1={rY(fanRange.smallMax)} x2={PL + CW} y2={rY(fanRange.smallMax)}
-            stroke="#ce93d8" strokeWidth="1" strokeDasharray="6,3" opacity="0.5" />
-          <line x1={PL} y1={rY(fanRange.smallMin)} x2={PL + CW} y2={rY(fanRange.smallMin)}
-            stroke="#ce93d8" strokeWidth="1" strokeDasharray="6,3" opacity="0.3" />
-          {/* 区间标签 */}
-          <text x={PL + CW - 4} y={rY(fanRange.largeMax) - 4} textAnchor="end" fontSize="8" fill="#4fc3f7" opacity="0.7">
-            {modeLabel} 大扇上限 {fanRange.largeMax}
-          </text>
-          <text x={PL + CW - 4} y={rY(fanRange.smallMax) - 4} textAnchor="end" fontSize="8" fill="#ce93d8" opacity="0.7">
-            {modeLabel} 小扇上限 {fanRange.smallMax}
-          </text>
 
           {/* ── 网格线 ── */}
           {/* Y 轴 (每 1000 RPM) */}
@@ -436,26 +414,18 @@ export default function FanCurvePanel({ telemetry, overrides, settings }) {
             const lx = tX(p.temp), ly = rY(p.largeRpm);
             const sx = tX(p.temp), sy = rY(p.smallRpm);
             const isSel = selIdx === i;
-            const largeClamped = p.largeRpm > fanRange.largeMax || p.largeRpm < fanRange.largeMin;
-            const smallClamped = p.smallRpm > fanRange.smallMax || p.smallRpm < fanRange.smallMin;
             return (
               <g key={`pt-${i}`}>
                 {/* 连接虚线 */}
                 <line x1={lx} y1={ly} x2={sx} y2={sy} stroke="var(--border)" strokeWidth="0.8" strokeDasharray="3,3" />
-                {/* 大扇点 — 超出区间时显示警告环 */}
-                {largeClamped && (
-                  <circle cx={lx} cy={ly} r={isSel ? 11 : 9} fill="none" stroke="var(--warn)" strokeWidth="1.5" strokeDasharray="3,2" opacity="0.8" />
-                )}
+                {/* 大扇点 */}
                 <circle
                   cx={lx} cy={ly} r={isSel ? 7 : 5}
                   fill="#4fc3f7" stroke={isSel ? "#fff" : "none"} strokeWidth="2"
                   style={{ cursor: "grab" }}
                   onMouseDown={handleMouseDown(i, "large")}
                 />
-                {/* 小扇点 — 超出区间时显示警告环 */}
-                {smallClamped && (
-                  <circle cx={sx} cy={sy} r={isSel ? 11 : 9} fill="none" stroke="var(--warn)" strokeWidth="1.5" strokeDasharray="3,2" opacity="0.8" />
-                )}
+                {/* 小扇点 */}
                 <circle
                   cx={sx} cy={sy} r={isSel ? 7 : 5}
                   fill="#ce93d8" stroke={isSel ? "#fff" : "none"} strokeWidth="2"
@@ -473,14 +443,8 @@ export default function FanCurvePanel({ telemetry, overrides, settings }) {
 
         {/* 拖拽提示 */}
         <p className="text-xs mt-1 text-center" style={{ color: "var(--muted)" }}>
-          拖拽圆点调整曲线 · 蓝色 = 大风扇 · 紫色 = 小风扇
+          拖拽圆点调整曲线 · 蓝色 = 大风扇 · 紫色 = 小风扇 · 全范围可用
         </p>
-        {/* 钳位警告 */}
-        {hasClampedPoints && (
-          <p className="text-xs mt-1 text-center" style={{ color: "var(--warn)" }}>
-            ⚠ {modeLabel}模式下有 {clampedLargeCount > 0 ? `大扇 ${clampedLargeCount} 个` : ""}{clampedLargeCount > 0 && clampedSmallCount > 0 ? "、" : ""}{clampedSmallCount > 0 ? `小扇 ${clampedSmallCount} 个` : ""} 控制点超出合法区间，实际写入将被钳位
-          </p>
-        )}
       </Card>
 
       {/* ── 配置表格 + 控制 ── */}
@@ -533,8 +497,6 @@ export default function FanCurvePanel({ telemetry, overrides, settings }) {
           {sorted.map((p, sortIdx) => {
             const realIdx = p._i;
             const isSel = selIdx === realIdx;
-            const lClamped = p.largeRpm > fanRange.largeMax || p.largeRpm < fanRange.largeMin;
-            const sClamped = p.smallRpm > fanRange.smallMax || p.smallRpm < fanRange.smallMin;
             return (
               <div
                 key={`row-${sortIdx}`}
@@ -553,16 +515,16 @@ export default function FanCurvePanel({ telemetry, overrides, settings }) {
                   style={{ background: "var(--card-2)", border: "1px solid var(--border)", color: "var(--text)" }}
                 />
                 <input
-                  type="number" value={p.largeRpm} min={0} max={4400} step={100}
+                  type="number" value={p.largeRpm} min={fullRange.largeMin} max={fullRange.largeMax} step={100}
                   onChange={(e) => updateField(realIdx, "largeRpm", e.target.value)}
                   className="w-full rounded px-2 py-1 text-xs"
-                  style={{ background: "var(--card-2)", border: `1px solid ${lClamped ? "var(--warn)" : "var(--border)"}`, color: lClamped ? "var(--warn)" : "var(--text)" }}
+                  style={{ background: "var(--card-2)", border: "1px solid var(--border)", color: "var(--text)" }}
                 />
                 <input
-                  type="number" value={p.smallRpm} min={0} max={8200} step={100}
+                  type="number" value={p.smallRpm} min={fullRange.smallMin} max={fullRange.smallMax} step={100}
                   onChange={(e) => updateField(realIdx, "smallRpm", e.target.value)}
                   className="w-full rounded px-2 py-1 text-xs"
-                  style={{ background: "var(--card-2)", border: `1px solid ${sClamped ? "var(--warn)" : "var(--border)"}`, color: sClamped ? "var(--warn)" : "var(--text)" }}
+                  style={{ background: "var(--card-2)", border: "1px solid var(--border)", color: "var(--text)" }}
                 />
                 <button
                   onClick={(e) => { e.stopPropagation(); removePoint(realIdx); }}
