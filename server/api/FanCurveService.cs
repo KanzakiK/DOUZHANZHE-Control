@@ -41,6 +41,8 @@ public sealed class FanCurveService : IDisposable
     // ── ITSM 路由 + 守护状态 ──
     private byte _savedThermalMode;           // 启动时保存的 ITSM 值，停止时恢复
     private int _itsmDeviationCount;          // 统计：ITSM 读回 ≠ 目标模式 的累计次数
+    private readonly byte[] _lastEcRegs = new byte[0x100]; // EC 寄存器快照（用于跌落诊断）
+    private bool _ecRegsInitialized;
 
     public bool Active => _active;
 
@@ -143,6 +145,7 @@ public sealed class FanCurveService : IDisposable
         _itsmDeviationCount = 0;
         _guardLargeTarget = -1;
         _guardSmallTarget = -1;
+        _ecRegsInitialized = false;
 
         _timer = new Timer(Tick, null, 0, _intervalMs);
 
@@ -345,6 +348,40 @@ public sealed class FanCurveService : IDisposable
                 EcFanTargetSmall = _hal.ReadEcPort(0x5A);
             }
             catch { /* 读回诊断失败不影响主流程 */ }
+
+            // 7. EC 寄存器跌落诊断 — 扫描关键寄存器，转速偏离时对比快照
+            try
+            {
+                byte[] scanRegs = {
+                    0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57,
+                    0x58, 0x59, 0x5A, 0x5B, 0x5C, 0x5D, 0x5E, 0x5F,
+                    0x90, 0x91, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97,
+                    0x98, 0x99, 0x9A, 0x9B, 0x9C, 0x9D, 0x9E, 0x9F,
+                    0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7,
+                    0xE0, 0xE1, 0xE2, 0xE3, 0xE4, 0xE5, 0xE6, 0xE7,
+                    0xE8, 0xE9, 0xEA, 0xEB, 0xEC, 0xED, 0xEE, 0xEF,
+                    0xF0, 0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7,
+                };
+                byte[] cur = new byte[0x100];
+                foreach (var r in scanRegs) cur[r] = _hal.ReadEcPort(r);
+
+                int cpuRpm = ActualCpuFanRpm;
+                bool deviated = Math.Abs(cpuRpm - largeTarget * 100) > 500;
+
+                if (_ecRegsInitialized && deviated)
+                {
+                    var diffs = new List<string>();
+                    foreach (var r in scanRegs)
+                        if (cur[r] != _lastEcRegs[r])
+                            diffs.Add($"0x{r:X2}:{_lastEcRegs[r]:X2}→{cur[r]:X2}");
+                    _log.LogWarning("[FanCurve] EC跌落诊断: RPM={Rpm} tgt={Tgt} 变化寄存器=[{Diffs}]",
+                        cpuRpm, largeTarget * 100, diffs.Count > 0 ? string.Join(" ", diffs) : "无");
+                }
+
+                Array.Copy(cur, _lastEcRegs, 0x100);
+                _ecRegsInitialized = true;
+            }
+            catch { /* 诊断失败不影响主流程 */ }
 
             _log.LogInformation(
                 "[FanCurve] Tick: hot={Hot}°C → route={Mode}({ModeName}) L={L}x100 S={S}x100 | WMI: l={Lr} s={Sr} | ITSM={Itsm} | EC: L={EcL} S={EcS} RPM={CpuRpm}/{GpuRpm}",
