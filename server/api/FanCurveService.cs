@@ -66,8 +66,10 @@ public sealed class FanCurveService : IDisposable
     public bool LastWmiSmallOk { get; private set; }     // 最近一次 WMI 小扇写入返回
     public int TickCount { get; private set; }           // Tick 执行总次数
 
-    // 各模式风扇转速合法区间 (RPM/100 单位，与前端 FAN_RANGES 对齐)
+    // 各模式风扇转速合法区间 (RPM/100 单位)
     // 路由表：根据目标转速找到能覆盖它的模式，通过 WMI SetThermalMode 切换
+    // 上限是该模式 EC 实际能驱动的最高转速（固件限制），超过会被 EC 拒绝
+    // "向下兼容"：低转速在任何模式都能工作，高转速只在对应模式下才行
     private static readonly Dictionary<byte, (int lMin, int lMax, int sMin, int sMax)> ModeFanRanges = new()
     {
         [2] = (19, 29, 17, 64),   // silent
@@ -296,25 +298,16 @@ public sealed class FanCurveService : IDisposable
             int largeTarget = largeRpm / 100;  // RPM → RPM/100 (Bellator 协议)
             int smallTarget = smallRpm / 100;
 
-            // 2. 初步路由：找到能覆盖曲线原始输出的模式，用于钳位
+            // 2. 初步路由 + 钳位：曲线原始输出 → 钳到能覆盖它的模式范围内
+            //    目的是让 ShouldWrite 存储的值与实际写入值一致
             byte curveMode = RouteMode(largeTarget, smallTarget);
-
-            // 3. 钳位到初步路由模式的合法区间
             if (ModeFanRanges.TryGetValue(curveMode, out var curveRange))
             {
-                int origLarge = largeTarget, origSmall = smallTarget;
                 largeTarget = Math.Clamp(largeTarget, curveRange.lMin, curveRange.lMax);
                 smallTarget = Math.Clamp(smallTarget, curveRange.sMin, curveRange.sMax);
-                if (largeTarget != origLarge || smallTarget != origSmall)
-                {
-                    _log.LogInformation(
-                        "[FanCurve] 钳位: L {OrigL}→{L} S {OrigS}→{S} (mode={Mode} range=L:{LMin}-{LMax} S:{SMin}-{SMax})",
-                        origLarge, largeTarget, origSmall, smallTarget,
-                        ModeName(curveMode), curveRange.lMin, curveRange.lMax, curveRange.sMin, curveRange.sMax);
-                }
             }
 
-            // 4. ShouldWrite 回差策略 — 决定是否更新目标值
+            // 3. ShouldWrite 回差策略 — 决定是否更新目标值
             if (ShouldWrite(hotspot, largeTarget, smallTarget))
             {
                 _lastHotspot = hotspot;
