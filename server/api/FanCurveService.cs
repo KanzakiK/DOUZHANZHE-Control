@@ -42,6 +42,7 @@ public sealed class FanCurveService : IDisposable
     private byte _savedThermalMode;           // 启动时保存的 ITSM 值，停止时恢复
     private int _itsmDeviationCount;          // 统计：ITSM 读回 ≠ 目标模式 的累计次数
     private readonly byte[] _lastEcRegs = new byte[0x100]; // EC 寄存器快照（用于跌落诊断）
+    private readonly byte[] _lastGoodEcRegs = new byte[0x100]; // 风扇正常时的 EC 快照
     private bool _ecRegsInitialized;
 
     public bool Active => _active;
@@ -350,7 +351,7 @@ public sealed class FanCurveService : IDisposable
             }
             catch { /* 读回诊断失败不影响主流程 */ }
 
-            // 7. EC 寄存器跌落诊断 — 全量扫描 0x00-0xFF，转速偏离时对比快照
+            // 7. EC 寄存器跌落诊断 — 全量扫描 0x00-0xFF
             try
             {
                 byte[] cur = new byte[0x100];
@@ -360,20 +361,29 @@ public sealed class FanCurveService : IDisposable
                 int cpuRpm = ActualCpuFanRpm;
                 bool deviated = Math.Abs(cpuRpm - largeTarget * 100) > 500;
 
-                if (_ecRegsInitialized && deviated)
+                if (_ecRegsInitialized)
                 {
-                    var diffs = new List<string>();
+                    // 扫描存活检查：相邻 tick 之间有多少寄存器在变
+                    int aliveChanges = 0;
                     for (int r = 0; r < 0x100; r++)
-                        if (cur[r] != _lastEcRegs[r])
-                            diffs.Add($"0x{r:X2}:{_lastEcRegs[r]:X2}→{cur[r]:X2}");
-                    var diffStr = diffs.Count > 0 ? string.Join(" ", diffs) : "无";
-                    EcRegDiff = diffStr;
-                    _log.LogWarning("[FanCurve] EC跌落诊断: RPM={Rpm} tgt={Tgt} 变化寄存器=[{Diffs}]",
-                        cpuRpm, largeTarget * 100, diffStr);
-                }
-                else if (!deviated)
-                {
-                    EcRegDiff = "";
+                        if (cur[r] != _lastEcRegs[r]) aliveChanges++;
+
+                    if (deviated)
+                    {
+                        // 与"上次正常"快照对比
+                        var diffs = new List<string>();
+                        for (int r = 0; r < 0x100; r++)
+                            if (cur[r] != _lastGoodEcRegs[r])
+                                diffs.Add($"0x{r:X2}:{_lastGoodEcRegs[r]:X2}→{cur[r]:X2}");
+                        var diffStr = diffs.Count > 0 ? string.Join(" ", diffs) : "无";
+                        EcRegDiff = $"vs正常:{diffStr} | 相邻tick变化:{aliveChanges}个";
+                    }
+                    else
+                    {
+                        // 风扇正常 → 更新"正常"快照
+                        Array.Copy(cur, _lastGoodEcRegs, 0x100);
+                        EcRegDiff = "";
+                    }
                 }
 
                 Array.Copy(cur, _lastEcRegs, 0x100);
