@@ -12,6 +12,7 @@
 - **WMI 通道锁定误报**: VerifyFanWrite 不再将 EC 读回偏差计入锁定计数（EC 固件 PID 在 ~30ms 内覆写 0x5E 属正常行为），仅 WMI 返回 false 才触发锁定检测；移除验证中多余的 100ms sleep
 - **Debug 页中文乱码**: 修复构建脚本编码截断导致的 33 处 UTF-8 三字节字符损坏（从 git 历史恢复原始内容）
 - **Debug 页 WebSocket 连不上**: URL 从硬编码 `ws://127.0.0.1:3100/ws` 改为 `location.host` 相对地址；TelemetryBackgroundService 的 `SendAsync` 从 fire-and-forget 改为 `await`（锁内快照 + 锁外发送，避免并发写入异常）
+- **构建脚本两个 bug**: CHANGELOG 版本正则从全局替换改为仅替换首个标题（防止历史版本号被覆盖）；文件读写从 `Set-Content -Encoding UTF8` 改为 `[System.IO.File]::ReadAllText/WriteAllText` + UTF8NoBOM（修复 PS 5.1 的 BOM 注入和多字节 UTF-8 截断）
 
 ### 新增
 

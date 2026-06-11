@@ -33,21 +33,26 @@ if (-not $Version) {
 }
 
 # ── 0. 版本号同步 ──
+# 使用 [System.IO.File] 读写以避免 PowerShell 5.1 Set-Content -Encoding UTF8
+# 的 BOM 注入和多字节 UTF-8 截断问题
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+
 if ($Version) {
     Write-Host "[0/6] 同步版本号: $Version ..." -ForegroundColor Cyan
     $AbsRoot = "d:\DOUZHANZHE-Control"
 
-    # CHANGELOG.md
+    # CHANGELOG.md — 仅替换第一个版本标题（最新条目），不动历史版本
     $Changelog = Join-Path $AbsRoot "CHANGELOG.md"
-    $ClText = Get-Content $Changelog -Raw -Encoding UTF8
-    $ClText = [regex]::Replace($ClText, '(## \[)\d+\.\d+\.\d+(\] — \d{4}-\d{2}-\d{2})', "`${1}$Version`${2}", [System.Text.RegularExpressions.RegexOptions]::Singleline)
-    Set-Content $Changelog -Value $ClText -NoNewline -Encoding UTF8
+    $ClText = [System.IO.File]::ReadAllText($Changelog, $utf8NoBom)
+    $ClRegex = [regex]::new('(## \[)\d+\.\d+\.\d+(\] — \d{4}-\d{2}-\d{2})')
+    $ClText = $ClRegex.Replace($ClText, "`${1}$Version`${2}", 1)
+    [System.IO.File]::WriteAllText($Changelog, $ClText, $utf8NoBom)
 
     # package.json
     $PkgJson = Join-Path $AbsRoot "package.json"
-    $PkgText = Get-Content $PkgJson -Raw -Encoding UTF8
+    $PkgText = [System.IO.File]::ReadAllText($PkgJson, $utf8NoBom)
     $PkgText = [regex]::Replace($PkgText, '("version":\s*")\d+\.\d+\.\d+(")', "`${1}$Version`${2}")
-    Set-Content $PkgJson -Value $PkgText -NoNewline -Encoding UTF8
+    [System.IO.File]::WriteAllText($PkgJson, $PkgText, $utf8NoBom)
 
     Write-Host "  版本号已同步至 $Version (SettingsPanel/iss 由 ISCC /d 参数覆盖)" -ForegroundColor Green
 }
