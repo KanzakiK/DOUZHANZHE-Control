@@ -195,7 +195,7 @@ public sealed class FanCurveService : IDisposable
         return 3; // fallback: 斗战模式（最宽上限）
     }
 
-    // ── 定时回调 (核心逻辑：路由 + WMI SetThermalMode + WMI 写转速) ──
+    // ── 定时回调 (核心逻辑：路由 + EC 直写 ITSM 每 tick 对抗回写 + WMI 写转速) ──
 
     private void Tick(object? state)
     {
@@ -223,19 +223,19 @@ public sealed class FanCurveService : IDisposable
             // 2. 模式路由：根据目标转速找到最优 ITSM 模式
             byte targetMode = RouteMode(largeTarget, smallTarget);
 
-            // 3. 读取当前 ITSM，按需 WMI 切换（触发完整 CHMD 链，正确更新 EC 风扇表）
+            // 3. EC 直写 ITSM — 每个 tick 无条件写入，对抗 EC 回写
+            //    (与风扇转速策略一致：风扇每 tick 写，ITSM 也每 tick 写)
             byte currentItsm = _hal.ReadEcPort(0xE4);
             CurrentItsm = currentItsm;
 
             if (currentItsm != targetMode)
             {
-                // 检查是否为外部偏离（Fn 热键 / AC 插拔 / 睡眠唤醒）
-                if (_active && _lastHotspot.HasValue) // 非首次 tick
+                // 偏离统计（仅诊断用，不影响写入策略）
+                if (_active && _lastHotspot.HasValue)
                 {
                     _itsmDeviationCount++;
                     _itsmDeviationInWindow++;
 
-                    // 1 分钟窗口内偏离统计
                     if ((DateTime.Now - _itsmDeviationWindowStart).TotalSeconds > 60)
                     {
                         _itsmDeviationWindowStart = DateTime.Now;
@@ -247,20 +247,13 @@ public sealed class FanCurveService : IDisposable
                             _itsmDeviationInWindow, currentItsm, targetMode);
                     }
                 }
-
-                // WMI SetThermalMode — 触发完整 ACPI 链 (CHMD→FNQS→THMC→ALIB→GPUD→THMD)
-                // EC 直写 ITSM 仅改寄存器值，不触发 EC 固件内部模式切换，
-                // 导致 PID 控制器在 ~10s 后将手动转速纠回旧模式区间。
-                // WMI 路径通过 CHMD 方法正确更新 EC 内部状态，风扇表真正切换。
-                // 副作用：ALIB 重写 CPU 功耗 (~1.5s，SMU override 自动修复)、
-                //         GPUD 降级 GPU (ITSM guard 下一 tick 恢复)。
-                _wmi.SetThermalMode(targetMode);
                 _modeChangeCount++;
-                _log.LogInformation("[FanCurve] ITSM 路由: {Cur}({CurName}) → {Tgt}({TgtName}) (L={L} S={S}) via WMI",
+                _log.LogInformation("[FanCurve] ITSM 偏离: {Cur}({CurName}) → {Tgt}({TgtName}) (L={L} S={S})",
                     currentItsm, ModeName(currentItsm), targetMode, ModeName(targetMode), largeRpm, smallRpm);
-                // 等待 EC 完成风扇表切换 (CHMD 链执行 + PID 表加载)
-                Thread.Sleep(200);
             }
+
+            // 每 tick 无条件 EC 直写 ITSM（不用 WMI SetThermalMode，避免 ALIB/GPUD 副作用链）
+            _hal.WriteEcPort(0xE4, targetMode);
 
             RoutedMode = targetMode;
 
