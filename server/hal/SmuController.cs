@@ -116,30 +116,6 @@ public sealed class SmuController
 
     public uint SendRawSmuCommand(uint cmd, uint arg0) => throw new System.NotSupportedException("Raw SMU command not supported, use POST /api/smu/set instead");
 
-    /// <summary>抓取 ryzenadj -i 输出（SMU 参数快照），用于诊断 SetThermalMode 是否影响 SMU</summary>
-    public string DumpInfo()
-    {
-        try
-        {
-            var psi = new ProcessStartInfo
-            {
-                FileName = _ryzenadjPath,
-                Arguments = "-i",
-                WorkingDirectory = _toolsDir,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-            };
-            using var proc = Process.Start(psi);
-            if (proc == null) return "(process start failed)";
-            var stdout = proc.StandardOutput.ReadToEnd();
-            proc.WaitForExit(15000);
-            return string.IsNullOrWhiteSpace(stdout) ? "(empty output)" : stdout;
-        }
-        catch (Exception ex) { return $"(error: {ex.Message})"; }
-    }
-
     public bool Probe()
     {
         try
