@@ -104,31 +104,38 @@ public class TelemetryBackgroundService : BackgroundService
                 }, _jsonOpt);
 
                 // 推送给所有 WebSocket 客户端
-                List<WebSocket> deadClients = new();
                 byte[] bytes = Encoding.UTF8.GetBytes(payload);
                 var segment = new ArraySegment<byte>(bytes);
 
-                lock (_clientLock)
-                {
-                    foreach (var ws in _clients)
-                    {
-                        try
-                        {
-                            if (ws.State == WebSocketState.Open)
-                                ws.SendAsync(segment, WebSocketMessageType.Text,
-                                    true, ct);
-                            else
-                                deadClients.Add(ws);
-                        }
-                        catch
-                        {
-                            deadClients.Add(ws);
-                        }
-                    }
+                // 在锁内拍快照，锁外 await 发送
+                WebSocket[] snapshot;
+                lock (_clientLock) snapshot = _clients.ToArray();
 
-                    // 清理断线客户端
-                    foreach (var dead in deadClients)
-                        _clients.Remove(dead);
+                List<WebSocket> deadClients = new();
+                foreach (var ws in snapshot)
+                {
+                    try
+                    {
+                        if (ws.State == WebSocketState.Open)
+                            await ws.SendAsync(segment, WebSocketMessageType.Text,
+                                true, ct);
+                        else
+                            deadClients.Add(ws);
+                    }
+                    catch
+                    {
+                        deadClients.Add(ws);
+                    }
+                }
+
+                // 清理断线客户端
+                if (deadClients.Count > 0)
+                {
+                    lock (_clientLock)
+                    {
+                        foreach (var dead in deadClients)
+                            _clients.Remove(dead);
+                    }
                 }
             }
             catch (OperationCanceledException)
