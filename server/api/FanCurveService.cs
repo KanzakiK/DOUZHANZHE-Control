@@ -306,15 +306,17 @@ public sealed class FanCurveService : IDisposable
 
     /// <summary>
     /// WMI 风扇写入验证 + 通道锁定检测。
-    /// 写入后读回 EC 0x5E(大扇)/0x5A(小扇) 确认值生效。
-    /// 连续 3 次写入后不匹配 → 标记 WMI 通道为"锁定"（可能由 CPU 频率限制导致）。
+    /// 仅 WMI 返回 false 才计入锁定计数（CPU 频率限制导致的通道锁定特征）。
+    /// EC 读回偏差仅做诊断日志（EC 固件 PID 会在 ~30ms 内覆写 0x5E，属于正常行为）。
     /// </summary>
     private void VerifyFanWrite(int expectedLarge, int expectedSmall, bool wmiLargeOk, bool wmiSmallOk)
     {
-        // WMI 返回 false 或 EC 读回值不匹配 → 计数
+        // ── WMI 通道锁定检测：仅 WMI 返回失败才计入 ──
         if (!wmiLargeOk || !wmiSmallOk)
         {
             _wmiWriteFailStreak++;
+            _log.LogDebug("[FanCurve] WMI 写入返回失败: large={L} small={S} streak={N}",
+                wmiLargeOk, wmiSmallOk, _wmiWriteFailStreak);
             if (_wmiWriteFailStreak >= 3 && !_wmiChannelLocked)
             {
                 _wmiChannelLocked = true;
@@ -324,36 +326,25 @@ public sealed class FanCurveService : IDisposable
             return;
         }
 
-        // WMI 返回 OK，进一步读回 EC 验证（给 EC 100ms 处理时间）
-        Thread.Sleep(100);
+        // WMI 返回成功 → 重置锁定计数
+        if (_wmiChannelLocked)
+        {
+            _wmiChannelLocked = false;
+            _log.LogInformation("[FanCurve] WMI 风扇写入通道已恢复");
+        }
+        _wmiWriteFailStreak = 0;
+
+        // ── EC 读回诊断（不影响锁定判断，仅记录日志）──
+        // 注意：EC 固件 PID 会在 ~30ms 内覆写 0x5E/0x5A，
+        // 所以这里不 sleep、立即读回，偏差属正常行为
         byte actualLarge = _hal.ReadEcPort(0x5E);
         byte actualSmall = _hal.ReadEcPort(0x5A);
-
-        // 允许 ±1 偏差（EC 可能四舍五入）
         bool largeMatch = Math.Abs(actualLarge - expectedLarge) <= 1;
         bool smallMatch = Math.Abs(actualSmall - expectedSmall) <= 1;
-
         if (!largeMatch || !smallMatch)
         {
-            _wmiWriteFailStreak++;
-            _log.LogDebug("[FanCurve] 写入验证偏差: large exp={E} act={A} small exp={E2} act={A2} streak={S}",
-                expectedLarge, actualLarge, expectedSmall, actualSmall, _wmiWriteFailStreak);
-            if (_wmiWriteFailStreak >= 3 && !_wmiChannelLocked)
-            {
-                _wmiChannelLocked = true;
-                _log.LogWarning("[FanCurve] WMI 风扇写入通道锁定检测: 连续 {N} 次写入后 EC 值不匹配",
-                    _wmiWriteFailStreak);
-            }
-        }
-        else
-        {
-            // 写入成功，重置失败计数
-            if (_wmiChannelLocked)
-            {
-                _wmiChannelLocked = false;
-                _log.LogInformation("[FanCurve] WMI 风扇写入通道已恢复");
-            }
-            _wmiWriteFailStreak = 0;
+            _log.LogDebug("[FanCurve] EC读回诊断: large exp={E} act={A} small exp={E2} act={A2} (EC PID覆写, 正常)",
+                expectedLarge, actualLarge, expectedSmall, actualSmall);
         }
     }
 
