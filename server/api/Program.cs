@@ -672,6 +672,14 @@ app.MapGet("/api/fan-curve/route-info", (FanCurveService svc) =>
         modeChangeCount = svc.ModeChangeCount,
         itsmDeviationCount = svc.ItsmDeviationCount,
         wmiChannelLocked = svc.WmiChannelLocked,
+        // EC 读回诊断
+        actualCpuFanRpm = svc.ActualCpuFanRpm,
+        actualGpuFanRpm = svc.ActualGpuFanRpm,
+        ecFanTargetLarge = svc.EcFanTargetLarge,
+        ecFanTargetSmall = svc.EcFanTargetSmall,
+        lastWmiLargeOk = svc.LastWmiLargeOk,
+        lastWmiSmallOk = svc.LastWmiSmallOk,
+        tickCount = svc.TickCount,
     });
 });
 

@@ -56,6 +56,15 @@ public sealed class FanCurveService : IDisposable
     public int ItsmDeviationCount => _itsmDeviationCount;
     public bool WmiChannelLocked => _wmiChannelLocked;
 
+    // ── EC 读回诊断 (供 Debug 页面使用) ──
+    public int ActualCpuFanRpm { get; private set; }     // 实际 CPU 风扇 RPM (EC 0x9D/0x9E)
+    public int ActualGpuFanRpm { get; private set; }     // 实际 GPU 风扇 RPM (EC 0x96/0x97)
+    public int EcFanTargetLarge { get; private set; }    // EC 大扇目标寄存器 (0x5E, RPM/100)
+    public int EcFanTargetSmall { get; private set; }    // EC 小扇目标寄存器 (0x5A, RPM/100)
+    public bool LastWmiLargeOk { get; private set; }     // 最近一次 WMI 大扇写入返回
+    public bool LastWmiSmallOk { get; private set; }     // 最近一次 WMI 小扇写入返回
+    public int TickCount { get; private set; }           // Tick 执行总次数
+
     // 各模式风扇转速合法区间 (RPM/100 单位，与前端 FAN_RANGES 对齐)
     // 路由表：根据目标转速找到能覆盖它的模式，通过 WMI SetThermalMode 切换
     private static readonly Dictionary<byte, (int lMin, int lMax, int sMin, int sMax)> ModeFanRanges = new()
@@ -312,10 +321,24 @@ public sealed class FanCurveService : IDisposable
             // 7. 写入验证：读回 EC 寄存器确认值生效
             VerifyFanWrite(largeTarget, smallTarget, largeOk, smallOk);
 
+            // 8. EC 读回诊断 — 记录实际风扇状态，供 Debug 页面展示
+            TickCount++;
+            LastWmiLargeOk = largeOk;
+            LastWmiSmallOk = smallOk;
+            try
+            {
+                ActualCpuFanRpm = _hal.CpuFanRpm;
+                ActualGpuFanRpm = _hal.GpuFanRpm;
+                EcFanTargetLarge = _hal.ReadEcPort(0x5E);
+                EcFanTargetSmall = _hal.ReadEcPort(0x5A);
+            }
+            catch { /* 读回诊断失败不影响主流程 */ }
+
             _log.LogInformation(
-                "[FanCurve] Tick: hot={Hot}°C → route={Mode}({ModeName}) L={L}x100 S={S}x100 | WMI: m0={M0} l={Lr} m1={M1} s={Sr} | ITSM={Itsm}",
+                "[FanCurve] Tick: hot={Hot}°C → route={Mode}({ModeName}) L={L}x100 S={S}x100 | WMI: m0={M0} l={Lr} m1={M1} s={Sr} | ITSM={Itsm} | EC: L={EcL} S={EcS} RPM={CpuRpm}/{GpuRpm}",
                 hotspot, targetMode, ModeName(targetMode), largeTarget, smallTarget,
-                manual0, largeOk, manual1, smallOk, currentItsm);
+                manual0, largeOk, manual1, smallOk, currentItsm,
+                EcFanTargetLarge, EcFanTargetSmall, ActualCpuFanRpm, ActualGpuFanRpm);
         }
         catch (Exception ex)
         {
