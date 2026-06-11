@@ -1,4 +1,4 @@
-﻿# Changelog
+# Changelog
 
 该项目所有重要变更均会记录在此文件中。
 
