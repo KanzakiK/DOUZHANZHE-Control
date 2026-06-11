@@ -298,16 +298,7 @@ public sealed class FanCurveService : IDisposable
             int largeTarget = largeRpm / 100;  // RPM → RPM/100 (Bellator 协议)
             int smallTarget = smallRpm / 100;
 
-            // 2. 初步路由 + 钳位：曲线原始输出 → 钳到能覆盖它的模式范围内
-            //    目的是让 ShouldWrite 存储的值与实际写入值一致
-            byte curveMode = RouteMode(largeTarget, smallTarget);
-            if (ModeFanRanges.TryGetValue(curveMode, out var curveRange))
-            {
-                largeTarget = Math.Clamp(largeTarget, curveRange.lMin, curveRange.lMax);
-                smallTarget = Math.Clamp(smallTarget, curveRange.sMin, curveRange.sMax);
-            }
-
-            // 3. ShouldWrite 回差策略 — 决定是否更新目标值
+            // 2. ShouldWrite 回差策略 — 决定是否更新目标值
             if (ShouldWrite(hotspot, largeTarget, smallTarget))
             {
                 _lastHotspot = hotspot;
@@ -321,7 +312,7 @@ public sealed class FanCurveService : IDisposable
                 smallTarget = _lastSmallTarget;
             }
 
-            // 5. 最终路由：用实际要写入的值决定模式
+            // 3. 路由：用实际要写入的值决定模式（仅决定 ITSM，不修改风扇值）
             //    粘性策略：如果当前路由模式仍然能覆盖目标值，就不切换
             //    防止温度波动导致曲线输出跨越模式边界时 RouteMode 反复跳动
             //    例：gaming(40-44) → 温度降 → 曲线输出 38(beast 范围) → 如果没有粘性
@@ -342,7 +333,7 @@ public sealed class FanCurveService : IDisposable
             }
             _lastRoutedMode = targetMode;
 
-            // 6. 更新 ITSM 目标模式 — 由 ItsmGuardCallback 每 500ms 实际写入
+            // 4. 更新 ITSM 目标模式 — 由 ItsmGuardCallback 每 500ms 实际写入
             byte currentItsm = _hal.ReadEcPort(0xE4);
             CurrentItsm = currentItsm;
             _itsmTargetMode = targetMode;
@@ -372,23 +363,16 @@ public sealed class FanCurveService : IDisposable
 
             RoutedMode = targetMode;
 
-            // 7. 二次钳位：确保最终值在最终路由模式的合法区间内
-            if (ModeFanRanges.TryGetValue(targetMode, out var range))
-            {
-                largeTarget = Math.Clamp(largeTarget, range.lMin, range.lMax);
-                smallTarget = Math.Clamp(smallTarget, range.sMin, range.sMax);
-            }
-
-            // 6. WMI 写入风扇转速（每个 tick 都写入，对抗 EC 回写覆盖）
+            // 5. WMI 写入风扇转速 — 曲线原始值直接写入，不钳位
             bool manual0 = _wmi.SetFanManual(0, true);
             bool largeOk = _wmi.SetFanSpeed(0, (byte)largeTarget);
             bool manual1 = _wmi.SetFanManual(1, true);
             bool smallOk = _wmi.SetFanSpeed(1, (byte)smallTarget);
 
-            // 7. 写入验证：读回 EC 寄存器确认值生效
+            // 6. 写入验证
             VerifyFanWrite(largeTarget, smallTarget, largeOk, smallOk);
 
-            // 8. EC 读回诊断 — 记录实际风扇状态，供 Debug 页面展示
+            // 7. EC 读回诊断
             TickCount++;
             LastWmiLargeOk = largeOk;
             LastWmiSmallOk = smallOk;
