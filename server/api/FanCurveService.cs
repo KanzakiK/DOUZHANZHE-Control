@@ -25,6 +25,8 @@ public sealed class FanCurveService : IDisposable
     private Timer? _timer;
     private Timer? _itsmGuardTimer;         // ITSM 高频守护 (500ms)，对抗 EC ~5-8s 回写周期
     private volatile byte _itsmTargetMode;   // Tick 更新、Guard 读取的目标模式
+    private volatile int _guardLargeTarget = -1; // Guard 用风扇目标 (RPM/100)，-1=未初始化
+    private volatile int _guardSmallTarget = -1;
     private bool _active;
     private int _intervalMs = 5000;   // BellatorFanControl 默认 5s
     private int _hysteresisC = 3;     // 回差 3°C
@@ -139,6 +141,8 @@ public sealed class FanCurveService : IDisposable
         // 保存当前 ITSM，停止时通过 WMI 恢复正常模式链
         _savedThermalMode = _hal.ReadEcPort(0xE4);
         _itsmDeviationCount = 0;
+        _guardLargeTarget = -1;
+        _guardSmallTarget = -1;
 
         _timer = new Timer(Tick, null, 0, _intervalMs);
 
@@ -147,7 +151,7 @@ public sealed class FanCurveService : IDisposable
         _itsmTargetMode = _savedThermalMode;
         _itsmGuardTimer = new Timer(ItsmGuardCallback, null, 0, 500);
 
-        _log.LogInformation("[FanCurve] 自定义曲线已启动, 间隔 {Ms}ms, 回差 {H}°C, 保存ITSM={Itsm}, ITSM守护=500ms",
+        _log.LogInformation("[FanCurve] 自定义曲线已启动, 间隔 {Ms}ms, 回差 {H}°C, 保存ITSM={Itsm}, 守护=500ms(ITSM+转速)",
             _intervalMs, _hysteresisC, _savedThermalMode);
     }
 
@@ -236,9 +240,9 @@ public sealed class FanCurveService : IDisposable
         return bestMode;
     }
 
-    // ── ITSM 高频守护 (500ms) ──
-    // EC 固件有 ~5-8 秒的 ITSM 回写周期，Tick 间隔 5s 太慢无法对抗。
-    // 独立守护线程每 500ms 写一次 ITSM，确保 EC 回写后最多 500ms 就被纠正。
+    // ── 高频守护 (500ms) ──
+    // EC 固件会周期性回写 ITSM 寄存器并覆盖风扇转速目标。
+    // 独立守护线程每 500ms 同时写入 ITSM + SetFanSpeed，确保 EC 回写后最多 500ms 就被纠正。
 
     private void ItsmGuardCallback(object? state)
     {
@@ -246,12 +250,18 @@ public sealed class FanCurveService : IDisposable
         try
         {
             _hal.WriteEcPort(0xE4, _itsmTargetMode);
+            int lt = _guardLargeTarget, st = _guardSmallTarget;
+            if (lt >= 0 && st >= 0)
+            {
+                _wmi.SetFanSpeed(0, (byte)lt);
+                _wmi.SetFanSpeed(1, (byte)st);
+            }
         }
         catch { /* 静默忽略，下一个 500ms 会重试 */ }
     }
 
     // ── 定时回调 (核心逻辑：路由 + 曲线查找 + WMI 写转速) ──
-    // ITSM 写入由 ItsmGuardCallback 高频处理，Tick 只负责更新 _itsmTargetMode
+    // ITSM + SetFanSpeed 由 ItsmGuardCallback 每 500ms 高频写入，Tick 只负责更新目标值
 
     private void Tick(object? state)
     {
@@ -297,6 +307,8 @@ public sealed class FanCurveService : IDisposable
             byte currentItsm = _hal.ReadEcPort(0xE4);
             CurrentItsm = currentItsm;
             _itsmTargetMode = targetMode;
+            _guardLargeTarget = largeTarget;
+            _guardSmallTarget = smallTarget;
 
             if (currentItsm != targetMode)
             {
