@@ -69,7 +69,6 @@ public sealed class FanCurveService : IDisposable
     public bool LastWmiSmallOk { get; private set; }     // 最近一次 WMI 小扇写入返回
     public int TickCount { get; private set; }           // Tick 执行总次数
     public int RecoveryCount => _recoveryCount;           // SetThermalMode 自动恢复次数
-    public string EcRegDiff { get; private set; } = "";   // 最近一次跌落时变化的 EC 寄存器
 
     // 各模式风扇转速合法区间 (RPM/100 单位)
     // 路由表：根据目标转速找到能覆盖它的模式，通过 WMI SetThermalMode 切换
