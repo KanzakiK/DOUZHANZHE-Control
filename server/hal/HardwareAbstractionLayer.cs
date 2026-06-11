@@ -356,11 +356,11 @@ public sealed class HardwareAbstractionLayer : IDisposable
     private const uint OFF_TFLG  = 0x02;   // 风扇表刷新标志 (0x55 = 触发)
 
     /// <summary>
-    /// 触发 EC 固件重新加载当前 ITSM 对应的风扇转速表。
-    /// DSDT CHMD 方法在每次模式切换后写入 TFLG=0x55，
-    /// EC 固件检测到此标志后刷新内部风扇 PID 表。
-    /// 仅写 ITSM 而不触发 TFLG 会导致风扇表不切换，实际转速偏离目标。
+    /// [已废弃] 原设计假设 TFLG=0x55 可触发 EC 风扇表刷新，实测无效。
+    /// EC 固件的模式切换必须通过 WMI SetThermalMode 触发完整 ACPI CHMD 链。
+    /// 保留方法供诊断使用，生产代码不应调用。
     /// </summary>
+    [Obsolete("TFLG 触发器实测无效，模式切换请使用 WMI SetThermalMode")]
     public void TriggerFanTableReload()
     {
         _io.WritePhys(ECF3_BASE + OFF_TFLG, 0x55);
