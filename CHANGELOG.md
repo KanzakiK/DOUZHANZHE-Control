@@ -13,6 +13,7 @@
 - **Debug 页中文乱码**: 修复构建脚本编码截断导致的 33 处 UTF-8 三字节字符损坏（从 git 历史恢复原始内容）
 - **Debug 页 WebSocket 连不上**: URL 从硬编码 `ws://127.0.0.1:3100/ws` 改为 `location.host` 相对地址；TelemetryBackgroundService 的 `SendAsync` 从 fire-and-forget 改为 `await`（锁内快照 + 锁外发送，避免并发写入异常）
 - **构建脚本两个 bug**: CHANGELOG 版本正则从全局替换改为仅替换首个标题（防止历史版本号被覆盖）；文件读写从 `Set-Content -Encoding UTF8` 改为 `[System.IO.File]::ReadAllText/WriteAllText` + UTF8NoBOM（修复 PS 5.1 的 BOM 注入和多字节 UTF-8 截断）
+- **风扇曲线模式切换不生效**: DSDT 逆向发现 EC 固件需要 TFLG=0x55 标志才刷新风扇 PID 表（ECF3 0xFE800B02），之前仅写 ITSM 寄存器不触发风扇表切换，导致路由到斗战模式但实际转速仍按旧模式曲线运行；现模式切换后同步写入 TFLG 触发器
 
 ### 新增
 
