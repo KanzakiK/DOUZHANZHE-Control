@@ -13,7 +13,7 @@
 - **Debug 页中文乱码**: 修复构建脚本编码截断导致的 33 处 UTF-8 三字节字符损坏（从 git 历史恢复原始内容）
 - **Debug 页 WebSocket 连不上**: URL 从硬编码 `ws://127.0.0.1:3100/ws` 改为 `location.host` 相对地址；TelemetryBackgroundService 的 `SendAsync` 从 fire-and-forget 改为 `await`（锁内快照 + 锁外发送，避免并发写入异常）
 - **构建脚本两个 bug**: CHANGELOG 版本正则从全局替换改为仅替换首个标题（防止历史版本号被覆盖）；文件读写从 `Set-Content -Encoding UTF8` 改为 `[System.IO.File]::ReadAllText/WriteAllText` + UTF8NoBOM（修复 PS 5.1 的 BOM 注入和多字节 UTF-8 截断）
-- **风扇曲线模式切换不生效**: EC 直写 ITSM 仅改寄存器值，不触发 EC 固件内部模式切换，导致 PID 控制器 ~10s 后将手动转速纠回旧模式区间（TFLG=0x55 触发器实测无效）；改用 WMI SetThermalMode 触发完整 ACPI CHMD 链，正确更新 EC 内部风扇表状态
+- **风扇曲线模式切换不生效**: EC 直写 ITSM 后风扇转速 ~10s 回落 — 原代码仅在 ITSM 偏离时才写一次，未持续对抗 EC 回写（风扇转速每 tick 都写，ITSM 却只写一次，策略不对称）；现改为每 tick 无条件 EC 直写 ITSM，与风扇转速策略一致；移除 TFLG=0x55（实测无效）和 WMI SetThermalMode（触发 ALIB/GPUD 副作用链）
 
 ### 新增
 
