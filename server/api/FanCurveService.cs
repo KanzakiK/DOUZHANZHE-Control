@@ -254,6 +254,9 @@ public sealed class FanCurveService : IDisposable
             int lt = _guardLargeTarget, st = _guardSmallTarget;
             if (lt >= 0 && st >= 0)
             {
+                // WMI: 持续刷手动模式标志，防止 EC 超时退回自动 PID
+                _wmi.SetFanManual(0, true);
+                _wmi.SetFanManual(1, true);
                 // EC 直写：绕过 ACPI 直接操作风扇目标寄存器
                 _hal.WriteEcPort(0x5E, (byte)lt);
                 _hal.WriteEcPort(0x5A, (byte)st);
