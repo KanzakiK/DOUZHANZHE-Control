@@ -94,8 +94,8 @@ public partial class Form1 : Form
         // 启动时仅清除 HTTP/GPU/ServiceWorker 缓存（防止前端更新后缓存旧版本）
         // 保留 Local Storage / IndexedDB — 前端 overrides 持久化依赖 localStorage
         // index.html 已由后端设置 Cache-Control: no-cache，新 bundle 不会被 HTTP 缓存
-        string[] cacheDirs = { "Default\\Cache", "Default\\Code Cache", "Default\\GPUCache",
-                               "Default\\Service Worker", "GrShaderCache", "ShaderCache" };
+        string[] cacheDirs = { "EBWebView\\Default\\Cache", "EBWebView\\Default\\Code Cache", "EBWebView\\Default\\GPUCache",
+                               "EBWebView\\Default\\Service Worker", "EBWebView\\GrShaderCache", "EBWebView\\ShaderCache" };
         foreach (var sub in cacheDirs)
         {
             try

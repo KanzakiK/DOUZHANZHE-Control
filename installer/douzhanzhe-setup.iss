@@ -292,9 +292,25 @@ begin
       DelTree(ExpandConstant('{app}\wwwroot\assets'), True, True, True);
 
     // 清理 WebView2 浏览器缓存（覆盖安装时旧 JS bundle 会被缓存，导致版本号不更新）
+    // 仅清除 HTTP/GPU/ServiceWorker 缓存，保留 Local Storage / IndexedDB（前端 overrides 持久化依赖 localStorage）
+    // index.html 已由后端设置 Cache-Control: no-cache，新 bundle 不会被 HTTP 缓存
     WebView2Dir := ExpandConstant('{localappdata}\Douzhanzhe Console\WebView2');
     if DirExists(WebView2Dir) then
-      DelTree(WebView2Dir, True, True, True);
+    begin
+      // WebView2 实际缓存路径: userDataDir\EBWebView\Default\...
+      if DirExists(WebView2Dir + '\EBWebView\Default\Cache') then
+        DelTree(WebView2Dir + '\EBWebView\Default\Cache', True, True, True);
+      if DirExists(WebView2Dir + '\EBWebView\Default\Code Cache') then
+        DelTree(WebView2Dir + '\EBWebView\Default\Code Cache', True, True, True);
+      if DirExists(WebView2Dir + '\EBWebView\Default\GPUCache') then
+        DelTree(WebView2Dir + '\EBWebView\Default\GPUCache', True, True, True);
+      if DirExists(WebView2Dir + '\EBWebView\Default\Service Worker') then
+        DelTree(WebView2Dir + '\EBWebView\Default\Service Worker', True, True, True);
+      if DirExists(WebView2Dir + '\EBWebView\GrShaderCache') then
+        DelTree(WebView2Dir + '\EBWebView\GrShaderCache', True, True, True);
+      if DirExists(WebView2Dir + '\EBWebView\ShaderCache') then
+        DelTree(WebView2Dir + '\EBWebView\ShaderCache', True, True, True);
+    end;
   end;
 
   // 安装后：创建计划任务 + 清理旧版快捷方式
