@@ -81,12 +81,6 @@ public sealed class SmuController
         return r == 0 || r == 1 || r == SMU_OK_CRASH ? 0 : r;
     }
 
-    public int SetCpuFreqLimit(uint mhz)
-    {
-        var r = RyzenAdj("--max-cpuclk=" + mhz);
-        return r == 0 || r == 1 || r == SMU_OK_CRASH ? 0 : r;
-    }
-
     public int SetTurboDisabled(bool disabled)
     {
         var cmd = disabled ? "--power-saving=1" : "--max-performance=1";
@@ -95,7 +89,7 @@ public sealed class SmuController
     }
 
     /// <summary>批量设置所有 SMU 参数，单次 ryzenadj 调用</summary>
-    public int BatchApply(uint? stapmMw, uint? fastMw, uint? slowMw, uint? tempC, int? coAllMv, uint? maxClkMhz, bool? turboOff)
+    public int BatchApply(uint? stapmMw, uint? fastMw, uint? slowMw, uint? tempC, int? coAllMv, bool? turboOff)
     {
         var args = new List<string>();
         if (stapmMw.HasValue) args.Add("--stapm-limit=" + stapmMw.Value);
@@ -103,7 +97,6 @@ public sealed class SmuController
         if (slowMw.HasValue) args.Add("--slow-limit=" + slowMw.Value);
         if (tempC.HasValue) args.Add("--tctl-temp=" + tempC.Value);
         if (coAllMv.HasValue) args.Add("--set-coall=" + coAllMv.Value);
-        if (maxClkMhz.HasValue) args.Add("--max-cpuclk=" + maxClkMhz.Value);
         if (turboOff.HasValue) args.Add(turboOff.Value ? "--power-saving=1" : "--max-performance=1");
         if (args.Count == 0) return 0;
         var r = RyzenAdj(args.ToArray());
@@ -144,7 +137,7 @@ public sealed class SmuController
             tempLimit = true,
             shortPowerLimit = true,
             curveOptimizer = true,
-            cpuFreqLimit = true,
+            cpuFreqLimit = false,
             turboDisabled = true,
             probe = true,
             vrmCurrent = false,

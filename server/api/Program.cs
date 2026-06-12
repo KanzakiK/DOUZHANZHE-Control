@@ -410,9 +410,6 @@ app.MapPost("/api/smu/set", (SmuController smu, SmuSetRequest req) =>
             case "co_all":
                 rc = smu.SetCurveOptimizer(req.ValueM);
                 break;
-            case "cpu_freq_limit":
-                rc = smu.SetCpuFreqLimit((uint)req.ValueM);
-                break;
             case "turbo_disable":
                 rc = smu.SetTurboDisabled(req.ValueM != 0);
                 break;
@@ -889,7 +886,7 @@ app.MapPost("/api/uxtu/apply", async (HttpContext ctx, SmuController smu) =>
         uint? tempC = cpuTemp.HasValue ? (uint)cpuTemp.Value : null;
         int? coAllMv = cpuVoltage;
         bool? turboOff = cpuTurboOff;
-        var rc = smu.BatchApply(stapmMw, fastMw, slowMw, tempC, coAllMv, null, turboOff);
+        var rc = smu.BatchApply(stapmMw, fastMw, slowMw, tempC, coAllMv, turboOff);
         if (cpuCoreLimit.HasValue) { CpuAffinityManager.SetCoreLimit(cpuCoreLimit.Value); }
         return Results.Json(new { ok = rc == 0, message = rc == 0 ? "OK" : $"rc={rc}" });
     }
