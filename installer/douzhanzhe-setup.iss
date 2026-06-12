@@ -287,7 +287,7 @@ begin
     Sleep(1000);
 
     // 清理 WebView2 浏览器缓存（覆盖安装时旧 JS bundle 会被缓存，导致版本号不更新）
-    WebView2Dir := ExpandConstant('{app}\{#MyAppExeName}.WebView2');
+    WebView2Dir := ExpandConstant('{localappdata}\Douzhanzhe Console\WebView2');
     if DirExists(WebView2Dir) then
       DelTree(WebView2Dir, True, True, True);
   end;
@@ -358,8 +358,8 @@ var
 begin
   if CurUninstallStep = usPostUninstall then
   begin
-    // 清理 WebView2 运行时数据
-    WebView2Dir := ExpandConstant('{app}\{#MyAppExeName}.WebView2');
+    // 清理 WebView2 运行时数据（实际缓存在 %LOCALAPPDATA% 下，而非安装目录）
+    WebView2Dir := ExpandConstant('{localappdata}\Douzhanzhe Console\WebView2');
     if DirExists(WebView2Dir) then
       DelTree(WebView2Dir, True, True, True);
 

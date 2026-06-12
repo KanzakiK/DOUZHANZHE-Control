@@ -91,20 +91,12 @@ public partial class Form1 : Form
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "Douzhanzhe Console", "WebView2");
 
-        // 启动时清除旧缓存（防止前端更新后 WebView2 缓存旧版本）
+        // 启动时清除整个 WebView2 用户数据目录（防止前端更新后缓存旧版本）
+        // WebView2 实际缓存路径为 userDataDir\Default\Cache 等，直接删除整个目录最可靠
         try
         {
             if (Directory.Exists(userDataDir))
-            {
-                // 删除缓存子目录，但保留根目录结构
-                var cacheDirs = new[] { "Cache", "Code Cache", "GPUCache", "Service Worker", "Storage" };
-                foreach (var sub in cacheDirs)
-                {
-                    var dir = Path.Combine(userDataDir, sub);
-                    if (Directory.Exists(dir))
-                        Directory.Delete(dir, true);
-                }
-            }
+                Directory.Delete(userDataDir, true);
         }
         catch { /* 清除缓存失败不影响启动 */ }
 
