@@ -880,19 +880,16 @@ app.MapPost("/api/uxtu/apply", async (HttpContext ctx, SmuController smu) =>
         int? cpuShortPpt = body.Params?.CpuShortPptW;
         int? cpuTemp = body.Params?.CpuTempLimitC ?? body.Limits?.Cpu?.TempLimitC;
         int? cpuVoltage = body.Params?.CpuVoltageOffset;
-        bool? cpuFreqEnabled = body.Params?.CpuFreqLimitEnabled;
-        int? cpuFreqMhz = body.Params?.CpuFreqLimitMhz;
         bool? cpuTurboOff = body.Params?.CpuTurboDisabled;
         int? cpuCoreLimit = body.Params?.CpuCoreLimit;
-        // 批量单次 ryzenadj 调用
+        // 批量单次 ryzenadj 调用（CPU 频率限制走 /api/cpu/freq-limit powercfg 路径，此处不再处理）
         uint? stapmMw = cpuPpt.HasValue ? (uint)(cpuPpt.Value * 1000) : null;
         uint? fastMw = cpuShortPpt.HasValue ? (uint)(cpuShortPpt.Value * 1000) : stapmMw;
         uint? slowMw = fastMw;
         uint? tempC = cpuTemp.HasValue ? (uint)cpuTemp.Value : null;
         int? coAllMv = cpuVoltage;
-        uint? maxClkMhz = (cpuFreqEnabled == true && cpuFreqMhz.HasValue) ? (uint)cpuFreqMhz.Value : null;
         bool? turboOff = cpuTurboOff;
-        var rc = smu.BatchApply(stapmMw, fastMw, slowMw, tempC, coAllMv, maxClkMhz, turboOff);
+        var rc = smu.BatchApply(stapmMw, fastMw, slowMw, tempC, coAllMv, null, turboOff);
         if (cpuCoreLimit.HasValue) { CpuAffinityManager.SetCoreLimit(cpuCoreLimit.Value); }
         return Results.Json(new { ok = rc == 0, message = rc == 0 ? "OK" : $"rc={rc}" });
     }
