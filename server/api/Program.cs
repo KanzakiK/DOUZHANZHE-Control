@@ -1273,11 +1273,29 @@ var _updateHttpClient = new HttpClient();
 _updateHttpClient.Timeout = TimeSpan.FromSeconds(8);
 _updateHttpClient.DefaultRequestHeaders.UserAgent.ParseAdd("DouzhanzheConsole-UpdateChecker/1.0");
 
+// 从前端 JS bundle 提取版本号（构建时 SettingsPanel.jsx 中的 "Douzhanzhe Console vX.Y.Z"）
+var _appVersion = "0.0.0";
+try
+{
+    var wwwroot = Path.Combine(AppContext.BaseDirectory, "wwwroot", "assets");
+    if (Directory.Exists(wwwroot))
+    {
+        var jsFile = Directory.GetFiles(wwwroot, "index-*.js").FirstOrDefault();
+        if (jsFile != null)
+        {
+            var jsContent = File.ReadAllText(jsFile);
+            var m = System.Text.RegularExpressions.Regex.Match(jsContent, @"Douzhanzhe Console v(\d+\.\d+\.\d+)");
+            if (m.Success) _appVersion = m.Groups[1].Value;
+        }
+    }
+}
+catch { /* 读取失败时使用默认值 */ }
+
 app.MapGet("/api/update/check", async () =>
 {
     try
     {
-        const string CurrentVersion = "1.3.6";
+        var CurrentVersion = _appVersion;
         var res = await _updateHttpClient.GetAsync(
             "https://api.github.com/repos/KanzakiK/DOUZHANZHE-Control/releases/latest");
 
@@ -1315,7 +1333,7 @@ app.MapGet("/api/update/check", async () =>
     }
     catch (Exception ex)
     {
-        return Results.Json(new { available = false, currentVersion = "1.3.6",
+        return Results.Json(new { available = false, currentVersion = _appVersion,
             error = ex.Message });
     }
 });
