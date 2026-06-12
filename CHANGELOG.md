@@ -15,6 +15,7 @@
 - **Shell 启动缓存清理路径错误**: `Form1.cs` 中缓存目录路径缺少 `EBWebView\` 前缀（实际结构为 `userDataDir\EBWebView\Default\Cache` 而非 `userDataDir\Default\Cache`），`Directory.Exists` 始终返回 false，等于启动时从未清理缓存。现已补上正确前缀 — `Form1.cs` L97-98
 - **`/api/uxtu/apply` SMU 参数不持久化**: 批量下发端点只调 `BatchApply()` 不调 `SavePerfOverrides()`，通过此端点下发的 SMU 四参数（stapm / short-power / temp / CO）不会写入 `performance-overrides.json`，重启后丢失。各独立端点已有持久化，唯独此批量端点遗漏。现已补上 — `Program.cs` L1057-1068
 - **风扇曲线停止后参数未恢复**: `FanCurveService.Stop()` 通过 `SetThermalMode` 切回原模式触发 ACPI 链，SMU/CPU/GPU/NVAPI 全部回出厂预设，用户自定义参数一次性丢失。`handleStop()` 仅恢复风扇转速 override。现在 `Stop()` 完成后等 500ms（让固件完成模式切换），再调 `reapplyOverrides(mode, overrides)` 重发全部自定义参数 — `FanCurvePanel.jsx` L245-267
+- **首页风扇卡片停止逻辑不一致**: `SortableDashboard` 首页停止按钮只恢复风扇转速（`/api/fan/set-target` 或 `/api/fan/restore`），未调 `reapplyOverrides`，SMU/GPU/NVAPI/CPU 参数全丢。现已对齐 `FanCurvePanel.handleStop` 行为：停曲线 → 等 500ms → `reapplyOverrides` — `SortableDashboard.jsx` L170-193
 
 ## [1.4.0] — 2026-06-12
 

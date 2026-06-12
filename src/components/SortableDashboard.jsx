@@ -18,7 +18,7 @@ import Sparkline from "./ui/Sparkline";
 import SortableCard from "./ui/SortableCard";
 import PerformancePanel from "./panels/PerformancePanel";
 import SettingsPanel from "./panels/SettingsPanel";
-import { getFanRange, applyHardwareControl, startFanCurve, stopFanCurve } from "../services/uxtuAdapter";
+import { getFanRange, applyHardwareControl, startFanCurve, stopFanCurve, reapplyOverrides } from "../services/uxtuAdapter";
 import { useCardOrder } from "./../hooks/useCardOrder";
 import { useToast } from "./ui/Toast";
 
@@ -169,25 +169,25 @@ export default function SortableDashboard({
             action={!editMode && (fanCurveActive ? (
               <button onClick={async () => {
                 try {
-                  await stopFanCurve();
-                  // 与 FanCurvePanel.handleStop 一致：有 override 回写，无 override 恢复固件
-                  const hasFanOverride = overrides && ("fanLargeRpmTarget" in overrides || "fanSmallRpmTarget" in overrides);
-                  if (hasFanOverride) {
-                    const largeRpm = overrides.fanLargeRpmTarget ?? 2900;
-                    const smallRpm = overrides.fanSmallRpmTarget ?? 6400;
-                    fetch("/api/fan/set-target", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ largeRpm, smallRpm }),
-                    }).catch(() => {});
-                    toast?.("已停止曲线，恢复用户自定义转速", "success");
+                  const r = await stopFanCurve();
+                  if (r.ok) {
+                    // 与 FanCurvePanel.handleStop 对齐：Stop() 触发 ACPI 链重置 SMU/GPU/NVAPI/CPU
+                    // 等 500ms 让固件完成模式切换，再重发用户自定义参数
+                    const hasOverrides = overrides && Object.keys(overrides).length > 0;
+                    if (hasOverrides) {
+                      setTimeout(() => {
+                        reapplyOverrides(settings.mode, overrides).catch(e => console.warn("[Fan] reapplyOverrides:", e));
+                      }, 500);
+                      toast?.("已停止曲线，正在恢复用户自定义参数…", "success");
+                    } else {
+                      toast?.("已恢复固件控制", "success");
+                    }
+                    onFanCurveStop?.();
                   } else {
-                    fetch("/api/fan/restore", { method: "POST" }).catch(() => {});
-                    toast?.("已停止曲线，恢复固件控制", "success");
+                    toast?.("停止失败: " + (r.error || ""), "error");
                   }
-                  onFanCurveStop?.();
                 }
-                catch { toast?.("关闭自定义散热失败", "error"); }
+                catch (e) { toast?.("关闭自定义散热失败: " + e.message, "error"); }
               }}
                 className="text-xs px-2 py-1 rounded-lg flex items-center gap-1"
                 style={{ border: "1px solid var(--ok)", color: "var(--ok)", background: "transparent" }}

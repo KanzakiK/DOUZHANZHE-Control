@@ -112,7 +112,7 @@
 - [ ] 🟡 **4.2 曲线启动后 3s 轮询间隔内未协调 override**: 风扇曲线启动不设 override 标记也不通知 useControlState，`fanCurveActive` 靠 3s 轮询检测。间隔内风扇滑块可能未正确禁用，允许与曲线冲突的手动命令 — `FanCurvePanel.jsx` L223-237, `App.jsx` L42-48
 - [x] ~~🟡 **4.3 快捷启动缺参数/缺保存**~~: Dashboard 快捷启动调 `startFanCurve()` 不先保存曲线配置，不传 `intervalMs`/`hysteresisC`（均为 undefined）。FanCurvePanel 正常流程先保存再传参。快捷启动可能用过期/默认曲线参数 — `SortableDashboard.jsx` L200-202
 - [ ] 🟢 **4.4 停止逻辑重复**: 风扇曲线停止逻辑在 FanCurvePanel 和 SortableDashboard 两处近乎相同地重复，任何变更须改两处 — `FanCurvePanel.jsx` L239-266, `SortableDashboard.jsx` L170-191
-- [ ] 🔴 **4.5 曲线停止后 SMU/GPU/NVAPI/CPU 参数未恢复**: `FanCurveService.Stop()` 调 `SetThermalMode(_savedThermalMode)` 触发 ACPI 链，SMU PPT/CPU频率/GPU频率/NVAPI超频全部回出厂预设，用户所有自定义参数一次性丢失。`FanCurvePanel.handleStop()` 仅恢复风扇 override（L251-265），未调 `reapplyOverrides()` 重发用户自定义的 SMU/GPU/NVAPI/CPU 参数。后端恢复机制（commit `2e65753` 描述的 recovering 检测）从未实现
+- [x] ~~🔴 **4.5 曲线停止后 SMU/GPU/NVAPI/CPU 参数未恢复**~~: 已修复 — `handleStop()` 在 `Stop()` 完成后等 500ms 再调 `reapplyOverrides(mode, overrides)` 重发全部自定义参数。后端偏离检测仅为日志告警（不主动恢复，避免 SetThermalMode 副作用），无自动恢复路径 — `FanCurvePanel.jsx` L245-267
 
 #### 状态管理 (`useControlState`)
 
