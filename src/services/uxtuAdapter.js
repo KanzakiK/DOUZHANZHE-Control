@@ -133,8 +133,16 @@ export async function applyNvapiThermalLimit(tempC) {
 }
 
 
-// 全范围风扇转速（EC 直写 ITSM 方案：全区间可用，不再受模式限制）
-// 大扇: 安静下限 1900 ~ 斗战上限 4400，小扇: 安静下限 1700 ~ 斗战上限 8200
+// 各模式风扇转速合法区间（数据来源：后端 ModeFanRanges）
+// /api/fan/set-target 不经过 RouteMode，滑动条需按模式限制
+const FAN_RANGES = {
+  silent: { largeMin: 1900, largeMax: 2900, smallMin: 1700, smallMax: 6400 },
+  office: { largeMin: 2600, largeMax: 3500, smallMin: 5900, smallMax: 6900 },
+  gaming: { largeMin: 4000, largeMax: 4400, smallMin: 7500, smallMax: 8200 },
+  beast:  { largeMin: 3200, largeMax: 3800, smallMin: 6400, smallMax: 7200 },
+};
+
+// 全范围（散热曲线跨模式使用）
 export const FULL_FAN_RANGE = {
   largeMin: 1900, largeMax: 4400,
   smallMin: 1700, smallMax: 8200,
@@ -223,8 +231,8 @@ export function clampParam(key, value) {
   return Math.max(r.min, Math.min(r.max, value));
 }
 
-export function getFanRange(_mode) {
-  return FULL_FAN_RANGE; // EC 直写方案：全范围可用
+export function getFanRange(mode) {
+  return FAN_RANGES[mode] || FAN_RANGES.silent;
 }
 
 export async function applySmuSet(parameter, valueM) {
