@@ -114,5 +114,9 @@ server/api/runtimes/
 # Temp scripts
 _*.bat
 
+# Windows reserved device names (accidentally created, never commit)
+nul
+__nul_temp__
+
 # Backup file variants
 *.bak2
