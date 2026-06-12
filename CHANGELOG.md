@@ -5,6 +5,17 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
+## [1.4.1] — 2026-06-12
+
+持久化修复 — 覆盖安装 / 重启后用户自定义参数不再丢失
+
+### 修复
+
+- **覆盖安装丢失前端配置**: 安装程序 (ISS) 在 `ssInstall` 阶段对整个 WebView2 用户数据目录执行 `DelTree`，导致 `%LOCALAPPDATA%\Douzhanzhe Console\WebView2\EBWebView\Default\Local Storage` 被删除，前端 overrides（`douzhanzhe_overrides_{mode}`）全部丢失。现改为仅清除 Cache / Code Cache / GPUCache / Service Worker / GrShaderCache / ShaderCache 六个缓存目录，保留 Local Storage 和 IndexedDB — `douzhanzhe-setup.iss`
+- **Shell 启动缓存清理路径错误**: `Form1.cs` 中缓存目录路径缺少 `EBWebView\` 前缀（实际结构为 `userDataDir\EBWebView\Default\Cache` 而非 `userDataDir\Default\Cache`），`Directory.Exists` 始终返回 false，等于启动时从未清理缓存。现已补上正确前缀 — `Form1.cs` L97-98
+- **`/api/uxtu/apply` SMU 参数不持久化**: 批量下发端点只调 `BatchApply()` 不调 `SavePerfOverrides()`，通过此端点下发的 SMU 四参数（stapm / short-power / temp / CO）不会写入 `performance-overrides.json`，重启后丢失。各独立端点已有持久化，唯独此批量端点遗漏。现已补上 — `Program.cs` L1057-1068
+- **风扇曲线停止后参数未恢复**: `FanCurveService.Stop()` 通过 `SetThermalMode` 切回原模式触发 ACPI 链，SMU/CPU/GPU/NVAPI 全部回出厂预设，用户自定义参数一次性丢失。`handleStop()` 仅恢复风扇转速 override。现在 `Stop()` 完成后等 500ms（让固件完成模式切换），再调 `reapplyOverrides(mode, overrides)` 重发全部自定义参数 — `FanCurvePanel.jsx` L245-267
+
 ## [1.4.0] — 2026-06-12
 
 FanCurveService 全面重构 — EC 直写 ITSM 路由方案、ryzenadj SMU 干扰根因修复、前端滑动条模式区间校正
