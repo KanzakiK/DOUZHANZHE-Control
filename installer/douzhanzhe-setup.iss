@@ -286,6 +286,11 @@ begin
     Exec('sc', 'delete WinRing0_1_2_0', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     Sleep(1000);
 
+    // 清理旧的前端 JS bundle（覆盖安装时 Vite hash 文件名变化，旧 bundle 不会被删除，
+    // 导致后端版本号检测用 FirstOrDefault 取到旧版本，从而误报更新）
+    if DirExists(ExpandConstant('{app}\wwwroot\assets')) then
+      DelTree(ExpandConstant('{app}\wwwroot\assets'), True, True, True);
+
     // 清理 WebView2 浏览器缓存（覆盖安装时旧 JS bundle 会被缓存，导致版本号不更新）
     WebView2Dir := ExpandConstant('{localappdata}\Douzhanzhe Console\WebView2');
     if DirExists(WebView2Dir) then

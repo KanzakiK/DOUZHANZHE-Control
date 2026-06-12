@@ -1274,19 +1274,28 @@ _updateHttpClient.Timeout = TimeSpan.FromSeconds(8);
 _updateHttpClient.DefaultRequestHeaders.UserAgent.ParseAdd("DouzhanzheConsole-UpdateChecker/1.0");
 
 // 从前端 JS bundle 提取版本号（构建时 SettingsPanel.jsx 中的 "Douzhanzhe Console vX.Y.Z"）
+// 注意：覆盖安装时 wwwroot/assets 可能残留多个旧 bundle，必须遍历所有文件取最大版本号
 var _appVersion = "0.0.0";
 try
 {
     var wwwroot = Path.Combine(AppContext.BaseDirectory, "wwwroot", "assets");
     if (Directory.Exists(wwwroot))
     {
-        var jsFile = Directory.GetFiles(wwwroot, "index-*.js").FirstOrDefault();
-        if (jsFile != null)
+        var jsFiles = Directory.GetFiles(wwwroot, "index-*.js");
+        var maxVer = new Version(0, 0, 0);
+        foreach (var jsFile in jsFiles)
         {
-            var jsContent = File.ReadAllText(jsFile);
-            var m = System.Text.RegularExpressions.Regex.Match(jsContent, @"Douzhanzhe Console v(\d+\.\d+\.\d+)");
-            if (m.Success) _appVersion = m.Groups[1].Value;
+            try
+            {
+                var jsContent = File.ReadAllText(jsFile);
+                var m = System.Text.RegularExpressions.Regex.Match(jsContent, @"Douzhanzhe Console v(\d+\.\d+\.\d+)");
+                if (m.Success && Version.TryParse(m.Groups[1].Value, out var v) && v > maxVer)
+                    maxVer = v;
+            }
+            catch { /* 单个文件读取失败不影响其他 */ }
         }
+        if (maxVer > new Version(0, 0, 0))
+            _appVersion = maxVer.ToString();
     }
 }
 catch { /* 读取失败时使用默认值 */ }
