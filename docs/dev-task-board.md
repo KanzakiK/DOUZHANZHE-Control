@@ -16,8 +16,8 @@
 ## 🧭 一、后续版本（待完成）
 
 ### 后端
-- [ ] **🔴 `/api/uxtu/apply` 缺少 `SavePerfOverrides`**: 批量下发端点（`reapplyOverrides` / PerformancePanel "应用"按钮入口）只调 `smu.BatchApply()` + `CpuAffinityManager.SetCoreLimit()`，**不调** `SavePerfOverrides()`。导致通过此端点下发的 SMU 参数（cpuLongPptW/cpuShortPptW/cpuTempLimitC/cpuVoltageOffset）不会写入 `performance-overrides.json`，重启后丢失。各独立端点（`/api/smu/set`、`/api/cpu/*`、`/api/gpu/set`、`/api/nvapi/*`）已有持久化，唯独此批量端点遗漏 — `Program.cs` L1036-1062
-- [ ] **🔴 风扇曲线停止/恢复后 `reapplyOverrides` 未自动触发**: `FanCurveService.Stop()` 通过 WMI `SetThermalMode(_savedThermalMode)` 切回原模式，触发 ACPI 链将 SMU PPT/CPU频率/GPU频率/NVAPI超频 全部重置回出厂预设。用户所有自定义参数一次性丢失，无任何机制自动补回。现状：① `FanCurveService` 未暴露 `recovering` 属性；② `/api/fan-curve/route-info` 无 `recovering` 字段；③ `FanCurvePanel.handleStop()` 仅恢复风扇转速 override，SMU/GPU/NVAPI/CPU 参数未重发；④ commit `2e65753` 描述的"FanCurvePanel 轮询 route-info 检测 recovering true→false 后调 reapplyOverrides"从未实现 — `FanCurvePanel.jsx` L245-272, `FanCurveService.cs` Stop()
+- [x] ~~**🔴 `/api/uxtu/apply` 缺少 `SavePerfOverrides`**~~: 已修复 — `BatchApply` 成功后持久化 SMU 四参数（stapm/short-power/temp/CO）到 `performance-overrides.json`，与各独立端点对齐 — `Program.cs` L1057-1068
+- [x] ~~**🔴 风扇曲线停止/恢复后 `reapplyOverrides` 未自动触发**~~: 已修复 — `handleStop()` 在 `Stop()` 完成后等 500ms（让固件 ACPI 链完成模式切换），再调 `reapplyOverrides(mode, overrides)` 重发 SMU/GPU/NVAPI/CPU/风扇全部自定义参数 — `FanCurvePanel.jsx` L245-267
 - [ ] **五模式全量配置覆盖**: 安静/均衡/野兽/斗战/自定义各保存一套完整配置（风扇转速×2、CPU功耗墙/温度墙、GPU频率偏移），后端新增 GET|POST /api/mode-config 持久化接口（前端 localStorage 已按模式隔离，缺后端持久化）
 - [ ] **模式预设**: 新增"安静性能"模式（GPU满血 + 风扇低速）
 
