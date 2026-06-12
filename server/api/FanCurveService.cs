@@ -9,7 +9,7 @@
 //   - ShouldWrite 回差策略：
 //       温度上升 → 目标转速变化就立刻写入
 //       温度下降 → 必须降了 >= hysteresis °C 且目标变化才写入
-//   - 每个写入 tick 都重新 SetFanManual(true)，对抗 EC 回写覆盖
+//   - 解锁期间禁止写入，让 EC 安静完成模式切换
 
 using System.Text.Json;
 using Douzhanzhe.HAL;
@@ -27,10 +27,6 @@ public sealed class FanCurveService : IDisposable
     private readonly ILogger<FanCurveService> _log;
 
     private Timer? _timer;
-    private Timer? _itsmGuardTimer;         // ITSM 高频守护 (500ms)，对抗 EC ~5-8s 回写周期
-    private volatile byte _itsmTargetMode;   // Tick 更新、Guard 读取的目标模式
-    private volatile int _guardLargeTarget = -1; // Guard 用风扇目标 (RPM/100)，-1=未初始化
-    private volatile int _guardSmallTarget = -1;
     private bool _active;
     private int _intervalMs = 5000;   // BellatorFanControl 默认 5s
     private int _hysteresisC = 3;     // 回差 3°C
@@ -42,7 +38,7 @@ public sealed class FanCurveService : IDisposable
     private int _lastLargeTarget;     // 上次写入的大扇目标 (RPM/100 单位)
     private int _lastSmallTarget;     // 上次写入的小扇目标 (RPM/100 单位)
 
-    // ── ITSM 路由 + 守护状态 ──
+    // ── ITSM 路由状态 ──
     private byte _savedThermalMode;           // 启动时保存的 ITSM 值，停止时恢复
     private byte _itsmCurveMode;              // 曲线目标对应的 ITSM 模式（RouteMode 计算，仅目标变化时更新）
     private int _itsmDeviationCount;          // 统计：ITSM 读回 ≠ 目标模式 的累计次数
@@ -166,14 +162,12 @@ public sealed class FanCurveService : IDisposable
         // 保存当前 ITSM，停止时恢复
         _savedThermalMode = _hal.ReadEcPort(0xE4);
         _itsmDeviationCount = 0;
-        _guardLargeTarget = -1;
-        _guardSmallTarget = -1;
         _recovering = false;
         _lastRecoveryTime = DateTime.MinValue;
         _recoveryCount = 0;
 
         // 启动时先算一次曲线目标 → RouteMode 确定 ITSM 模式
-        // 不主动切模式 — Guard 在第一轮 Tick 写入这个 ITSM 值
+        // 启动后立即写一次 ITSM，不主动切模式（避免触发 ACPI 链）
         int cpuTemp = _hal.CpuTemperature, gpuTemp = _hal.GpuTemperature;
         int hotspot = Math.Max(cpuTemp, gpuTemp);
         var (lr, sr) = LookupTarget(hotspot > 0 ? hotspot : 40);
@@ -181,11 +175,10 @@ public sealed class FanCurveService : IDisposable
 
         _timer = new Timer(Tick, null, 0, _intervalMs);
 
-        // ITSM 高频守护: 每 500ms 写一次 ITSM，对抗 EC ~5-8s 回写周期
-        _itsmTargetMode = _itsmCurveMode;
-        _itsmGuardTimer = new Timer(ItsmGuardCallback, null, 0, 500);
+        // 启动时写一次 ITSM，让 EC 接受曲线对应的模式区间
+        _hal.WriteEcPort(0xE4, _itsmCurveMode);
 
-        _log.LogInformation("[FanCurve] 自定义曲线已启动, 间隔 {Ms}ms, 回差 {H}°C, 保存ITSM={Saved}, 曲线ITSM={Curve}, 守护=500ms",
+        _log.LogInformation("[FanCurve] 自定义曲线已启动, 间隔 {Ms}ms, 回差 {H}°C, 保存ITSM={Saved}, 曲线ITSM={Curve}",
             _intervalMs, _hysteresisC, _savedThermalMode, _itsmCurveMode);
     }
 
@@ -195,8 +188,6 @@ public sealed class FanCurveService : IDisposable
         _active = false;
         _timer?.Dispose();
         _timer = null;
-        _itsmGuardTimer?.Dispose();
-        _itsmGuardTimer = null;
         _lastHotspot = null;
 
         // 通过 WMI 正常切换回保存的模式（触发完整 DPTB/GPUD 链），恢复固件控制
@@ -274,38 +265,8 @@ public sealed class FanCurveService : IDisposable
         return bestMode;
     }
 
-    // ── 高频守护 (500ms) ──
-    // EC 固件会周期性回写 ITSM 寄存器并覆盖风扇转速目标。
-    // 独立守护线程每 500ms 同时写入 ITSM + SetFanSpeed(WMI) + EC 直写(6 个风扇寄存器)，
-    // 双通道对比：WMI 走 ACPI 链，EC 直写绕过 ACPI 直接操作寄存器。
-    // EC 风扇寄存器组（模式切换时全部跟随变化，推测 PID 控制器实际读取的是这组内部寄存器）：
-    //   0x5E / 0x5D = 大扇目标  0x5A / 0x59 = 小扇目标
-
-    private void ItsmGuardCallback(object? state)
-    {
-        if (!_active) return;
-        try
-        {
-            _hal.WriteEcPort(0xE4, _itsmTargetMode);
-            int lt = _guardLargeTarget, st = _guardSmallTarget;
-            if (lt >= 0 && st >= 0)
-            {
-                // WMI: 持续刷手动模式标志，防止 EC 超时退回自动 PID
-                _wmi.SetFanManual(0, true);
-                _wmi.SetFanManual(1, true);
-                // EC 直写：6 个风扇目标寄存器全覆盖
-                byte lb = (byte)lt, sb = (byte)st;
-                _hal.WriteEcPort(0x5E, lb); // 大扇目标 (已知)
-                _hal.WriteEcPort(0x5D, lb); // 大扇目标 (影子寄存器)
-                _hal.WriteEcPort(0x5A, sb); // 小扇目标 (已知)
-                _hal.WriteEcPort(0x59, sb); // 小扇目标 (影子寄存器)
-            }
-        }
-        catch { /* 静默忽略，下一个 500ms 会重试 */ }
-    }
-
     // ── 定时回调 (核心逻辑：路由 + 曲线查找 + WMI 写转速) ──
-    // ITSM + SetFanSpeed 由 ItsmGuardCallback 每 500ms 高频写入，Tick 只负责更新目标值
+    // 目标变化时写入 ITSM + WMI 风扇；解锁期间禁止一切写入，仅监控
 
     private void Tick(object? state)
     {
@@ -330,44 +291,94 @@ public sealed class FanCurveService : IDisposable
             int largeTarget = largeRpm / 100;  // RPM → RPM/100 (Bellator 协议)
             int smallTarget = smallRpm / 100;
 
-            // 2. ShouldWrite 回差策略 — 决定是否更新目标值
+            // 2. 解锁期间：禁止一切写入，仅监控温度和风扇
+            if (_recovering)
+            {
+                TickCount++;
+                try
+                {
+                    ActualCpuFanRpm = _hal.CpuFanRpm;
+                    ActualGpuFanRpm = _hal.GpuFanRpm;
+                    CurrentItsm = _hal.ReadEcPort(0xE4);
+                    EcFanTargetLarge = _hal.ReadEcPort(0x5E);
+                    EcFanTargetSmall = _hal.ReadEcPort(0x5A);
+                    EcFanShadowLarge = _hal.ReadEcPort(0x5D);
+                    EcFanShadowSmall = _hal.ReadEcPort(0x59);
+                }
+                catch { }
+
+                int expectedLarge = _lastLargeTarget * 100;
+                bool fanDeviated = ActualCpuFanRpm > 0 &&
+                    Math.Abs(ActualCpuFanRpm - expectedLarge) > 500;
+
+                if (!fanDeviated)
+                {
+                    // 风扇恢复 → 切回用户原始模式 + 重发全部自定义参数
+                    _recovering = false;
+                    _consecutiveDeviation = 0;
+                    _recoveryCount++;
+                    try
+                    {
+                        _wmi.SetThermalMode(_savedThermalMode);
+                        Thread.Sleep(500);
+                        ReapplyParams();
+                        _log.LogInformation(
+                            "[FanCurve] 自动恢复 #{N}: 切回 SetThermalMode({Mode})",
+                            _recoveryCount, _savedThermalMode);
+                    }
+                    catch (Exception ex)
+                    {
+                        _log.LogWarning("[FanCurve] 自动恢复切回异常: {Msg}", ex.Message);
+                    }
+                }
+                else if (DateTime.UtcNow - _lastRecoveryTime > RecoveryCooldown)
+                {
+                    try
+                    {
+                        _wmi.SetThermalMode(_itsmCurveMode);
+                        _lastRecoveryTime = DateTime.UtcNow;
+                        _log.LogInformation("[FanCurve] 自动恢复: 重试解锁 SetThermalMode({Mode})", _itsmCurveMode);
+                    }
+                    catch (Exception ex)
+                    {
+                        _log.LogWarning("[FanCurve] 重试解锁异常: {Msg}", ex.Message);
+                    }
+                }
+                return; // 解锁期间不做任何其他操作
+            }
+
+            // 3. ShouldWrite 回差策略 — 决定是否更新目标值
             bool targetChanged = ShouldWrite(hotspot, largeTarget, smallTarget);
             if (targetChanged)
             {
                 _lastHotspot = hotspot;
                 _lastLargeTarget = largeTarget;
                 _lastSmallTarget = smallTarget;
-                // 目标变化时才重新计算 ITSM 模式（稳定化，避免每 Tick 跳动）
                 _itsmCurveMode = RouteMode(largeTarget, smallTarget);
             }
             else
             {
-                // 回差范围内：保持上次的目标值
                 largeTarget = _lastLargeTarget;
                 smallTarget = _lastSmallTarget;
             }
 
-            // 3. 更新守护目标（ITSM = 曲线模式，稳定不变）
+            // 4. ITSM 读回诊断
             byte currentItsm = _hal.ReadEcPort(0xE4);
             CurrentItsm = currentItsm;
-            _itsmTargetMode = _itsmCurveMode;
-            _guardLargeTarget = largeTarget;
-            _guardSmallTarget = smallTarget;
-
             if (currentItsm != _itsmCurveMode) _itsmDeviationCount++;
             RoutedMode = _itsmCurveMode;
 
-            // 5. WMI + EC 直写风扇转速
-            _wmi.SetFanManual(0, true);
-            bool largeOk = _wmi.SetFanSpeed(0, (byte)largeTarget);
-            _wmi.SetFanManual(1, true);
-            bool smallOk = _wmi.SetFanSpeed(1, (byte)smallTarget);
+            // 5. 只在目标变化时写入 ITSM + WMI 风扇 + EC 直写
+            bool largeOk = true, smallOk = true;
+            if (targetChanged)
             {
-                byte lb = (byte)largeTarget, sb = (byte)smallTarget;
-                _hal.WriteEcPort(0x5E, lb);
-                _hal.WriteEcPort(0x5D, lb);
-                _hal.WriteEcPort(0x5A, sb);
-                _hal.WriteEcPort(0x59, sb);
+                _hal.WriteEcPort(0xE4, _itsmCurveMode);
+                _wmi.SetFanManual(0, true);
+                largeOk = _wmi.SetFanSpeed(0, (byte)largeTarget);
+                _wmi.SetFanManual(1, true);
+                smallOk = _wmi.SetFanSpeed(1, (byte)smallTarget);
+                _hal.WriteEcPort(0x5E, (byte)largeTarget);
+                _hal.WriteEcPort(0x5A, (byte)smallTarget);
             }
 
             // 6. 读回诊断
@@ -385,73 +396,30 @@ public sealed class FanCurveService : IDisposable
             }
             catch { }
 
-            // 7. 自动恢复：两阶段 EC PID 解锁
-            //    阶段一（解锁）：SetThermalMode(_itsmCurveMode)，让 EC 完整加载目标模式预设
-            //    阶段二（切回）：风扇恢复后 SetThermalMode(_savedThermalMode) + ReapplyParams()
+            // 7. 自动恢复：偏离累计 ≥ 阈值 → 触发解锁
             {
                 bool fanDeviated = ActualCpuFanRpm > 0 &&
                     Math.Abs(ActualCpuFanRpm - largeTarget * 100) > 500;
 
-                if (!_recovering)
-                {
-                    // 正常运行：偏离累计 ≥ 阈值 → 开始解锁
-                    if (fanDeviated) _consecutiveDeviation++;
-                    else _consecutiveDeviation = 0;
+                if (fanDeviated) _consecutiveDeviation++;
+                else _consecutiveDeviation = 0;
 
-                    if (_consecutiveDeviation >= DeviationThreshold &&
-                        DateTime.UtcNow - _lastRecoveryTime > RecoveryCooldown)
-                    {
-                        _recovering = true;
-                        try
-                        {
-                            _wmi.SetThermalMode(_itsmCurveMode);
-                            _lastRecoveryTime = DateTime.UtcNow;
-                            _log.LogInformation(
-                                "[FanCurve] 自动恢复: 解锁 SetThermalMode({Mode}) RPM={Rpm}/{Target}",
-                                _itsmCurveMode, ActualCpuFanRpm, largeTarget * 100);
-                        }
-                        catch (Exception ex)
-                        {
-                            _recovering = false;
-                            _log.LogWarning("[FanCurve] 自动恢复解锁异常: {Msg}", ex.Message);
-                        }
-                    }
-                }
-                else
+                if (_consecutiveDeviation >= DeviationThreshold &&
+                    DateTime.UtcNow - _lastRecoveryTime > RecoveryCooldown)
                 {
-                    // 解锁中：等风扇恢复正常
-                    if (!fanDeviated)
+                    _recovering = true;
+                    try
                     {
-                        // 风扇恢复 → 切回用户原始模式 + 重发全部自定义参数
-                        _recovering = false;
-                        _consecutiveDeviation = 0;
-                        _recoveryCount++;
-                        try
-                        {
-                            _wmi.SetThermalMode(_savedThermalMode);
-                            Thread.Sleep(500); // 等 EC 完成模式切换
-                            ReapplyParams();
-                            _log.LogInformation(
-                                "[FanCurve] 自动恢复 #{N}: 切回 SetThermalMode({Mode})",
-                                _recoveryCount, _savedThermalMode);
-                        }
-                        catch (Exception ex)
-                        {
-                            _log.LogWarning("[FanCurve] 自动恢复切回异常: {Msg}", ex.Message);
-                        }
+                        _wmi.SetThermalMode(_itsmCurveMode);
+                        _lastRecoveryTime = DateTime.UtcNow;
+                        _log.LogInformation(
+                            "[FanCurve] 自动恢复: 解锁 SetThermalMode({Mode}) RPM={Rpm}/{Target}",
+                            _itsmCurveMode, ActualCpuFanRpm, largeTarget * 100);
                     }
-                    else if (DateTime.UtcNow - _lastRecoveryTime > RecoveryCooldown)
+                    catch (Exception ex)
                     {
-                        // 仍未恢复且冷却已过 → 重试解锁
-                        try
-                        {
-                            _wmi.SetThermalMode(_itsmCurveMode);
-                            _lastRecoveryTime = DateTime.UtcNow;
-                            _log.LogInformation(
-                                "[FanCurve] 自动恢复: 重试解锁 SetThermalMode({Mode})",
-                                _itsmCurveMode);
-                        }
-                        catch { }
+                        _recovering = false;
+                        _log.LogWarning("[FanCurve] 自动恢复解锁异常: {Msg}", ex.Message);
                     }
                 }
             }
