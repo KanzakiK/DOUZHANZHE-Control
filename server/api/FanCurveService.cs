@@ -337,6 +337,14 @@ public sealed class FanCurveService : IDisposable
                     {
                         _wmi.SetThermalMode(_itsmCurveMode);
                         _hal.WriteEcPort(0xE4, _itsmCurveMode);
+                        // 写入风扇目标转速，让 EC 知道我们要的速度
+                        byte lt = (byte)_lastLargeTarget, st = (byte)_lastSmallTarget;
+                        _wmi.SetFanManual(0, true);
+                        _wmi.SetFanSpeed(0, lt);
+                        _wmi.SetFanManual(1, true);
+                        _wmi.SetFanSpeed(1, st);
+                        _hal.WriteEcPort(0x5E, lt);
+                        _hal.WriteEcPort(0x5A, st);
                         _lastRecoveryTime = DateTime.UtcNow;
                         _log.LogInformation("[FanCurve] 自动恢复: 重试解锁 SetThermalMode({Mode})", _itsmCurveMode);
                     }
@@ -413,6 +421,14 @@ public sealed class FanCurveService : IDisposable
                     {
                         _wmi.SetThermalMode(_itsmCurveMode);
                         _hal.WriteEcPort(0xE4, _itsmCurveMode);
+                        // 写入风扇目标转速，让 EC 知道我们要的速度
+                        byte lt2 = (byte)largeTarget, st2 = (byte)smallTarget;
+                        _wmi.SetFanManual(0, true);
+                        _wmi.SetFanSpeed(0, lt2);
+                        _wmi.SetFanManual(1, true);
+                        _wmi.SetFanSpeed(1, st2);
+                        _hal.WriteEcPort(0x5E, lt2);
+                        _hal.WriteEcPort(0x5A, st2);
                         _lastRecoveryTime = DateTime.UtcNow;
                         _log.LogInformation(
                             "[FanCurve] 自动恢复: 解锁 SetThermalMode({Mode}) RPM={Rpm}/{Target}",
