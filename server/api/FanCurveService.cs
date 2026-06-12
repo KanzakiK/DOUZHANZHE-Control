@@ -213,10 +213,11 @@ public sealed class FanCurveService : IDisposable
     // ── 模式路由 ──
 
     /// <summary>
-    /// 根据目标大扇/小扇 RPM 找到能同时覆盖两者的模式。
+    /// 根据目标大扇/小扇 RPM 选择 ITSM 模式。
     /// 优先级：安静(2) → 均衡(0) → 野兽(1) → 斗战(3)（越安静越好）
-    /// 无完美匹配时选最高模式（向下兼容：低转速在任何模式都能工作，
-    /// 高转速需要匹配模式 → 选更高的模式更安全）。
+    /// 1. 找同时覆盖大扇和小扇的模式
+    /// 2. 仅大扇匹配的模式（小扇将在 Tick 中钳位到该模式范围）
+    /// 3. 都不匹配时选最高模式（兜底）
     /// </summary>
     private static byte RouteMode(int largeTargetDiv100, int smallTargetDiv100)
     {
@@ -231,10 +232,16 @@ public sealed class FanCurveService : IDisposable
                 return mode;
         }
 
-        // 第二轮：无完美匹配 — 选最高模式
-        // 向下兼容：低转速在任何模式都能工作，高转速需要匹配模式
-        // 选更高模式 = 更可能覆盖高转速目标
-        byte bestMode = 1; // 默认野兽
+        // 第二轮：仅大扇匹配的模式（小扇将由调用方钳位）
+        foreach (var mode in priority)
+        {
+            var range = ModeFanRanges[mode];
+            if (largeTargetDiv100 >= range.lMin && largeTargetDiv100 <= range.lMax)
+                return mode;
+        }
+
+        // 第三轮：兜底 — 选最高模式
+        byte bestMode = 3; // 默认斗战
         int bestMax = 0;
         foreach (var mode in priority)
         {
@@ -288,6 +295,14 @@ public sealed class FanCurveService : IDisposable
             {
                 largeTarget = _lastLargeTarget;
                 smallTarget = _lastSmallTarget;
+            }
+
+            // 3. 钳位：大小扇都限制在选中模式的合法范围内
+            //    主要场景：大小扇不在同一模式区间时，小扇跟随大扇的模式
+            {
+                var r = ModeFanRanges[_itsmCurveMode];
+                largeTarget = Math.Clamp(largeTarget, r.lMin, r.lMax);
+                smallTarget = Math.Clamp(smallTarget, r.sMin, r.sMax);
             }
 
             // 4. ITSM 读回诊断
