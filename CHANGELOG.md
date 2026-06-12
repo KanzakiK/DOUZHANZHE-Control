@@ -5,47 +5,48 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
-## [1.3.8] — 2026-06-11
+## [1.4.0] — 2026-06-12
 
-### 修复
+FanCurveService 全面重构 — EC 直写 ITSM 路由方案、ryzenadj SMU 干扰根因修复、前端滑动条模式区间校正
 
-- **RouteMode 路由跳模式导致 EC 拒绝风扇写入**: 当目标转速落在两个模式的 gap 区间（如大扇 3900 RPM 处于野兽 max=38 和斗战 min=40 之间），旧算法 fallback 到斗战模式，38/39 低于斗战表下限 40，EC 固件拒绝执行导致转速跌落到 ~3300。新算法引入代价函数：低于模式下限权重 100x（EC 拒绝，致命），高于上限权重 1x（钳位损失，安全），确保优先向下钳位到能接受该值的模式（野兽 3800）而非向上跳到拒绝该值的模式（斗战）
-- **钳位诊断日志**: 当风扇目标值被钳位时输出详细日志（原始值→钳位值 + 模式范围），便于排查 EC 写入偏差
+### 核心发现
 
-## [1.3.8] — 2026-06-11
-
-### 修复
-
-- **WMI 通道锁定误报**: VerifyFanWrite 不再将 EC 读回偏差计入锁定计数（EC 固件 PID 在 ~30ms 内覆写 0x5E 属正常行为），仅 WMI 返回 false 才触发锁定检测；移除验证中多余的 100ms sleep
-- **Debug 页中文乱码**: 修复构建脚本编码截断导致的 33 处 UTF-8 三字节字符损坏（从 git 历史恢复原始内容）
-- **Debug 页 WebSocket 连不上**: URL 从硬编码 `ws://127.0.0.1:3100/ws` 改为 `location.host` 相对地址；TelemetryBackgroundService 的 `SendAsync` 从 fire-and-forget 改为 `await`（锁内快照 + 锁外发送，避免并发写入异常）
-- **构建脚本两个 bug**: CHANGELOG 版本正则从全局替换改为仅替换首个标题（防止历史版本号被覆盖）；文件读写从 `Set-Content -Encoding UTF8` 改为 `[System.IO.File]::ReadAllText/WriteAllText` + UTF8NoBOM（修复 PS 5.1 的 BOM 注入和多字节 UTF-8 截断）
-- **风扇曲线模式切换不生效**: EC 直写 ITSM 后风扇转速 ~10s 回落 — 原代码仅在 ITSM 偏离时才写一次，未持续对抗 EC 回写（风扇转速每 tick 都写，ITSM 却只写一次，策略不对称）；现改为每 tick 无条件 EC 直写 ITSM，与风扇转速策略一致；移除 TFLG=0x55（实测无效）和 WMI SetThermalMode（触发 ALIB/GPUD 副作用链）
-
-### 新增
-
-- **Debug 页风扇曲线监控**: 新增 ITSM 路由面板，2 秒轮询 `/api/fan-curve/route-info`，实时显示曲线状态/路由模式/风扇目标/模式切换次数/ITSM 偏离/WMI 通道锁定，运行日志自动记录模式切换和 ITSM 变化
-
-## [1.3.7] — 2026-06-11
-
-FanCurveService 核心改造 — ModeFanRanges 从钳位器变为路由表，通过 EC 直写 ITSM(0xE4) 选择风扇区间，绕开 WMAA 副作用链（CPU/GPU 功耗不受影响）
+- **EC PID "锁定"的真凶**: ryzenadj `--max-cpuclk` 通过 PCI config space (0xCF8/0xCFC) 写 SMU 寄存器，干扰了 EC 内部 PID 控制回路，导致风扇忽略 EC 0x5E/0x5A 写入的目标值。移除 ryzenadj 频率路径后风扇曲线完全稳定（100+ ticks 无偏离）
 
 ### 新增
 
 - **RouteMode 路由函数**: 根据目标大扇/小扇转速自动选择最优散热模式（安静→均衡→野兽→斗战），实现全范围曲线：大扇 1900-4400 RPM，小扇 1700-8200 RPM
-- **ITSM 守护机制**: 每 tick 校验 ITSM 寄存器，自动修复 Fn 热键/ AC 插拔/ 睡眠唤醒导致的外部偏离；1 分钟内偏离 ≥5 次告警
-- **WMI 写入验证 + 通道锁定检测**: 写入后读回 EC 0x5E/0x5A 确认生效，连续 3 次失败标记锁定（应对 CPU 频率限制导致的通道锁定）
-- **路由状态 API**: 新增 `GET /api/fan-curve/route-info`，返回 currentItsm / routedMode / modeChangeCount / itsmDeviationCount / wmiChannelLocked
-- **前端路由状态指示**: FanCurvePanel 状态栏实时显示路由模式和切换次数（3 秒轮询），WMI 通道锁定时黄色告警
-- **启动/停止保护**: 启动时保存 ITSM，停止时通过 WMI SetThermalMode 恢复正常模式链
+- **大扇优先路由 + 小扇钳位**: RouteMode 第一轮找同时覆盖大扇和小扇的模式；无完美匹配时以大扇为准选模式，小扇 Math.Clamp 到该模式范围；兜底选最高模式
+- **每 Tick 刷新手动模式**: SetFanManual(true) + SetFanSpeed + EC 寄存器每 5 秒刷新一次，持续声明手动模式控制权，防止 EC 固件定时器退回自动模式
+- **ITSM 守护**: 每 tick 校验 ITSM 寄存器，自动修复 Fn 热键/AC 插拔/睡眠唤醒导致的外部偏离
+- **路由状态 API**: 新增 `GET /api/fan-curve/route-info`，返回 currentItsm / routedMode / consecutiveDeviation / 温度信息
+- **Debug 页风扇曲线监控**: ITSM 路由面板，2 秒轮询 route-info，实时显示曲线状态/路由模式/温度/风扇目标/EC 读回/影子寄存器/WMI 状态，运行日志含 hotspot 温度
+- **WMI 写入验证**: 写入后读回 EC 0x5E/0x5A 确认生效，连续失败标记通道锁定
+
+### 修复
+
+- **CPU 频率双写**: 前端 overrides 同时含 cpuFreqLimitEnabled 和 SMU 参数时，后端 `/api/uxtu/apply` 会把频率也传给 ryzenadj（与 `/api/cpu/freq-limit` powercfg 路径重复），现后端移除 CPU 频率 ryzenadj 代码，频率限制仅走 powercfg
+- **前端风扇滑动条不受模式限制**: `getFanRange()` 之前被改为忽略 mode 参数、永远返回全范围；现恢复 `FAN_RANGES` 按模式返回合法区间（如 silent 大扇 1900-2900、gaming 大扇 4000-4400）
+- **风扇曲线启动不一致**: 首页"自定义"按钮和曲线 tab "应用"按钮行为不同（前者不加载 fan-curve.json）；现 `Start()` 每次启动前加载 fan-curve.json 统一行为
+- **EC 偏离恢复副作用**: 旧的 SetThermalMode 切换恢复会触发 ACPI 链导致 ITSM 翻来翻去；现简化为仅记录偏离日志，不主动恢复
+- **前端恢复检测死代码**: FanCurvePanel 的 `prevRecoveringRef` 检测和 `reapplyOverrides` 重发逻辑随恢复机制一并移除
+- **`nul` 构建失败**: Windows 保留设备名 `nul` 导致 `git add -A` 报 `invalid path`；`.gitignore` 添加 `nul` / `__nul_temp__` 永久解决
+- **TickCount 不重置**: 从服务启动而非曲线启动开始计数；现每次 `Start()` 重置 TickCount 和 ConsecutiveDeviation
+
+### 移除
+
+- **ryzenadj 频率路径**: `SmuController.SetCpuFreqLimit()`、`BatchApply` 的 `maxClkMhz` 参数、`GetCapabilities` 的 `cpuFreqLimit`、`/api/smu/set` 的 `cpu_freq_limit` 分支
+- **custom 模式**: `thermalModeMap` 的 `custom: null`、`MODE_FAN_DEFAULTS.custom`、`custom-params.json` 配置文件
+- **TelemetryPanel.jsx**: 已废弃且无引用的遥测面板组件
+- **ReapplyParams**: 全量参数重发机制替换为前端稀疏 overrides
+- **FAN_RANGES 误删恢复**: 之前被当作死代码清理的 `FAN_RANGES` 常量实际被 `getFanRange` 使用，已恢复
 
 ### 改动
 
-- **Debug 页抽取**: 将 `/debug` 端点的内联 HTML（~30KB）抽取为独立文件 `wwwroot/debug.html`，Program.cs 改为 `Results.File` 静态引用
-- **图标改版**: 重新设计 favicon.svg / logo.svg / logo.png，更新 Shell 应用图标 app.ico
-- **FanCurvePanel**: 移除模式区间带（蓝色/紫色矩形）和钳位警告，Y 轴改为全范围显示
-- **uxtuAdapter**: `getFanRange()` 改为返回 `FULL_FAN_RANGE` 全范围常量，不再按模式返回区间
-- **FanCurveService.Stop()**: 从"仅停定时器"改为"恢复保存的散热模式 + 交还固件控制"
+- **FanCurveService.Stop()**: 从"仅停定时器"改为"恢复保存的散热模式 + SetFanManual(false) 交还固件控制"
+- **FanCurvePanel**: 移除模式区间带和钳位警告，Y 轴改为全范围显示；恢复检测逻辑替换为连续偏离计数显示
+- **Debug 页**: 抽取为独立 `wwwroot/debug.html`；recovery/recovering 字段替换为 consecutiveDeviation + hotspot 温度卡片
+- **图标改版**: 重新设计 favicon.svg / logo.svg / logo.png，更新 Shell 应用图标
 
 ## [1.3.6] — 2026-06-09
 
