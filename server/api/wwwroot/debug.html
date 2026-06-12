@@ -16,6 +16,7 @@
 <div style="background:#0d1117;border:1px solid #30363d;border-radius:4px;padding:6px 10px"><div style="color:#8b949e;font-size:11px">WMI 写入</div><div id="fcWmiRes" style="color:#3fb950;font-size:15px;font-weight:700">-</div></div>
 <div style="background:#0d1117;border:1px solid #30363d;border-radius:4px;padding:6px 10px"><div style="color:#8b949e;font-size:11px">Tick 计数</div><div id="fcTicks" style="color:#79c0ff;font-size:15px;font-weight:700">-</div></div>
 <div style="background:#0d1117;border:1px solid #30363d;border-radius:4px;padding:6px 10px"><div style="color:#8b949e;font-size:11px">自动恢复</div><div id="fcRecovery" style="color:#ffa657;font-size:15px;font-weight:700">0</div></div>
+<div style="background:#0d1117;border:1px solid #30363d;border-radius:4px;padding:6px 10px"><div style="color:#8b949e;font-size:11px">EC 解锁</div><div id="fcRecovering" style="color:#888;font-size:15px;font-weight:700">-</div></div>
 </div>
 <h2 style="font-size:12px;margin-bottom:6px">运行日志</h2>
 <pre id="fcLog" style="max-height:320px;font-size:11px;color:#8b949e">等待曲线启动...</pre>
@@ -28,6 +29,7 @@ var maxLog=300;
 var prevItsm=-1;
 var prevMode=-1;
 var prevRecovery=-1;
+var prevRecovering=null;
 var heartbeatCounter=0;
 function addLog(msg){
 var ts=new Date().toLocaleTimeString('zh-CN',{hour12:false});
@@ -53,7 +55,16 @@ document.getElementById('fcTicks').textContent=d.tickCount||0;
 var rc=d.recoveryCount||0;
 document.getElementById('fcRecovery').textContent=rc+' 次';
 document.getElementById('fcRecovery').style.color=rc>0?'#f85149':'#ffa657';
-if(prevRecovery>=0&&rc>prevRecovery)addLog('[恢复] 自动恢复 #'+rc+' — SetThermalMode('+d.routedMode+')');
+// 两阶段恢复状态
+var recovering=!!d.recovering;
+var recEl=document.getElementById('fcRecovering');
+recEl.textContent=recovering?'解锁中':'正常';
+recEl.style.color=recovering?'#f0883e':'#888';
+if(prevRecovering!==null){
+if(!prevRecovering&&recovering)addLog('[解锁] EC PID 解锁开始 — SetThermalMode('+( modeNames[d.routedMode]||d.routedMode)+')');
+if(prevRecovering&&!recovering&&rc>prevRecovery)addLog('[切回] 风扇恢复 — SetThermalMode(原始模式) + ReapplyParams, 恢复 #'+rc);
+}
+prevRecovering=recovering;
 prevRecovery=rc;
 // EC 读回诊断
 var actL=d.actualCpuFanRpm||0, actS=d.actualGpuFanRpm||0;
@@ -85,7 +96,7 @@ heartbeatCounter++;
 if(heartbeatCounter>=5){
 heartbeatCounter=0;
 var mismatch=(actL>0&&Math.abs(actL-tgtL)>300)||(actS>0&&Math.abs(actS-tgtS)>300);
-var prefix=mismatch?'[偏离] ':'[心跳] ';
+var prefix=recovering?'[解锁中] ':mismatch?'[偏离] ':'[心跳] ';
 var logLine=prefix+'目标='+tgtL+'/'+tgtS+', 实际='+actL+'/'+actS+', EC='+ecL+'/'+ecS+', 影子='+shL+'/'+shS+', WMI='+(wmiOk?'OK':'FAIL')+', Tick='+d.tickCount;
 addLog(logLine);
 }
