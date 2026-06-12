@@ -90,6 +90,15 @@ void JsonWrite<T>(string fileName, T data)
     File.WriteAllText(tmpPath, json);
     File.Move(tmpPath, filePath, overwrite: true);
 }
+// ---- 性能设置持久化 ----
+var _perfLock = new object();
+var _perfFile = "performance-overrides.json";
+PerformanceOverrides LoadPerfOverrides() => JsonRead(_perfFile, new PerformanceOverrides());
+void SavePerfOverrides(Action<PerformanceOverrides> mutate)
+{
+    lock (_perfLock) { var o = LoadPerfOverrides(); mutate(o); JsonWrite(_perfFile, o); }
+}
+
 // ---- 启动时恢复 GPU 模式 (异步，不阻塞服务启动) ----
 _ = System.Threading.Tasks.Task.Run(() =>
 {
@@ -163,6 +172,110 @@ _ = System.Threading.Tasks.Task.Run(() =>
         Log("[Startup] GPU mode restore failed after 3 attempts");
     }
     catch (Exception ex) { Log($"[Startup] GPU mode restore failed: {ex.Message}"); }
+});
+// ---- 启动时恢复性能设置 (异步，在 GPU 模式恢复之后) ----
+_ = System.Threading.Tasks.Task.Run(async () =>
+{
+    try
+    {
+        // 等待 3 秒，让 GPU 模式恢复完成
+        await System.Threading.Tasks.Task.Delay(3000);
+        var o = LoadPerfOverrides();
+        int restored = 0;
+
+        // --- CPU (powercfg) ---
+        if (o.Cpu.FreqLimitMhz.HasValue)
+        {
+            try { await app.Services.GetRequiredService<CpuPowerController>().SetFreqLimitAsync(o.Cpu.FreqLimitMhz.Value); restored++; Log($"[Restore] CPU freq limit → {o.Cpu.FreqLimitMhz.Value} MHz"); }
+            catch (Exception ex) { Log($"[Restore] CPU freq limit failed: {ex.Message}"); }
+        }
+        if (o.Cpu.TurboEnabled.HasValue)
+        {
+            try { await app.Services.GetRequiredService<CpuPowerController>().SetTurboAsync(o.Cpu.TurboEnabled.Value); restored++; Log($"[Restore] CPU turbo → {o.Cpu.TurboEnabled.Value}"); }
+            catch (Exception ex) { Log($"[Restore] CPU turbo failed: {ex.Message}"); }
+        }
+        if (o.Cpu.CoreLimitPercent.HasValue && o.Cpu.CoreLimitPercent.Value > 0)
+        {
+            try { await app.Services.GetRequiredService<CpuPowerController>().SetCoreLimitAsync(o.Cpu.CoreLimitPercent.Value); restored++; Log($"[Restore] CPU core limit → {o.Cpu.CoreLimitPercent.Value}%"); }
+            catch (Exception ex) { Log($"[Restore] CPU core limit failed: {ex.Message}"); }
+        }
+
+        // --- SMU (ryzenadj) ---
+        var smu = app.Services.GetRequiredService<SmuController>();
+        if (o.Smu.StapmLimitW.HasValue)
+        {
+            try { smu.SetPowerLimit((uint)(o.Smu.StapmLimitW.Value * 1000)); restored++; Log($"[Restore] SMU stapm → {o.Smu.StapmLimitW.Value}W"); }
+            catch (Exception ex) { Log($"[Restore] SMU stapm failed: {ex.Message}"); }
+        }
+        if (o.Smu.ShortPowerLimitW.HasValue)
+        {
+            try { smu.SetShortPowerLimit((uint)(o.Smu.ShortPowerLimitW.Value * 1000), (uint)(o.Smu.ShortPowerLimitW.Value * 1000)); restored++; Log($"[Restore] SMU short power → {o.Smu.ShortPowerLimitW.Value}W"); }
+            catch (Exception ex) { Log($"[Restore] SMU short power failed: {ex.Message}"); }
+        }
+        if (o.Smu.TempLimitC.HasValue)
+        {
+            try { smu.SetTempLimit((uint)o.Smu.TempLimitC.Value); restored++; Log($"[Restore] SMU temp → {o.Smu.TempLimitC.Value}°C"); }
+            catch (Exception ex) { Log($"[Restore] SMU temp failed: {ex.Message}"); }
+        }
+        if (o.Smu.CoAll.HasValue)
+        {
+            try { smu.SetCurveOptimizer(o.Smu.CoAll.Value); restored++; Log($"[Restore] SMU CO → {o.Smu.CoAll.Value}"); }
+            catch (Exception ex) { Log($"[Restore] SMU CO failed: {ex.Message}"); }
+        }
+
+        // --- GPU (nvidia-smi) ---
+        var gpu = app.Services.GetRequiredService<GpuController>();
+        if (o.Gpu.CoreFreqMhz.HasValue && o.Gpu.CoreFreqMhz.Value > 0)
+        {
+            try
+            {
+                gpu.SetMaxGpuClock(o.Gpu.CoreFreqMhz.Value);
+                if (o.Gpu.FreqLocked == true) gpu.SetExactGpuClock(o.Gpu.CoreFreqMhz.Value);
+                restored++;
+                Log($"[Restore] GPU core → {o.Gpu.CoreFreqMhz.Value} MHz (locked={o.Gpu.FreqLocked})");
+            }
+            catch (Exception ex) { Log($"[Restore] GPU core failed: {ex.Message}"); }
+        }
+        if (o.Gpu.MemFreqLevel.HasValue && o.Gpu.MemFreqLevel.Value > 0)
+        {
+            try
+            {
+                var memMap = new int[] { 0, 9001, 11001, 12001 };
+                var idx = Math.Clamp(o.Gpu.MemFreqLevel.Value, 0, 3);
+                if (idx > 0) gpu.SetMaxMemoryClock(memMap[idx]);
+                restored++;
+                Log($"[Restore] GPU mem level → {idx} ({memMap[idx]} MHz)");
+            }
+            catch (Exception ex) { Log($"[Restore] GPU mem failed: {ex.Message}"); }
+        }
+
+        // --- NVAPI ---
+        var nv = app.Services.GetRequiredService<NvapiGpuController>();
+        if (o.Nvapi.OcCoreOffsetMhz.HasValue || o.Nvapi.OcMemOffsetMhz.HasValue)
+        {
+            try
+            {
+                nv.SetP0Offset(o.Nvapi.OcCoreOffsetMhz ?? 0, o.Nvapi.OcMemOffsetMhz ?? 0);
+                restored++;
+                Log($"[Restore] NVAPI OC → core={o.Nvapi.OcCoreOffsetMhz ?? 0}, mem={o.Nvapi.OcMemOffsetMhz ?? 0}");
+            }
+            catch (Exception ex) { Log($"[Restore] NVAPI OC failed: {ex.Message}"); }
+        }
+        if (o.Nvapi.PowerLimitW.HasValue)
+        {
+            try { nv.SetPowerLimit((uint)(o.Nvapi.PowerLimitW.Value * 1000)); restored++; Log($"[Restore] NVAPI power → {o.Nvapi.PowerLimitW.Value}W"); }
+            catch (Exception ex) { Log($"[Restore] NVAPI power failed: {ex.Message}"); }
+        }
+        if (o.Nvapi.ThermalLimitC.HasValue)
+        {
+            try { nv.SetThermalLimit(o.Nvapi.ThermalLimitC.Value); restored++; Log($"[Restore] NVAPI thermal → {o.Nvapi.ThermalLimitC.Value}°C"); }
+            catch (Exception ex) { Log($"[Restore] NVAPI thermal failed: {ex.Message}"); }
+        }
+
+        if (restored > 0) Log($"[Restore] Performance overrides restored: {restored} settings applied");
+        else Log("[Restore] No performance overrides to restore");
+    }
+    catch (Exception ex) { Log($"[Restore] Performance overrides failed: {ex.Message}"); }
 });
 app.Map("/ws", async (HttpContext ctx) =>
 {
@@ -411,16 +524,20 @@ app.MapPost("/api/smu/set", (SmuController smu, SmuSetRequest req) =>
             case "stapm_limit":
             case "power_limit":
                 rc = smu.SetPowerLimit((uint)(req.ValueM * 1000));
+                SavePerfOverrides(o => o.Smu.StapmLimitW = req.ValueM);
                 break;
             case "short_power_limit":
                 rc = smu.SetShortPowerLimit((uint)(req.ValueM * 1000), (uint)(req.ValueM * 1000));
+                SavePerfOverrides(o => o.Smu.ShortPowerLimitW = req.ValueM);
                 break;
             case "tctl_temp":
             case "temp_limit":
                 rc = smu.SetTempLimit((uint)req.ValueM);
+                SavePerfOverrides(o => o.Smu.TempLimitC = req.ValueM);
                 break;
             case "co_all":
                 rc = smu.SetCurveOptimizer(req.ValueM);
+                SavePerfOverrides(o => o.Smu.CoAll = req.ValueM);
                 break;
             case "turbo_disable":
                 rc = smu.SetTurboDisabled(req.ValueM != 0);
@@ -742,6 +859,34 @@ app.MapPost("/api/gpu/set", (GpuController gpu, GpuSetRequest req) =>
             default:
                 return Results.Json(new { ok = false, error = "unknown action: " + req.Action });
         }
+        // 持久化 GPU 控制设置 (nvidia-smi 路径)
+        SavePerfOverrides(o =>
+        {
+            switch (req.Action)
+            {
+                case "limit-max" or "limit":
+                    o.Gpu.CoreFreqMhz = req.Value ?? req.Max ?? 0;
+                    if (o.Gpu.FreqLocked != true) { /* 未锁定时不改变 locked 状态 */ }
+                    break;
+                case "lock-exact":
+                    o.Gpu.CoreFreqMhz = req.Value ?? 0;
+                    o.Gpu.FreqLocked = true;
+                    break;
+                case "reset-clocks" or "reset":
+                    o.Gpu.CoreFreqMhz = null;
+                    o.Gpu.FreqLocked = null;
+                    break;
+                case "limit-memory":
+                    // 前端传绝对值 9001/11001/12001，转换为 1/2/3 档位
+                    var memMap = new Dictionary<int, int> { [9001] = 1, [11001] = 2, [12001] = 3 };
+                    var val = req.Value ?? req.Max ?? 0;
+                    o.Gpu.MemFreqLevel = memMap.TryGetValue(val, out var lvl) ? lvl : 0;
+                    break;
+                case "reset-memory-clocks" or "reset-memory":
+                    o.Gpu.MemFreqLevel = null;
+                    break;
+            }
+        });
         return Results.Json(new { ok = true });
     }
     catch (Exception ex)
@@ -790,6 +935,7 @@ app.MapPost("/api/nvapi/overclock", (NvapiGpuController nv, NvapiOverclockReques
 {
     if (!nv.IsAvailable) return Results.Json(new { ok = false, error = "NVAPI not available" });
     var rc = nv.SetP0Offset(req.CoreOffsetMhz, req.MemOffsetMhz);
+    SavePerfOverrides(o => { o.Nvapi.OcCoreOffsetMhz = req.CoreOffsetMhz; o.Nvapi.OcMemOffsetMhz = req.MemOffsetMhz; });
     return Results.Json(new { ok = rc == 0, rc });
 });
 
@@ -797,6 +943,7 @@ app.MapPost("/api/nvapi/power-limit", (NvapiGpuController nv, NvapiPowerLimitReq
 {
     if (!nv.IsAvailable) return Results.Json(new { ok = false, error = "NVAPI not available" });
     var rc = nv.SetPowerLimit((uint)(req.PowerW * 1000)); // W → mW
+    SavePerfOverrides(o => o.Nvapi.PowerLimitW = req.PowerW);
     return Results.Json(new { ok = rc == 0, rc });
 });
 
@@ -804,6 +951,7 @@ app.MapPost("/api/nvapi/thermal-limit", (NvapiGpuController nv, NvapiThermalLimi
 {
     if (!nv.IsAvailable) return Results.Json(new { ok = false, error = "NVAPI not available" });
     var rc = nv.SetThermalLimit(req.TempC);
+    SavePerfOverrides(o => o.Nvapi.ThermalLimitC = req.TempC);
     return Results.Json(new { ok = rc == 0, rc });
 });
 
@@ -831,6 +979,7 @@ app.MapPost("/api/cpu/freq-limit", async (CpuPowerController cpu, CpuFreqLimitRe
     try
     {
         await cpu.SetFreqLimitAsync(req.Mhz);
+        SavePerfOverrides(o => o.Cpu.FreqLimitMhz = req.Mhz);
         return Results.Json(new { ok = true });
     }
     catch (Exception ex)
@@ -844,6 +993,7 @@ app.MapPost("/api/cpu/turbo", async (CpuPowerController cpu, CpuTurboRequest req
     try
     {
         await cpu.SetTurboAsync(req.Enabled);
+        SavePerfOverrides(o => o.Cpu.TurboEnabled = req.Enabled);
         return Results.Json(new { ok = true });
     }
     catch (Exception ex)
@@ -857,6 +1007,7 @@ app.MapPost("/api/cpu/core-limit", async (CpuPowerController cpu, CpuCoreLimitRe
     try
     {
         await cpu.SetCoreLimitAsync(req.Percent);
+        SavePerfOverrides(o => o.Cpu.CoreLimitPercent = req.Percent);
         return Results.Json(new { ok = true });
     }
     catch (Exception ex)
@@ -870,6 +1021,7 @@ app.MapPost("/api/cpu/reset", async (CpuPowerController cpu) =>
     try
     {
         await cpu.ResetAllAsync();
+        SavePerfOverrides(o => { o.Cpu = new CpuOverrides(); });
         return Results.Json(new { ok = true });
     }
     catch (Exception ex)
@@ -1492,3 +1644,10 @@ public record FanCurveStartRequest(
     [property: System.Text.Json.Serialization.JsonPropertyName("intervalMs")] int? IntervalMs,
     [property: System.Text.Json.Serialization.JsonPropertyName("hysteresisC")] int? HysteresisC
 );
+
+// ---- 性能设置持久化模型 ----
+public class CpuOverrides { public int? FreqLimitMhz; public bool? TurboEnabled; public int? CoreLimitPercent; }
+public class GpuOverrides { public int? CoreFreqMhz; public bool? FreqLocked; public int? MemFreqLevel; }
+public class NvapiOverrides { public int? OcCoreOffsetMhz; public int? OcMemOffsetMhz; public int? PowerLimitW; public float? ThermalLimitC; }
+public class SmuOverrides { public int? StapmLimitW; public int? ShortPowerLimitW; public int? TempLimitC; public int? CoAll; }
+public class PerformanceOverrides { public CpuOverrides Cpu = new(); public GpuOverrides Gpu = new(); public NvapiOverrides Nvapi = new(); public SmuOverrides Smu = new(); }
