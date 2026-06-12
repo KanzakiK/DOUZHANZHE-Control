@@ -22,7 +22,19 @@ var app = builder.Build();
 app.UseCors();
 app.UseWebSockets();
 app.UseDefaultFiles();
-app.UseStaticFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = ctx =>
+    {
+        // index.html 禁止缓存（确保更新后前端 JS bundle 立即生效）
+        if (ctx.File.Name.Equals("index.html", StringComparison.OrdinalIgnoreCase))
+        {
+            ctx.Context.Response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
+            ctx.Context.Response.Headers["Pragma"] = "no-cache";
+            ctx.Context.Response.Headers["Expires"] = "0";
+        }
+    }
+});
 app.MapFallbackToFile("index.html");
 // ---- Config directory (shared with Node.js) ----
 // 安装环境: AppContext.BaseDirectory\config\

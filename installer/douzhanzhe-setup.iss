@@ -274,6 +274,7 @@ var
   ConfigDir: String;
   ConfigFile: String;
   StartupLink: String;
+  WebView2Dir: String;
 begin
   // 安装前：先关闭正在运行的程序 + 卸载内核驱动（覆盖安装时防止文件被锁）
   if CurStep = ssInstall then
@@ -284,6 +285,11 @@ begin
     Exec('sc', 'stop WinRing0_1_2_0', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     Exec('sc', 'delete WinRing0_1_2_0', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     Sleep(1000);
+
+    // 清理 WebView2 浏览器缓存（覆盖安装时旧 JS bundle 会被缓存，导致版本号不更新）
+    WebView2Dir := ExpandConstant('{app}\{#MyAppExeName}.WebView2');
+    if DirExists(WebView2Dir) then
+      DelTree(WebView2Dir, True, True, True);
   end;
 
   // 安装后：创建计划任务 + 清理旧版快捷方式
