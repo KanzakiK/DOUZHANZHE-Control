@@ -140,6 +140,11 @@ public sealed class FanCurveService : IDisposable
     public void Start(int? intervalMs = null, int? hysteresisC = null)
     {
         if (_active) return;
+
+        // 每次启动都从 fan-curve.json 加载最新配置（曲线点 + 间隔 + 回差）
+        // 这样无论从首页按钮还是曲线 tab 启动，行为一致
+        LoadConfig();
+
         _active = true;
         _intervalMs = Math.Max(1000, intervalMs ?? _intervalMs);
         _hysteresisC = hysteresisC ?? _hysteresisC;
