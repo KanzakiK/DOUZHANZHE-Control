@@ -678,6 +678,9 @@ app.MapGet("/api/fan-curve/route-info", (FanCurveService svc) =>
         lastWmiSmallOk = svc.LastWmiSmallOk,
         tickCount = svc.TickCount,
         consecutiveDeviation = svc.ConsecutiveDeviation,
+        cpuTemp = svc.LastCpuTemp,
+        gpuTemp = svc.LastGpuTemp,
+        hotspot = svc.LastHotspot,
     });
 });
 

@@ -62,6 +62,9 @@ public sealed class FanCurveService : IDisposable
     public bool LastWmiSmallOk { get; private set; }     // 最近一次 WMI 小扇写入返回
     public int TickCount { get; private set; }           // Tick 执行总次数
     public int ConsecutiveDeviation => _consecutiveDeviation; // 连续偏离 tick 计数
+    public int LastCpuTemp { get; private set; }          // 最近一次 Tick 的 CPU 温度
+    public int LastGpuTemp { get; private set; }          // 最近一次 Tick 的 GPU 温度
+    public int LastHotspot { get; private set; }          // 最近一次 Tick 的 hotspot (max)
 
     // 各模式风扇转速合法区间 (RPM/100 单位)
     // 路由表：根据目标转速找到能覆盖它的模式，通过 WMI SetThermalMode 切换
@@ -328,6 +331,9 @@ public sealed class FanCurveService : IDisposable
             TickCount++;
             LastWmiLargeOk = largeOk;
             LastWmiSmallOk = smallOk;
+            LastCpuTemp = cpuTemp;
+            LastGpuTemp = gpuTemp;
+            LastHotspot = hotspot;
             try
             {
                 ActualCpuFanRpm = _hal.CpuFanRpm;
