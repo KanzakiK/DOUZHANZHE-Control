@@ -72,7 +72,8 @@ T JsonRead<T>(string fileName, T fallback) where T : class
         var opts = new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true,
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            IncludeFields = true
         };
         return JsonSerializer.Deserialize<T>(File.ReadAllText(filePath), opts) ?? fallback;
     }
@@ -85,7 +86,8 @@ void JsonWrite<T>(string fileName, T data)
     var json = JsonSerializer.Serialize(data, new JsonSerializerOptions
     {
         WriteIndented = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        IncludeFields = true
     });
     File.WriteAllText(tmpPath, json);
     File.Move(tmpPath, filePath, overwrite: true);
