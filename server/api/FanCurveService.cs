@@ -311,18 +311,18 @@ public sealed class FanCurveService : IDisposable
             if (currentItsm != _itsmCurveMode) _itsmDeviationCount++;
             RoutedMode = _itsmCurveMode;
 
-            // 5. 只在目标变化时写入 ITSM + WMI 风扇 + EC 直写
-            bool largeOk = true, smallOk = true;
+            // 5. ITSM 仅在目标变化时写入（避免频繁触发 ACPI 链）
             if (targetChanged)
             {
                 _hal.WriteEcPort(0xE4, _itsmCurveMode);
-                _wmi.SetFanManual(0, true);
-                largeOk = _wmi.SetFanSpeed(0, (byte)largeTarget);
-                _wmi.SetFanManual(1, true);
-                smallOk = _wmi.SetFanSpeed(1, (byte)smallTarget);
-                _hal.WriteEcPort(0x5E, (byte)largeTarget);
-                _hal.WriteEcPort(0x5A, (byte)smallTarget);
             }
+
+            // 6. 每个 Tick 都刷新 SetFanManual + SetFanSpeed + EC 寄存器
+            //    持续声明手动模式控制权，防止 EC 固件定时器退回自动模式
+            bool largeOk = _wmi.SetFanManual(0, true) && _wmi.SetFanSpeed(0, (byte)largeTarget);
+            bool smallOk = _wmi.SetFanManual(1, true) && _wmi.SetFanSpeed(1, (byte)smallTarget);
+            _hal.WriteEcPort(0x5E, (byte)largeTarget);
+            _hal.WriteEcPort(0x5A, (byte)smallTarget);
 
             // 6. 读回诊断
             TickCount++;
