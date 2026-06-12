@@ -879,7 +879,6 @@ app.MapPost("/api/uxtu/apply", async (HttpContext ctx, SmuController smu) =>
         int? cpuPpt = body.Params?.CpuLongPptW ?? body.Limits?.Cpu?.PptLimitW;
         int? cpuShortPpt = body.Params?.CpuShortPptW;
         int? cpuTemp = body.Params?.CpuTempLimitC ?? body.Limits?.Cpu?.TempLimitC;
-        int? gpuPpt = body.Params?.GpuPptLimitW ?? body.Limits?.Gpu?.PptLimitW;
         int? cpuVoltage = body.Params?.CpuVoltageOffset;
         bool? cpuFreqEnabled = body.Params?.CpuFreqLimitEnabled;
         int? cpuFreqMhz = body.Params?.CpuFreqLimitMhz;

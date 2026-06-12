@@ -1,11 +1,8 @@
 import ThemeSwitcher from "./components/ThemeSwitcher";
-import PerformancePanel from "./components/panels/PerformancePanel";
 import SettingsPanel from "./components/panels/SettingsPanel";
-import TelemetryPanel from "./components/panels/TelemetryPanel";
 import SystemInfoPanel from "./components/panels/SystemInfoPanel";
 import FanCurvePanel from "./components/panels/FanCurvePanel";
 import Card from "./components/ui/Card";
-import Gauge from "./components/ui/Gauge";
 import SortableDashboard from "./components/SortableDashboard";
 import UpdateDialog from "./components/ui/UpdateDialog";
 import { ToastProvider, useToast } from "./components/ui/Toast";

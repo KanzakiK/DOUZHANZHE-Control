@@ -17,7 +17,6 @@ export const thermalModeMap = {
   office: 0,
   gaming: 3,
   beast: 1,
-  custom: null,
 };
 
 // C# HAL power_plan value mapping
@@ -141,15 +140,6 @@ export const FULL_FAN_RANGE = {
   smallMin: 1700, smallMax: 8200,
 };
 
-// 保留各模式区间作为参考（仅供路由表使用，前端不再显示区间限制）
-const FAN_RANGES = {
-  silent: { largeMin: 1900, largeMax: 2900, smallMin: 1700, smallMax: 6400 },
-  office: { largeMin: 2600, largeMax: 3500, smallMin: 5900, smallMax: 6900 },
-  gaming: { largeMin: 4000, largeMax: 4400, smallMin: 7500, smallMax: 8200 },
-  beast:  { largeMin: 3200, largeMax: 3800, smallMin: 6400, smallMax: 7200 },
-  custom: { largeMin: 2600, largeMax: 3500, smallMin: 5900, smallMax: 6900 },
-};
-
 // 全量参数默认值 (兆底，用于 UI 层显示)
 // 注意：风扇转速随模式变化，这里只是占位符，实际使用时会被各模式默认值覆盖
 export const FULL_PARAMS = {
@@ -169,7 +159,6 @@ export const MODE_FAN_DEFAULTS = {
   office: { fanLargeRpmTarget: 2900, fanSmallRpmTarget: 6400 },
   gaming: { fanLargeRpmTarget: 4300, fanSmallRpmTarget: 8000 },
   beast:  { fanLargeRpmTarget: 3500, fanSmallRpmTarget: 6900 },
-  custom: { fanLargeRpmTarget: 2900, fanSmallRpmTarget: 6400 },  // custom 默认用均衡
 };
 
 // 参数合法范围 — 用于写入硬件前钳位
