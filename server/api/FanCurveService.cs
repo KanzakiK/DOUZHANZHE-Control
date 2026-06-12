@@ -152,6 +152,8 @@ public sealed class FanCurveService : IDisposable
         // 保存当前 ITSM，停止时恢复
         _savedThermalMode = _hal.ReadEcPort(0xE4);
         _itsmDeviationCount = 0;
+        _consecutiveDeviation = 0;
+        TickCount = 0;
 
         // 启动时先算一次曲线目标 → RouteMode 确定 ITSM 模式
         // 启动后立即写一次 ITSM，不主动切模式（避免触发 ACPI 链）
