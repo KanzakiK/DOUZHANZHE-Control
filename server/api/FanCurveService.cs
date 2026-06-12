@@ -336,6 +336,7 @@ public sealed class FanCurveService : IDisposable
                     try
                     {
                         _wmi.SetThermalMode(_itsmCurveMode);
+                        _hal.WriteEcPort(0xE4, _itsmCurveMode);
                         _lastRecoveryTime = DateTime.UtcNow;
                         _log.LogInformation("[FanCurve] 自动恢复: 重试解锁 SetThermalMode({Mode})", _itsmCurveMode);
                     }
@@ -411,6 +412,7 @@ public sealed class FanCurveService : IDisposable
                     try
                     {
                         _wmi.SetThermalMode(_itsmCurveMode);
+                        _hal.WriteEcPort(0xE4, _itsmCurveMode);
                         _lastRecoveryTime = DateTime.UtcNow;
                         _log.LogInformation(
                             "[FanCurve] 自动恢复: 解锁 SetThermalMode({Mode}) RPM={Rpm}/{Target}",
