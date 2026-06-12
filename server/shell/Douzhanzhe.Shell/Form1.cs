@@ -91,14 +91,21 @@ public partial class Form1 : Form
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "Douzhanzhe Console", "WebView2");
 
-        // 启动时清除整个 WebView2 用户数据目录（防止前端更新后缓存旧版本）
-        // WebView2 实际缓存路径为 userDataDir\Default\Cache 等，直接删除整个目录最可靠
-        try
+        // 启动时仅清除 HTTP/GPU/ServiceWorker 缓存（防止前端更新后缓存旧版本）
+        // 保留 Local Storage / IndexedDB — 前端 overrides 持久化依赖 localStorage
+        // index.html 已由后端设置 Cache-Control: no-cache，新 bundle 不会被 HTTP 缓存
+        string[] cacheDirs = { "Default\\Cache", "Default\\Code Cache", "Default\\GPUCache",
+                               "Default\\Service Worker", "GrShaderCache", "ShaderCache" };
+        foreach (var sub in cacheDirs)
         {
-            if (Directory.Exists(userDataDir))
-                Directory.Delete(userDataDir, true);
+            try
+            {
+                var path = Path.Combine(userDataDir, sub);
+                if (Directory.Exists(path))
+                    Directory.Delete(path, true);
+            }
+            catch { /* 单个缓存目录清除失败不影响启动 */ }
         }
-        catch { /* 清除缓存失败不影响启动 */ }
 
         bool webViewOk = false;
         string webViewError = "";

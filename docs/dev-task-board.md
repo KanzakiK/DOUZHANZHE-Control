@@ -16,6 +16,8 @@
 ## 🧭 一、后续版本（待完成）
 
 ### 后端
+- [ ] **🔴 `/api/uxtu/apply` 缺少 `SavePerfOverrides`**: 批量下发端点（`reapplyOverrides` / PerformancePanel "应用"按钮入口）只调 `smu.BatchApply()` + `CpuAffinityManager.SetCoreLimit()`，**不调** `SavePerfOverrides()`。导致通过此端点下发的 SMU 参数（cpuLongPptW/cpuShortPptW/cpuTempLimitC/cpuVoltageOffset）不会写入 `performance-overrides.json`，重启后丢失。各独立端点（`/api/smu/set`、`/api/cpu/*`、`/api/gpu/set`、`/api/nvapi/*`）已有持久化，唯独此批量端点遗漏 — `Program.cs` L1036-1062
+- [ ] **🔴 风扇曲线停止/恢复后 `reapplyOverrides` 未自动触发**: `FanCurveService.Stop()` 通过 WMI `SetThermalMode(_savedThermalMode)` 切回原模式，触发 ACPI 链将 SMU PPT/CPU频率/GPU频率/NVAPI超频 全部重置回出厂预设。用户所有自定义参数一次性丢失，无任何机制自动补回。现状：① `FanCurveService` 未暴露 `recovering` 属性；② `/api/fan-curve/route-info` 无 `recovering` 字段；③ `FanCurvePanel.handleStop()` 仅恢复风扇转速 override，SMU/GPU/NVAPI/CPU 参数未重发；④ commit `2e65753` 描述的"FanCurvePanel 轮询 route-info 检测 recovering true→false 后调 reapplyOverrides"从未实现 — `FanCurvePanel.jsx` L245-272, `FanCurveService.cs` Stop()
 - [ ] **五模式全量配置覆盖**: 安静/均衡/野兽/斗战/自定义各保存一套完整配置（风扇转速×2、CPU功耗墙/温度墙、GPU频率偏移），后端新增 GET|POST /api/mode-config 持久化接口（前端 localStorage 已按模式隔离，缺后端持久化）
 - [ ] **模式预设**: 新增"安静性能"模式（GPU满血 + 风扇低速）
 
@@ -110,6 +112,7 @@
 - [ ] 🟡 **4.2 曲线启动后 3s 轮询间隔内未协调 override**: 风扇曲线启动不设 override 标记也不通知 useControlState，`fanCurveActive` 靠 3s 轮询检测。间隔内风扇滑块可能未正确禁用，允许与曲线冲突的手动命令 — `FanCurvePanel.jsx` L223-237, `App.jsx` L42-48
 - [x] ~~🟡 **4.3 快捷启动缺参数/缺保存**~~: Dashboard 快捷启动调 `startFanCurve()` 不先保存曲线配置，不传 `intervalMs`/`hysteresisC`（均为 undefined）。FanCurvePanel 正常流程先保存再传参。快捷启动可能用过期/默认曲线参数 — `SortableDashboard.jsx` L200-202
 - [ ] 🟢 **4.4 停止逻辑重复**: 风扇曲线停止逻辑在 FanCurvePanel 和 SortableDashboard 两处近乎相同地重复，任何变更须改两处 — `FanCurvePanel.jsx` L239-266, `SortableDashboard.jsx` L170-191
+- [ ] 🔴 **4.5 曲线停止后 SMU/GPU/NVAPI/CPU 参数未恢复**: `FanCurveService.Stop()` 调 `SetThermalMode(_savedThermalMode)` 触发 ACPI 链，SMU PPT/CPU频率/GPU频率/NVAPI超频全部回出厂预设，用户所有自定义参数一次性丢失。`FanCurvePanel.handleStop()` 仅恢复风扇 override（L251-265），未调 `reapplyOverrides()` 重发用户自定义的 SMU/GPU/NVAPI/CPU 参数。后端恢复机制（commit `2e65753` 描述的 recovering 检测）从未实现
 
 #### 状态管理 (`useControlState`)
 
@@ -354,7 +357,7 @@
 - [x] **模式切换兑态修复 (v1.3.1)**: onClick 精简为 setSettings + toast，dispatchFullMode 内部 SMU 两次延迟重发（500ms + 1500ms），消除前端重复 dispatch — 临时修复，根本方案见 [参数覆盖层重构](design-override-layer.md)
 - [x] **前端模式按钮高亮加载时序**: 已修复 — uxtuParams 初始值改用 MODE_PRESETS 而非 defaultParams，消除 CPU 调节滑块闪跳
 - [x] **版本号不一致（CHANGELOG/iss/SettingsPanel/package.json）**: 已修复 — build-installer.ps1 新增 `-Version` 参数，构建时自动同步四处版本号 + 打包前自动验证前端版本号
-- [x] **WebView2 缓存导致前端版本号不更新**: 已修复 — Shell 启动时自动清除 Cache/Code Cache/GPUCache/Service Worker/Storage
+- [x] **WebView2 缓存导致前端版本号不更新**: 已修复 — Shell 启动时仅清除 Cache/Code Cache/GPUCache/Service Worker/ShaderCache（保留 Local Storage/IndexedDB，前端 overrides 持久化依赖 localStorage）。index.html 由后端设置 `Cache-Control: no-cache` 确保新 bundle 不被缓存 — `Form1.cs` L94-107
 - [x] SortableDashboard.jsx 重复属性 `showGpu={false}` — 仅一处，非重复 ✅
 - [x] 历史曲线图 Sparkline NaN 渲染 — 兜底修复 ✅
 - [x] `SettingsPanel.jsx` — `osdDisabled` Toast 提示"暂不支持" ✅
@@ -390,6 +393,7 @@
 - 2026-06-10: 风扇+功耗解耦验证 + ITSM 直写绕过 GPUD 验证 + DPTB 9 条 ALIB 完整解码 (fan-write-investigation §6-7)
 - 2026-06-10: 自定义风扇曲线产品设计方案 + 任务组排入看板 (EC 直写 ITSM, 20 项原子任务, 4 阶段)
 - 2026-06-11: Phase 1+2 实施完成 — RouteMode 路由函数 + Tick EC 直写 ITSM + Start/Stop 保护 + ITSM 守护统计 + WMI 写入验证锁定检测 + route-info API + FanCurvePanel 全范围 + 路由状态轮询 + getFanRange 改全范围 (后端构建 0 error / 前端构建 0 error)
+- 2026-06-12: 持久化缺口审计 + WebView2 缓存修复 — 发现两个 🔴 严重问题：① `/api/uxtu/apply` 缺少 `SavePerfOverrides`（SMU 参数不持久化）；② 风扇曲线停止后 `reapplyOverrides` 未自动触发（ACPI 链重置全部参数无机制补回）；修复 Form1.cs 缓存清理从"删整个 WebView2 目录"改为仅清 Cache/CodeCache/GPUCache/ServiceWorker/ShaderCache（保留 Local Storage/IndexedDB）
 
 ---
 

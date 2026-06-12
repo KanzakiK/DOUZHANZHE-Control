@@ -8,6 +8,7 @@ import {
   stopFanCurve,
   fetchRouteInfo,
   FULL_FAN_RANGE,
+  reapplyOverrides,
 } from "../../services/uxtuAdapter";
 
 // ── 图表常量 ──
@@ -247,20 +248,15 @@ export default function FanCurvePanel({ telemetry, overrides, settings }) {
       const r = await stopFanCurve();
       if (r.ok) {
         setCurveActive(false);
-        // 检查是否有风扇 override，如有则重新下发用户设定值
-        const hasFanOverride = overrides && ("fanLargeRpmTarget" in overrides || "fanSmallRpmTarget" in overrides);
-        if (hasFanOverride) {
-          const largeRpm = overrides.fanLargeRpmTarget ?? 2900;
-          const smallRpm = overrides.fanSmallRpmTarget ?? 6400;
-          fetch("/api/fan/set-target", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ largeRpm, smallRpm }),
-          }).catch(() => {});
-          toast?.("已停止曲线，恢复用户自定义转速", "success");
+        // Stop() 通过 SetThermalMode 切回原模式，触发 ACPI 链重置 SMU/GPU/NVAPI/CPU
+        // 等 500ms 让固件完成模式切换，再重发用户自定义参数
+        const hasOverrides = overrides && Object.keys(overrides).length > 0;
+        if (hasOverrides) {
+          setTimeout(() => {
+            reapplyOverrides(settings.mode, overrides).catch(e => console.warn("[FanCurve] reapplyOverrides:", e));
+          }, 500);
+          toast?.("已停止曲线，正在恢复用户自定义参数…", "success");
         } else {
-          // 无用户自定义转速 → 恢复固件控制
-          fetch("/api/fan/restore", { method: "POST" }).catch(() => {});
           toast?.("已恢复固件控制", "success");
         }
       } else {
