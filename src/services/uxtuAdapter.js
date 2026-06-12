@@ -349,8 +349,10 @@ export async function reapplyOverrides(mode, overrides) {
   // ② SMU 批量写入（仅当 overrides 有 CPU SMU 字段时执行）
   const smuFields = ["cpuLongPptW", "cpuShortPptW", "cpuTempLimitC", "cpuVoltageOffset"];
   const hasSmu = smuFields.some(f => f in overrides);
+  // 过滤掉 powercfg 专属字段，避免 CPU 频率限制走 ryzenadj 路径（未经实机验证）
+  const { cpuFreqLimitEnabled, cpuFreqLimitMhz, ...smuParams } = overrides;
   if (hasSmu) {
-    await applyUxtuLimits({ chipset: "Ryzen 9 8940HX", profile: mode, params: overrides }).catch(
+    await applyUxtuLimits({ chipset: "Ryzen 9 8940HX", profile: mode, params: smuParams }).catch(
       e => console.warn("[SMU] batch:", e)
     );
   }
@@ -426,7 +428,7 @@ export async function reapplyOverrides(mode, overrides) {
         console.log("[SMU] re-send skipped (superseded by gen", _smuDispatchGen, ")");
         return;
       }
-      applyUxtuLimits({ chipset: "Ryzen 9 8940HX", profile: mode, params: overrides })
+      applyUxtuLimits({ chipset: "Ryzen 9 8940HX", profile: mode, params: smuParams })
         .then(r => console.log("[SMU] re-send OK:", r))
         .catch(e => console.warn("[SMU] re-send failed:", e));
     }, 500);
@@ -435,7 +437,7 @@ export async function reapplyOverrides(mode, overrides) {
         console.log("[SMU] re-send2 skipped (superseded by gen", _smuDispatchGen, ")");
         return;
       }
-      applyUxtuLimits({ chipset: "Ryzen 9 8940HX", profile: mode, params: overrides })
+      applyUxtuLimits({ chipset: "Ryzen 9 8940HX", profile: mode, params: smuParams })
         .then(r => console.log("[SMU] re-send2 OK:", r))
         .catch(e => console.warn("[SMU] re-send2 failed:", e));
     }, 1500);
