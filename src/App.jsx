@@ -24,11 +24,8 @@ const MODE_ITEMS = [
 
 export default function App() {
   const toast = useToast();
-  const onCustomSaveResult = useCallback((ok) => {
-    toast?.(ok ? "自定义参数已保存" : "自定义参数保存失败", ok ? "success" : "error");
-  }, [toast]);
   const { theme, setTheme, telemetry, setTelemetry, uxtuParams, setUxtuParams, settings, setSettings, uxtuPayload, history, overrides, saveOverride, clearOverrides, resetParams } =
-    useControlState(onCustomSaveResult);
+    useControlState();
   const [activeTab, setActiveTab] = useState(() => {
     try { return localStorage.getItem("douzhanzhe_active_tab") || "dashboard"; }
     catch { return "dashboard"; }

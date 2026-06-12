@@ -7,6 +7,7 @@ import {
   startFanCurve,
   stopFanCurve,
   fetchRouteInfo,
+  reapplyOverrides,
   FULL_FAN_RANGE,
 } from "../../services/uxtuAdapter";
 
@@ -114,13 +115,30 @@ export default function FanCurvePanel({ telemetry, overrides, settings }) {
 
   // ── 路由状态（轮询 route-info） ──
   const [routeInfo, setRouteInfo] = useState(null);
+  const prevRecoveringRef = useRef(false);
   useEffect(() => {
-    if (!curveActive) { setRouteInfo(null); return; }
-    const poll = () => fetchRouteInfo().then(setRouteInfo).catch(() => {});
+    if (!curveActive) { setRouteInfo(null); prevRecoveringRef.current = false; return; }
+    const poll = () => fetchRouteInfo().then(data => {
+      setRouteInfo(data);
+      // 检测解锁恢复完成: recovering true → false
+      if (prevRecoveringRef.current && !data.recovering) {
+        console.log("[FanCurve] 检测到恢复完成，重发稀疏 overrides");
+        const mode = settings?.mode || "office";
+        let ov = {};
+        try {
+          const raw = localStorage.getItem("douzhanzhe_overrides_" + mode);
+          if (raw) ov = JSON.parse(raw);
+        } catch {}
+        reapplyOverrides(mode, ov)
+          .then(() => toast?.("解锁恢复完成，参数已重发", "success"))
+          .catch(e => toast?.("参数重发失败: " + e.message, "error"));
+      }
+      prevRecoveringRef.current = !!data.recovering;
+    }).catch(() => {});
     poll();
     const id = setInterval(poll, 3000);
     return () => clearInterval(id);
-  }, [curveActive]);
+  }, [curveActive, settings?.mode]);
 
   // ══════════════════════════════════════
   //  SVG 拖拽处理

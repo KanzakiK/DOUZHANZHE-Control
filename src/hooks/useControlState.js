@@ -6,9 +6,7 @@ import {
 
 const LS_THEME = "douzhanzhe_theme";
 const LS_SETTINGS = "douzhanzhe_settings";
-const LS_PARAMS_PREFIX = "douzhanzhe_params_";      // 旧版全量存储（迁移用）
-const LS_OVERRIDES_PREFIX = "douzhanzhe_overrides_"; // 新版稀疏存储
-const API_CUSTOM_PARAMS = "/api/custom-params";
+const LS_OVERRIDES_PREFIX = "douzhanzhe_overrides_"; // 稀疏存储
 
 function loadFromLS(key, defaultValue) {
   try {
@@ -41,34 +39,7 @@ function clearOverrides(mode) {
   saveToLS(LS_OVERRIDES_PREFIX + mode, {});
 }
 
-// ── 旧数据清空（非自定义模式不迁移；自定义模式迁移到 overrides） ──
-
-function clearOldParams() {
-  const modes = ["silent", "office", "beast", "gaming"];
-  // 非自定义模式：直接删除旧全量存储
-  for (const mode of modes) {
-    const oldKey = LS_PARAMS_PREFIX + mode;
-    if (localStorage.getItem(oldKey)) {
-      localStorage.removeItem(oldKey);
-    }
-  }
-  // 自定义模式：迁移旧全量存储到 overrides（仅当 overrides 不存在时）
-  const oldCustomKey = LS_PARAMS_PREFIX + "custom";
-  const newCustomKey = LS_OVERRIDES_PREFIX + "custom";
-  if (localStorage.getItem(oldCustomKey) && !localStorage.getItem(newCustomKey)) {
-    try {
-      const data = JSON.parse(localStorage.getItem(oldCustomKey));
-      if (data && typeof data === "object") {
-        localStorage.setItem(newCustomKey, JSON.stringify(data));
-      }
-    } catch {}
-  }
-  localStorage.removeItem(oldCustomKey);
-}
-
-export function useControlState(onSaveResult) {
-  const onSaveRef = useRef(onSaveResult);
-  onSaveRef.current = onSaveResult;
+export function useControlState() {
 
   // ── Theme ──
   const [theme, setTheme] = useState(() => loadFromLS(LS_THEME, "theme-mech-violet"));
@@ -102,16 +73,11 @@ export function useControlState(onSaveResult) {
   const [uxtuParams, setUxtuParams] = useState(() => {
     const mode = loadFromLS(LS_SETTINGS, { mode: "office" }).mode;
     
-    // 启动时清空旧数据（不迁移）
-    clearOldParams();
-    
     // 加载 overrides
     const overrides = loadOverrides(mode);
     const fanDefaults = MODE_FAN_DEFAULTS[mode] || {};
     return { ...FULL_PARAMS, ...fanDefaults, ...overrides };
   });
-
-  const [paramsLoaded, setParamsLoaded] = useState(false);
 
   // ── Overrides 状态（暴露给组件，用于灰色/高亮显示）──
   const [overrides, setOverrides] = useState(() => {
@@ -138,101 +104,23 @@ export function useControlState(onSaveResult) {
 
   // ── 模式切换: 加载新 overrides → dispatchFullMode 条件下发 ──
   const prevModeRef = useRef(settings.mode);
-  // 用 ref 追踪 paramsLoaded，避免加入依赖数组后触发不必要的 effect 重跑
-  const paramsLoadedRef = useRef(paramsLoaded);
-  paramsLoadedRef.current = paramsLoaded;
 
   useEffect(() => {
     const prevMode = prevModeRef.current;
     const currentMode = settings.mode;
     prevModeRef.current = currentMode;
     if (prevMode === currentMode) return;
-  
-    // 切换到自定义模式 → 加载 overrides + 从服务端加载（await 后再 dispatch，避免竞争）
-    if (currentMode === "custom") {
-      const customFanDefaults = MODE_FAN_DEFAULTS["custom"] || {};
-      const customOverrides = loadOverrides("custom");
-      const customParams = { ...FULL_PARAMS, ...customFanDefaults, ...customOverrides };
-      setUxtuParams(customParams);
-      setOverrides(customOverrides);
 
-      // 服务端加载完成后再下发硬件命令，避免 localStorage 和 server 数据竞争
-      if (paramsLoadedRef.current) {
-        fetch(API_CUSTOM_PARAMS)
-          .then(r => r.json())
-          .then(data => {
-            if (data && Object.keys(data).length > 0) {
-              if (data.gpuMemFreqMhz !== undefined && (data.gpuMemFreqMhz > 3 || data.gpuMemFreqMhz < 0)) {
-                data.gpuMemFreqMhz = 1;
-              }
-              setUxtuParams(prev => ({ ...prev, ...data }));
-              setOverrides(data);
-              // fetch 成功后用服务端数据下发，保证 UI 和硬件一致
-              dispatchFullMode(currentMode, data);
-            } else {
-              dispatchFullMode(currentMode, customOverrides);
-            }
-          })
-          .catch(() => {
-            // fetch 失败时用 localStorage 数据下发
-            dispatchFullMode(currentMode, customOverrides);
-          });
-      } else {
-        // paramsLoaded 尚未完成（启动 fetch 还在跑），先用 localStorage 下发
-        dispatchFullMode(currentMode, customOverrides);
-      }
-      return;
-    }
-  
     // 加载新模式的 overrides
     const fanDefaults = MODE_FAN_DEFAULTS[currentMode] || {};
     const newOverrides = loadOverrides(currentMode);
     const newParams = { ...FULL_PARAMS, ...fanDefaults, ...newOverrides };
     setUxtuParams(newParams);
     setOverrides(newOverrides);
-  
+
     // 条件下发硬件命令（overrides 为空时只发 thermal_mode）
     dispatchFullMode(currentMode, newOverrides);
   }, [settings.mode]);
-
-  // ── 自定义模式: 服务端 + localStorage 持久化 (去抖 1s) ──
-  const saveTimerRef = useRef(null);
-  useEffect(() => {
-    if (!paramsLoaded || settings.mode !== "custom") return;
-    saveToLS(LS_OVERRIDES_PREFIX + "custom", uxtuParams);
-    clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => {
-      fetch(API_CUSTOM_PARAMS, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(uxtuParams),
-      })
-        .then(r => { onSaveRef.current?.(r.ok); })
-        .catch(() => onSaveRef.current?.(false));
-    }, 1000);
-    return () => clearTimeout(saveTimerRef.current);
-  }, [uxtuParams, paramsLoaded, settings.mode]);
-
-  // ── 启动时从服务端加载自定义参数 (仅自定义模式) ──
-  useEffect(() => {
-    const mode = loadFromLS(LS_SETTINGS, { mode: "office" }).mode;
-    if (mode !== "custom") {
-      setParamsLoaded(true);
-      return;
-    }
-    fetch(API_CUSTOM_PARAMS)
-      .then(r => r.json())
-      .then(data => {
-        if (data && Object.keys(data).length > 0) {
-          if (data.gpuMemFreqMhz !== undefined && (data.gpuMemFreqMhz > 3 || data.gpuMemFreqMhz < 0)) {
-            data.gpuMemFreqMhz = 1;
-          }
-          setUxtuParams(prev => ({ ...prev, ...data }));
-        }
-      })
-      .catch(() => {})
-      .finally(() => setParamsLoaded(true));
-  }, []);
 
   // ── uxtuPayload (用于手动下发按钮) ──
   const uxtuPayload = useMemo(

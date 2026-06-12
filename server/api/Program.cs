@@ -942,21 +942,6 @@ app.MapGet("/api/smu/api-type", () =>
 {
     return Results.Json(new { ok = true, type = "subprocess", source = "smucontroller->ryzenadj" });
 });
-app.MapGet("/api/custom-params", () =>
-{
-    return Results.Json(JsonRead<Dictionary<string, object?>>("custom-params.json", new Dictionary<string, object?>()));
-});
-app.MapPost("/api/custom-params", async (HttpContext ctx) =>
-{
-    try
-    {
-        using var reader = new StreamReader(ctx.Request.Body);
-        var body = JsonSerializer.Deserialize<Dictionary<string, object?>>(await reader.ReadToEndAsync());
-        JsonWrite("custom-params.json", body ?? new Dictionary<string, object?>());
-        return Results.Json(new { ok = true });
-    }
-    catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }); }
-});
 app.MapGet("/api/ui-state", () =>
 {
     return Results.Json(JsonRead<UiState>("ui-state.json", new UiState()));

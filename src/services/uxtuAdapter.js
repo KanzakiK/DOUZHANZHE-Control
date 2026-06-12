@@ -320,33 +320,23 @@ export async function resetToFactoryDefaults(mode) {
 // ── 全量模式下发（overrides 感知） ──
 // thermal_mode + GPU/NVAPI 每次必发（不受 EC 管理），其余通道按 overrides 条件下发
 // 顺序: 1. thermal_mode → 2. SMU → 3. GPU → 4. NVAPI → 5. CPU powercfg → 6. 风扇 → 7. SMU 重发
-export async function dispatchFullMode(mode, overrides) {
-  // ── 取消上一轮 SMU 重发定时器（防止快速切模式时旧闭包覆盖新值） ──
+/// 重发稀疏 overrides（SMU/GPU/NVAPI/CPU/风扇），不触碰 thermal_mode
+/// 用于风扇曲线解锁恢复后，后端已切回 thermal_mode，前端只需重发用户自定义参数
+export async function reapplyOverrides(mode, overrides) {
   cancelSmuResendTimers();
   const myGen = ++_smuDispatchGen;
 
-  const tv = thermalModeMap[mode];
   const isEmpty = !overrides || Object.keys(overrides).length === 0;
 
-  // ① thermal_mode 永远执行（切模式的基础）— 必须 await，等 EC 完成模式切换
-  // EC 切换模式会重置所有硬件值（CPU/GPU/风扇预设），后续 override 必须在重置完成后发送
-  if (tv !== null && tv !== undefined) {
-    await applyHardwareControl("thermal_mode", tv).catch(e => console.warn("[EC] thermal_mode:", e));
-    // 等待 EC 完成内部状态切换，避免后续命令被 EC 的默认值覆盖
-    await new Promise(r => setTimeout(r, 500));
-  }
-
-  // overrides 为空时，发 thermal_mode + GPU/NVAPI/CPU 重置
-  // 这些通道不受 thermal_mode 管理，必须手动 reset 以防止前一个模式的设置残留
+  // overrides 为空时，发 GPU/NVAPI/CPU 重置
   if (isEmpty) {
-    console.log("[dispatch] overrides 为空，发送 thermal_mode + GPU/NVAPI/CPU 重置");
+    console.log("[reapply] overrides 为空，发送 GPU/NVAPI/CPU 重置");
     try { await applyGpuControl("reset-clocks"); } catch (e) { console.warn("[GPU] reset:", e); }
     try { await applyGpuControl("reset-memory-clocks"); } catch (e) { console.warn("[GPU] mem-reset:", e); }
     await Promise.all([
       applyNvapiOverclock(0, 0).catch(e => console.warn("[NVAPI] OC-reset:", e)),
       applyNvapiThermalLimit(87).catch(e => console.warn("[NVAPI] thermal-reset:", e)),
     ]);
-    // CPU powercfg 重置
     await Promise.all([
       setCpuFreqLimit(0).catch(e => console.warn("[CPU] freq-reset:", e)),
       setCpuTurbo(true).catch(e => console.warn("[CPU] turbo-reset:", e)),
@@ -366,7 +356,6 @@ export async function dispatchFullMode(mode, overrides) {
   }
 
   // ③ GPU 频率控制（nvidia-smi: 先 reset 解锁，再按需 lock）
-  // GPU 频率锁定不受 thermal_mode 管理，每次切换都必须先 reset
   try {
     await applyGpuControl("reset-clocks");
     if (overrides.gpuFreqLimitEnabled && overrides.gpuCoreFreqMhz !== GPU_BASE_CLOCK) {
@@ -385,7 +374,6 @@ export async function dispatchFullMode(mode, overrides) {
   } catch (e) { console.warn("[GPU] memory:", e); }
 
   // ④ NVAPI: 超频偏移 + 温度限制（并行）
-  // NVAPI 不受 thermal_mode 管理，每次切换都重置/应用
   const thermalC = clampParam("gpuTempLimitC", overrides.gpuTempLimitC ?? 87);
   await Promise.all([
     applyNvapiOverclock(overrides.ocCoreOffsetMhz ?? 0, overrides.ocMemOffsetMhz ?? 0).catch(
@@ -432,7 +420,6 @@ export async function dispatchFullMode(mode, overrides) {
   }
 
   // ⑦ 延迟重发 SMU（两次），仅当 SMU 实际执行时触发
-  // 使用 generation 校验 + timer 追踪，新 dispatch 进入时自动取消旧的定时器
   if (hasSmu) {
     const t1 = setTimeout(() => {
       if (myGen !== _smuDispatchGen) {
@@ -454,4 +441,17 @@ export async function dispatchFullMode(mode, overrides) {
     }, 1500);
     _smuResendTimers = [t1, t2];
   }
+}
+
+export async function dispatchFullMode(mode, overrides) {
+  const tv = thermalModeMap[mode];
+
+  // ① thermal_mode 永远执行（切模式的基础）— 必须 await，等 EC 完成模式切换
+  if (tv !== null && tv !== undefined) {
+    await applyHardwareControl("thermal_mode", tv).catch(e => console.warn("[EC] thermal_mode:", e));
+    await new Promise(r => setTimeout(r, 500));
+  }
+
+  // ②-⑦ 重发稀疏 overrides
+  await reapplyOverrides(mode, overrides);
 }
