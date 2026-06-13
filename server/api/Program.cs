@@ -182,27 +182,29 @@ async System.Threading.Tasks.Task RestoreAllPerfSettings(string tag)
             catch (Exception ex) { Log($"[{tag}] CPU core limit failed: {ex.Message}"); }
         }
 
-        // --- SMU (ryzenadj) ---
+        // --- SMU (ryzenadj) — 合并为单次 BatchApply 调用，避免 4 次串行进程启动 ---
         var smu = app.Services.GetRequiredService<SmuController>();
-        if (o.Smu.StapmLimitW.HasValue)
         {
-            try { smu.SetPowerLimit((uint)(o.Smu.StapmLimitW.Value * 1000)); restored++; Log($"[{tag}] SMU stapm → {o.Smu.StapmLimitW.Value}W"); }
-            catch (Exception ex) { Log($"[{tag}] SMU stapm failed: {ex.Message}"); }
-        }
-        if (o.Smu.ShortPowerLimitW.HasValue)
-        {
-            try { smu.SetShortPowerLimit((uint)(o.Smu.ShortPowerLimitW.Value * 1000), (uint)(o.Smu.ShortPowerLimitW.Value * 1000)); restored++; Log($"[{tag}] SMU short power → {o.Smu.ShortPowerLimitW.Value}W"); }
-            catch (Exception ex) { Log($"[{tag}] SMU short power failed: {ex.Message}"); }
-        }
-        if (o.Smu.TempLimitC.HasValue)
-        {
-            try { smu.SetTempLimit((uint)o.Smu.TempLimitC.Value); restored++; Log($"[{tag}] SMU temp → {o.Smu.TempLimitC.Value}°C"); }
-            catch (Exception ex) { Log($"[{tag}] SMU temp failed: {ex.Message}"); }
-        }
-        if (o.Smu.CoAll.HasValue)
-        {
-            try { smu.SetCurveOptimizer(o.Smu.CoAll.Value); restored++; Log($"[{tag}] SMU CO → {o.Smu.CoAll.Value}"); }
-            catch (Exception ex) { Log($"[{tag}] SMU CO failed: {ex.Message}"); }
+            var stapmMw = o.Smu.StapmLimitW.HasValue ? (uint?)(o.Smu.StapmLimitW.Value * 1000) : null;
+            var fastMw = o.Smu.ShortPowerLimitW.HasValue ? (uint?)(o.Smu.ShortPowerLimitW.Value * 1000) : null;
+            var slowMw = fastMw;
+            var tempC = o.Smu.TempLimitC.HasValue ? (uint?)o.Smu.TempLimitC.Value : null;
+            var coAll = o.Smu.CoAll.HasValue ? (int?)o.Smu.CoAll.Value : null;
+
+            if (stapmMw.HasValue || fastMw.HasValue || tempC.HasValue || coAll.HasValue)
+            {
+                try
+                {
+                    smu.BatchApply(stapmMw, fastMw, slowMw, tempC, coAll, null);
+                    int smuCount = 0;
+                    if (stapmMw.HasValue) { smuCount++; Log($"[{tag}] SMU stapm → {o.Smu.StapmLimitW!.Value}W"); }
+                    if (fastMw.HasValue) { smuCount++; Log($"[{tag}] SMU short power → {o.Smu.ShortPowerLimitW!.Value}W"); }
+                    if (tempC.HasValue) { smuCount++; Log($"[{tag}] SMU temp → {o.Smu.TempLimitC!.Value}°C"); }
+                    if (coAll.HasValue) { smuCount++; Log($"[{tag}] SMU CO → {o.Smu.CoAll!.Value}"); }
+                    restored += smuCount;
+                }
+                catch (Exception ex) { Log($"[{tag}] SMU BatchApply failed: {ex.Message}"); }
+            }
         }
 
         // --- GPU (nvidia-smi) ---
