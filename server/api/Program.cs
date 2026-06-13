@@ -8,6 +8,12 @@ using System.Text.Json;
 using System.Diagnostics;
 using Microsoft.Win32;
 using Microsoft.Win32.TaskScheduler;
+
+// 提升进程与主线程优先级，确保在游戏满载时遥测采样与风扇控制仍能及时响应
+var proc = Process.GetCurrentProcess();
+proc.PriorityClass = ProcessPriorityClass.High;
+Thread.CurrentThread.Priority = ThreadPriority.Highest;
+
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton<HardwareAbstractionLayer>();
 builder.Services.AddSingleton<SmuController>();
