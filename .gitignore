@@ -59,6 +59,7 @@ _*.cs
 
 # Backup mirror directory
 server/_bak/
+server/api/_bak/
 
 # Stale build output
 server/api/bin_temp/
@@ -72,6 +73,7 @@ body_clean.json
 *.nodebak
 
 # Test artifacts
+_test_*/
 _test_ec/
 _fix_*.py
 _edit_*.py
@@ -79,6 +81,11 @@ _clean*.py
 _ec_test/
 *.bak
 *.disabled
+
+# Temp project directories and root-level temp files
+_tmp_*/
+_tmp_*.csproj
+_tmp_*.sln
 
 # Qoder tool files
 .qoder/
