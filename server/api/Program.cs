@@ -286,12 +286,14 @@ _ = System.Threading.Tasks.Task.Run(() =>
         var saved = JsonRead<Dictionary<string, int>>("gpu-mode.json", new Dictionary<string, int>());
         bool hasSaved = saved.TryGetValue("gpuMode", out int mode) && mode >= 0 && mode <= 2;
 
-        // 安全网: iGPU-only(mode=2) 会导致本机视频输出口无信号，拒绝在启动时自动恢复
+        // 安全网: iGPU-only(mode=2) 会导致本机视频输出口无信号
+        // 此值只可能来自早期 bug 或 dev 配置残留，用户不会主动选择
+        // 自动修正为独显模式(1) — 游戏本用户的预期默认，性能优于混合模式(0)
         if (hasSaved && mode == 2)
         {
-            Log("[Startup] Saved GPU mode is iGPU-only(2), which disables video output on this laptop — auto-correcting to hybrid(0)");
-            mode = 0;
-            JsonWrite("gpu-mode.json", new { gpuMode = 0 });
+            Log("[Startup] Saved GPU mode is iGPU-only(2), which disables video output on this laptop — auto-correcting to discrete(1)");
+            mode = 1;
+            JsonWrite("gpu-mode.json", new { gpuMode = 1 });
         }
 
         var wmiStartup = app.Services.GetRequiredService<WmiInterface>();
@@ -309,17 +311,17 @@ _ = System.Threading.Tasks.Task.Run(() =>
             byte firmware = wmiStartup.GetGpuMode();
             Log($"[Startup] Firmware GPU mode={firmware}, saved={( hasSaved ? mode.ToString() : "none" )}");
 
-            // 如果固件已经是 iGPU-only(2)，无论是否有存档都强制切回混合模式
+            // 如果固件已经是 iGPU-only(2)，无论是否有存档都强制切回独显模式
             if (firmware == 2)
             {
-                Log("[Startup] Firmware in iGPU-only(2) — auto-correcting to hybrid(0)");
-                if (wmiStartup.SetGpuMode(0))
+                Log("[Startup] Firmware in iGPU-only(2) — auto-correcting to discrete(1)");
+                if (wmiStartup.SetGpuMode(1))
                 {
-                    JsonWrite("gpu-mode.json", new { gpuMode = 0 });
-                    Log("[Startup] GPU mode corrected to hybrid(0)");
+                    JsonWrite("gpu-mode.json", new { gpuMode = 1 });
+                    Log("[Startup] GPU mode corrected to discrete(1)");
                     return;
                 }
-                Log($"[Startup] SetGpuMode(0) failed, retry {attempt}/3...");
+                Log($"[Startup] SetGpuMode(1) failed, retry {attempt}/3...");
                 System.Threading.Thread.Sleep(2000);
                 continue;
             }
