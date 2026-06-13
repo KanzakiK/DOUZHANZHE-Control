@@ -227,7 +227,7 @@ public sealed class FanCurveService : IDisposable
         }
     }
 
-    public void Dispose() => RestoreFirmwareControl();
+    public void Dispose() { _timer?.Dispose(); RestoreFirmwareControl(); }
 
     // ── 模式路由 ──
 

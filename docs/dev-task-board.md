@@ -16,115 +16,53 @@
 ## 🧭 一、后续版本（待完成）
 
 ### 后端
-- [x] ~~**🔴 `/api/uxtu/apply` 缺少 `SavePerfOverrides`**~~: 已修复 — `BatchApply` 成功后持久化 SMU 四参数（stapm/short-power/temp/CO）到 `performance-overrides.json`，与各独立端点对齐 — `Program.cs` L1057-1068
-- [x] ~~**🔴 风扇曲线停止/恢复后 `reapplyOverrides` 未自动触发**~~: 已修复 — `handleStop()` 在 `Stop()` 完成后等 500ms（让固件 ACPI 链完成模式切换），再调 `reapplyOverrides(mode, overrides)` 重发 SMU/GPU/NVAPI/CPU/风扇全部自定义参数 — `FanCurvePanel.jsx` L245-267
 - [ ] **五模式全量配置覆盖**: 安静/均衡/野兽/斗战/自定义各保存一套完整配置（风扇转速×2、CPU功耗墙/温度墙、GPU频率偏移），后端新增 GET|POST /api/mode-config 持久化接口（前端 localStorage 已按模式隔离，缺后端持久化）
 - [ ] **模式预设**: 新增"安静性能"模式（GPU满血 + 风扇低速）
+
+### 后端 — v1.4.3 代码审核发现
+- [x] ~~🔴 **CpuFreq 缓存变量错误**~~: 已修复 (v1.4.3) — `_sgDiskTime` → `_cpuFreqTime` — `HardwareAbstractionLayer.cs:633`
+- [x] ~~🔴 **DriverBridge.WriteBit 读-改-写无锁**~~: 已修复 (v1.4.3) — 添加 `lock (_lock)` 包裹读-改-写序列 — `DriverBridge.cs:166`
+- [ ] 🔴 **CORS AllowAnyOrigin — CSRF 安全漏洞**: `Program.cs:21` 硬件控制 API 允许任意网站跨域请求（EC 写入/GPU 超频/CPU 功耗），应限制来源为 `127.0.0.1:3100` / `localhost:3100`
+- [ ] 🔴 **ec_write 端点无寄存器白名单**: `Program.cs:543-551` 允许写 0x00-0xFF 任意 EC 寄存器，应添加允许写入的寄存器范围白名单
+- [ ] 🟠 **遥测热路径 Thread.Sleep 阻塞**: `HardwareAbstractionLayer.cs:613-616,646-648` CpuUsage/CpuFreq 属性中 `Thread.Sleep(200)` 等待 PerformanceCounter 采样，在 250ms 轮询周期中占比过高
+- [ ] 🟠 **GpuTemperature 回退同步创建 nvidia-smi 进程**: `HardwareAbstractionLayer.cs:151-195` 属性 getter 中启动进程等待最多 3 秒，导致遥测轮询延迟尖峰
+- [x] ~~🟡 **DriverBridge._recovering TOCTOU 竞态**~~: 已修复 (v1.4.3) — `bool` → `int` + `Interlocked.Exchange` 原子操作 — `DriverBridge.cs:38,91`
+- [ ] 🟡 **PowerModeChanged Task.Run 未观察异常**: `Program.cs:82-121` 异步恢复任务未被 await 或观察，未预期异常可能导致进程崩溃
+- [x] ~~🟡 **FanCurveService.Dispose 不清理 Timer**~~: 已修复 (v1.4.3) — Dispose 先 `_timer?.Dispose()` 再 `RestoreFirmwareControl()` — `FanCurveService.cs:230`
+- [x] ~~🟡 **RyzenAdj 进程超时未 Kill**~~: 已修复 (v1.4.3) — 超时后 `proc.Kill()` 防止 ryzenadj 残留 — `SmuController.cs:55`
+- [ ] 🟡 **背景图片上传无大小限制**: `Program.cs:1434-1470` base64 编码图片无尺寸校验
+- [ ] 🟢 **API 错误响应格式不统一**: Results.Problem（RFC 7807）与 Results.Json(new { ok = false }) 混用
 
 ### 前端
 - [ ] **自建 OSD Toast**（前端全局 Toast，所有 POST /api/control 操作成功后弹出操作反馈，替代官方 BLDFnHotkeyUtility OSD）
 - [ ] **五维雷达图**可视化（CPU/GPU/内存/磁盘/风扇综合评分）
 
-### 参数覆盖层重构（方案规划: [plan-override-layer.md](plan-override-layer.md)）
-
-> 核心改动：删除 MODE_PRESETS，系统只剩 EC 官方默认 + 用户稀疏覆盖。控件灰色 = EC 管理，高亮 = 用户自定义。
-> 单项下发三步：UI 更新 → 立即存 override → 按需去抖下发硬件。存储不去抖，只有硬件下发按需去抖。
-
-> **Phase 0 — 补充缺失的 API 端点** ✅ 已完成
-> ~~从 git 历史（`3f6c637`）恢复被 `198f650` 意外删除的 8 个 API 端点~~
-- [x] ~~NVAPI 端点~~（NvapiGpuController.cs 已存在，已恢复 HTTP API）
-  - [x] `POST /api/nvapi/overclock`
-  - [x] `POST /api/nvapi/thermal-limit`
-  - [x] `GET /api/nvapi/status`
-- [x] ~~CPU powercfg 端点~~（CpuPowerController.cs 已存在，已恢复 HTTP API）
-  - [x] `POST /api/cpu/freq-limit`
-  - [x] `POST /api/cpu/turbo`
-  - [x] `POST /api/cpu/core-limit`
-  - [x] `POST /api/cpu/reset`
-  - [x] `GET /api/cpu/status`
-
-> **Phase 1 — 存储 + 下发** ✅ 已完成
-- [x] **① 存储模型重构 + 删除 MODE_PRESETS**
-  - [x] [前端] `services/uxtuAdapter.js`: 删除 `MODE_PRESETS` 常量
-  - [x] [前端] `hooks/useControlState.js`: 删除全量持久化 useEffect → 新增 `saveOverride` / `loadOverrides` / `clearOverrides` → 模式切换改为读 overrides + 条件 dispatch → 暴露 `overrides` 到返回值
-  - [x] [前端] `hooks/useControlState.js`: 移除风扇去抖 useEffect，风扇下发职责转移到 SortableDashboard 组件内 `queueFan`
-  - [x] [前端] `hooks/useControlState.js`: 启动时检测旧 `douzhanzhe_params_*` 数据并清空（不迁移，直接从 EC 默认开始）
-- [x] **② dispatchFullMode overrides 感知**
-  - [x] [前端] `services/uxtuAdapter.js`: `dispatchFullMode(mode, overrides)` 改为只接收 overrides，每步检查是否有相关字段再决定是否下发，overrides 为空时只发 thermal_mode
-  - [x] [前端] `services/uxtuAdapter.js`: SMU 延迟重发仅在有 CPU SMU 字段时触发
-  - [x] [前端] `services/uxtuAdapter.js`: 新增 `resetToFactoryDefaults(mode)` — thermal_mode 重切（EC 自动恢复 CPU/GPU/风扇预设）+ resetCpuPower（CPU 频率/睿频/核心数单独处理）
-
-> **Phase 2 — 恢复默认** ✅ 已完成
-- [x] **③ 恢复默认**
-  - [x] [前端] `App.jsx`: 「恢复预设」改为「恢复默认」— clearOverrides + resetToFactoryDefaults
-  - [x] [前端] `panels/PerformancePanel.jsx`: **删除**三个分组「恢复预设」按钮（CPU 频率、CPU 功耗、GPU）
-  - [x] [前端] `SortableDashboard.jsx`: **删除**风扇「恢复预设」按钮
-  - [x] [前端] `App.jsx`: 清理模式按钮残留的 async 双发 dispatchFullMode 逻辑（已移除未使用的 import）
-
-> **Phase 3 — UI + 收尾** ✅ 已完成
-- [x] **④ 控件灰色/高亮 + 单项下发三步**
-  - [x] [前端] 各 SliderRow/SwitchRow: 根据 `key in overrides` 显示灰色（EC 管理）或高亮（已自定义），灰色控件可操作，拖动后自动高亮
-  - [x] [前端] 各组件 onChange 统一三步：`setUxtuParams`（UI）+ `saveOverride`（立即存）+ `queueXxx`（按需去抖下发）
-  - [x] [前端] `SortableDashboard.jsx`: 新增 `queueFan(largeRpm, smallRpm)` 去抖函数（400ms，合并大小风扇一次请求），替代 useControlState 集中风扇 useEffect
-  - [x] [前端] 分组卡片标题旁显示自定义状态（如「3项已自定义」或无标记）
-  - [x] [前端] 去抖策略：SMU/GPU核心频率/NVAPI/CPU频率核心数/风扇 = 400-600ms 去抖；CPU 睿频/电源计划/GPU 显存档位 = 直接执行不去抖
-- [x] **⑤ 风扇 EC 自动 + 曲线互斥**
-  - [x] [前端] `SortableDashboard.jsx`: 风扇 `queueFan` 仅在 overrides 有 `fanLargeRpmTarget`/`fanSmallRpmTarget` 时下发，无 override 时不发请求（EC 管理）
-  - [x] [前端] `panels/FanCurvePanel.jsx`: 曲线停止时如 overrides 无风扇字段则自动回归 EC，有 override 则恢复用户设定转速
-- [x] **⑥ 清理废弃代码**
-  - [x] [前端] 全项目清理 MODE_PRESETS 引用（App.jsx / useControlState.js / PerformancePanel.jsx / SortableDashboard.jsx）
-  - [x] [前端] 删除旧的 `design-override-layer.md`（已被 plan-override-layer.md 替代）
-  - [x] [前端] custom 模式存储迁移：`douzhanzhe_params_custom` → `douzhanzhe_overrides_custom`（自动迁移旧数据）
+### 前端 — v1.4.3 代码审核发现
+- [ ] 🔴 **全应用零 Error Boundary**: 任何组件渲染错误导致白屏，硬件控制面板用户可能误以为命令已成功
+- [ ] 🟠 **15 处空 catch 静默吞错**: `.catch(() => {})` 分布在 App.jsx / PerformancePanel / FanCurvePanel / SortableDashboard 等关键组件，硬件命令失败用户无感知
+- [ ] 🟠 **useControlState 全局单 hook 管理所有状态**: 遥测每秒更新触发整个 App 组件树重渲染，应将 telemetry/history 拆分为独立 hook 减少不必要渲染
+- [x] ~~🟡 **HTML lang 属性错误**~~: 已修复 (v1.4.3) — `en` → `zh-CN` — `index.html:2`
+- [x] ~~🟡 **ESLint 配置未排除构建产物**~~: 已修复 (v1.4.3) — `globalIgnores` 补充 `server/**/bin/**` 和 `server/**/wwwroot/**` — `eslint.config.js:8`
+- [ ] 🟡 **全应用零 ARIA 无障碍属性**: 0 处 role / aria- 属性，SwitchRow 缺 role="switch"，SliderRow 缺 aria-label，UpdateDialog 缺 role="dialog" + 焦点陷阱
 
 ### 下发逻辑审计（28 项 · 2026-06-09）
 
 > 审计范围：模式切换 `dispatchFullMode`、恢复默认 `resetToFactoryDefaults`、单项调整 onChange、风扇曲线、状态管理
 > 严重度：🔴 严重 · 🟠 高 · 🟡 中 · 🟢 低
+> **已完成 17 项，剩余 11 项待处理**
 
-#### 模式切换 (`dispatchFullMode`)
+#### 仍待处理
 
-- [x] ~~🔴 **1.1 快速切模式导致 SMU 重发覆盖**~~: `dispatchFullMode` 未 await，两次 `setTimeout`(500ms/1500ms) 的 SMU 重发闭包不可取消，快速连点模式按钮时旧模式的 SMU 值会覆盖新模式，最长影响 1.5s — `useControlState.js` L170/L182, `uxtuAdapter.js` L407-418
-- [x] ~~🟠 **1.2 isEmpty 路径 CPU reset 未 await**~~: 四路 CPU powercfg 命令（`setCpuFreqLimit(0)`, `setCpuTurbo(true)`, `setCpuCoreLimitPercent(100)`, `power_plan 0`）未 await 就 return，GPU/NVAPI 则已 await。切换后立即操作 CPU 控件可能与 reset 竞争 — `uxtuAdapter.js` L323-327
-- [x] ~~🟠 **1.3 SMU 重发不可取消**~~: 两个 `setTimeout` 无 timer ID 追踪，无 `clearTimeout` 入口。1.5s 内再次切模式时旧 SMU 值（PPT/温度墙/电压偏移）覆盖新值 — `uxtuAdapter.js` L407-418
-- [ ] 🟡 **1.4 自定义模式跳过非 EC 重置**: `thermalModeMap.custom = null` 跳过 thermal_mode，且 custom overrides 通常为完整 FULL_PARAMS 故 isEmpty 为 false，CPU powercfg 不经过 reset 直接从 overrides 设置。若 override 缺某 CPU 字段则旧值残留 — `uxtuAdapter.js` L301-328
 - [ ] 🟢 **1.5 风扇下发用 raw fetch 而非 adapter**: 其余通道均走专用 adapter 函数，唯独 fan target 内联 `fetch("/api/fan/set-target")`。破坏 adapter 抽象，改错/重试/URL 需多处修改 — `uxtuAdapter.js` L396-403
-- [x] ~~🟢 **1.6 NVAPI 温度重置值(87)与 FULL_PARAMS 默认值(85)不一致**~~: 两处 reset 路径用 `applyNvapiThermalLimit(87)` 但 `FULL_PARAMS.gpuTempLimitC = 85`。恢复默认后硬件 87°C 但 UI 显示 85°C — `uxtuAdapter.js` L293/L320 vs L143
-
-#### 恢复默认 (`resetToFactoryDefaults`)
-
-- [ ] 🟡 **2.1 SMU 参数未显式重置**: `resetToFactoryDefaults` 不发 cpuLongPptW/cpuShortPptW/cpuTempLimitC/cpuVoltageOffset 的重置值，依赖 thermal_mode 使 EC 恢复默认。若 SMU 写入独立于 thermal_mode 则用户覆盖会存活 — `uxtuAdapter.js` L274-294
 - [ ] 🟡 **2.2 硬件/UI 重置分两个函数无强制协调**: `resetToFactoryDefaults`(硬件) 和 `resetParams`(UI) 在调用端顺序调用，无组合函数或强制约束。任何新 reset 代码路径须记住两者 — `App.jsx` L149-150
-- [ ] 🟢 **2.3 恢复默认后 custom 模式再污染 localStorage**: custom 模式下恢复默认后 React 重渲染触发 custom save effect，把刚重置的默认值存回 localStorage 当 "overrides" — `App.jsx` L140-155, `useControlState.js` L187-201
-
-#### 单项调整 (onChange handlers)
-
-- [ ] 🟠 **3.1 自定义模式全量存储破坏稀疏语义**: custom 模式把完整 `uxtuParams`（FULL_PARAMS + 风扇默认 + overrides）存为 overrides，每个参数都显示"已自定义"。未来若 FULL_PARAMS 默认值变更，旧存储值会覆盖新默认 — `useControlState.js` L187-201
 - [ ] 🟡 **3.2 风扇滑块 onChange 捕获了另一风扇的过期值**: 拖动一个风扇滑块时另一风扇 RPM 从 render 闭包读取（stale），`setUxtuParams` 是异步的，`queueFan` 用了更新前的值。快速双拖会发混合对 — `SortableDashboard.jsx` L224-228/L243-247
-- [x] ~~🟡 **3.3 CPU 睿频开关无去抖无回滚**~~: 其余 CPU 控件均用 600ms 去抖队列，唯独 turbo toggle 立即下发。若硬件命令失败，UI 和 localStorage 已更新但硬件保持旧值，无回滚机制 — `PerformancePanel.jsx` L205-209
-- [x] ~~🟡 **3.4 GPU 显存档位无去抖**~~: 直接 async 调用无 debounce，快速连点 0→1→2→3 每档都发硬件命令。含重试逻辑(2 次/300ms) 可能多个重试循环重叠。对比 GPU 核心频率有 400ms 去抖 — `PerformancePanel.jsx` L289-293
-- [x] ~~🟢 **3.5 `applySmuBatch` 死代码**~~: 函数已定义但全项目无调用 — `PerformancePanel.jsx` L111-118
 - [ ] 🟢 **3.6 `handleApply` 与单项 SMU 滑块用不同 API 端点**: `handleApply` POST `/api/uxtu/apply`（批量），单项滑块 POST `/api/smu/set`（单条）。若后端行为不同，同逻辑操作可能产生不同硬件结果 — `PerformancePanel.jsx` L173-185
 - [ ] 🟢 **3.7 滑块 onChange 未用 `clampParam` 防御**: `clampParam` 存在于 `uxtuAdapter.js` 但仅在 `dispatchFullMode` 中使用，各滑块 onChange 完全依赖 UI min/max 属性。若存储值越界则无钳位直接下发硬件
-
-#### 风扇曲线 (`FanCurvePanel` / `SortableDashboard`)
-
 - [ ] 🟠 **4.1 `dispatchFullMode` 不感知风扇曲线运行状态**: 模式切换仅检查 overrides 中是否有风扇字段，不知曲线是否激活。切换瞬间手动 RPM 目标可能与曲线控制器短暂冲突 — `uxtuAdapter.js` L392-404
 - [ ] 🟡 **4.2 曲线启动后 3s 轮询间隔内未协调 override**: 风扇曲线启动不设 override 标记也不通知 useControlState，`fanCurveActive` 靠 3s 轮询检测。间隔内风扇滑块可能未正确禁用，允许与曲线冲突的手动命令 — `FanCurvePanel.jsx` L223-237, `App.jsx` L42-48
-- [x] ~~🟡 **4.3 快捷启动缺参数/缺保存**~~: Dashboard 快捷启动调 `startFanCurve()` 不先保存曲线配置，不传 `intervalMs`/`hysteresisC`（均为 undefined）。FanCurvePanel 正常流程先保存再传参。快捷启动可能用过期/默认曲线参数 — `SortableDashboard.jsx` L200-202
 - [ ] 🟢 **4.4 停止逻辑重复**: 风扇曲线停止逻辑在 FanCurvePanel 和 SortableDashboard 两处近乎相同地重复，任何变更须改两处 — `FanCurvePanel.jsx` L239-266, `SortableDashboard.jsx` L170-191
-- [x] ~~🔴 **4.5 曲线停止后 SMU/GPU/NVAPI/CPU 参数未恢复**~~: 已修复 — `handleStop()` 在 `Stop()` 完成后等 500ms 再调 `reapplyOverrides(mode, overrides)` 重发全部自定义参数。后端偏离检测仅为日志告警（不主动恢复，避免 SetThermalMode 副作用），无自动恢复路径 — `FanCurvePanel.jsx` L245-267
-
-#### 状态管理 (`useControlState`)
-
-- [x] ~~🟠 **5.1 `paramsLoaded` 缺失于模式切换 effect 依赖数组**~~: `paramsLoaded` 在 effect 内被读取但未列入 `[settings.mode]` 依赖数组。违反 React hooks 规则，严格模式或并发渲染下可能异常 — `useControlState.js` L141-183
-- [ ] 🟠 **5.2 自定义模式服务端 fetch 与 `dispatchFullMode` 竞争**: 切到 custom 模式时 localStorage overrides 先下发硬件，同时异步服务端 fetch 更新 UI 到可能不同的值。若 localStorage 与服务端不一致，UI 与硬件不同步 — `useControlState.js` L148-171
 - [ ] 🟡 **5.3 `resetParams`/`clearOverridesFn` 无模式校验即清 overrides**: 两函数直接 `setOverrides({})` 清空模式无关的 overrides React state。若传入错误 mode 或用户在 clear 和 re-render 间切模式，可能清错 overrides — `useControlState.js` L123-133/L304-307
-- [ ] 🟢 **5.4 `clearOldParams` 副作用写在 `useState` 初始化器内**: localStorage 删除操作放在 `useState` 初始化器里。初始化器应为纯计算。实践中因只跑一次故可工作，但不规范 — `useControlState.js` L102-112
-
-#### 横切面 (Cross-cutting)
-
-- [ ] 🟠 **C.1 全部下发路径无取消/中止机制**: 五条下发路径均无 abort/cancel 能力。`dispatchFullMode` 用裸 `setTimeout`，各去抖队列仅在同一组件实例内可取消，模式切换不取消 PerformancePanel 的待下去抖命令
-- [x] ~~🟡 **C.2 GPU 锁频状态未持久化**~~: `gpuFreqLocked` 仅存于 React state + ref，不写 localStorage 也不同步后端。用户锁频后导航离开（卸载），返回时 UI 显示"未锁"但硬件仍锁 — `PerformancePanel.jsx` L31-32
+- [ ] 🟠 **C.1 全部下发路径无取消/中止机制**: 五条下发路径均无 abort/cancel 能力。`dispatchFullMode` 用裸 `setTimeout`，各去抖队列仅在同一组件实例内可取消，模式切换不取消 PerformancePanel 的待下去抖命令。v1.4.3 审核补充：PerformancePanel 的 thermalTimer/gpuCoreTimer 声明在卸载清理 effect 之后，遗漏 clearTimeout（`PerformancePanel.jsx` L62-73）；SortableDashboard 的 queueFan 去抖定时器也无卸载清理（`SortableDashboard.jsx` L48-63）
 - [ ] 🟡 **C.3 GPU 锁频条件耦合 `enabled` 与基频检查**: 锁频需同时满足 `gpuFreqLimitEnabled` 为真且 `gpuCoreFreqMhz !== GPU_BASE_CLOCK`(2750)。用户开启频率限制并设到恰好 2750 MHz 时 `limit-max` 和 `lock-exact` 都不发。隐式耦合易误导后续维护 — `uxtuAdapter.js` L341-347
 - [ ] 🟢 **C.4 `gpuMemFreqMhz` 作数组下标无越界检查**: 用作 4 元素数组 `memMap` 的索引，合法值 0-3。若 localStorage 损坏值 > 3 则取 `undefined`，向后端发 `{ action: "limit-memory", value: undefined }`。非 custom 模式 overrides 无校验 — `uxtuAdapter.js` L350-355
 
@@ -133,7 +71,7 @@
 > 核心思路：ModeFanRanges 从钳位器变为路由表，EC 直写 ITSM(0xE4) 选择风扇区间（不触发 ALIB/GPUD），WMI 0x1500 写入目标转速。全范围可用：大扇 1900-4400，小扇 1700-8200。
 > 依赖调查报告：[fan-write-investigation-2026-06-10.md](fan-write-investigation-2026-06-10.md) Section 6-7
 
-> **Phase 1 — 后端核心**
+> **Phase 1 — 后端核心** ✅
 - [x] **① RouteMode 路由函数**: FanCurveService.cs 新增 `RouteMode(largeRpm, smallRpm)` — 遍历 ModeFanRanges 找到同时覆盖大扇和小扇目标的最低模式编号，无交集时优先满足大扇，fallback 斗战(3)
 - [x] **② Tick 替换钳位为路由 + EC 直写**: FanCurveService.Tick() 中删除现有 ModeFanRanges 钳位逻辑，替换为 RouteMode → 读取 ITSM(0xE4) → 不匹配时 EC 直写 → Thread.Sleep(100) → 在目标模式区间内钳位 → WMI 写转速
 - [x] **③ ReadEcPort 公开**: 确认 HardwareAbstractionLayer 中 ReadEcPort(0xE4) 可被 FanCurveService 调用（已确认为 public）
@@ -142,32 +80,32 @@
 - [x] **⑤b WMI 风扇写入验证 + 锁定检测**: Tick 写入后读回 EC 0x5E/0x5A 确认值生效；连续 3 次写后不生效标记 WMI 通道为"锁定"，触发 Toast 警告并尝试 SetFanManual 重激活（应对 CPU 频率限制导致的通道锁定，见设计方案 §6.7）
 - [x] **⑥ /api/fan-curve/route-info 端点**: Program.cs 新增 GET 端点，返回 currentItsm / routedMode / lastLargeTarget / lastSmallTarget / modeChangeCount / itsmDeviationCount / wmiChannelLocked
 
-> **Phase 2 — 前端适配**
+> **Phase 2 — 前端适配** ✅
 - [x] **⑦ FanCurvePanel 移除模式区间带**: 删除蓝色/紫色区间矩形 + 区间标签 + 钳位警告环（`largeClamped` / `smallClamped` 判定）；Y 轴标注改为全范围大扇 1900-4400 / 小扇 1700-8200
 - [x] **⑧ 路由状态指示**: 状态栏新增"当前路由模式: [安静]"指示，通过轮询 /api/fan-curve/route-info（3s 间隔）返回的路由信息更新显示
 - [x] **⑨ uxtuAdapter getFanRange 改全范围**: `getFanRange(mode)` 不再按模式返回区间，改为返回 `FULL_FAN_RANGE = { largeMin:1900, largeMax:4400, smallMin:1700, smallMax:8200 }`
 - [x] **⑩ 曲线激活时禁用手动风扇滑块**: SortableDashboard.jsx 中 queueFan 在 `fanCurveActive` 时不下发，风扇滑块显示为只读状态（已有 disabled + opacity 实现）
 
-> **Phase 3 — 验证测试**
-- [ ] **⑪ ITSM 长期稳定性测试**: 运行 test-itsm-stability.ps1（30 分钟，游戏负载），确认 ITSM 不被 EC 固件覆写
-- [ ] **⑫ Fn 热键恢复测试**: 自定义曲线运行中按 Fn+模式切换键，确认 5 秒内 ITSM 被自动重写恢复
-- [ ] **⑬ AC 插拔恢复测试**: 曲线运行中拔插电源，确认 ITSM 恢复 + 功耗不受影响
-- [ ] **⑭ 跨模式曲线测试**: 设置场景 3 曲线（安静→均衡→斗战），确认路由正确切换 + 风扇转速连续过渡
-- [ ] **⑮ GPU 功耗保持测试**: 曲线运行 + 游戏负载，监控 GPU 功耗不降频（保持 D1）
-- [ ] **⑯ 停止恢复测试**: 启动曲线 → 停止 → 确认系统恢复到 _savedThermalMode + 固件风扇控制
-- [ ] **⑯b CPU 频率限制干扰测试（严重）**: 曲线运行中通过 `/api/cpu/freq-limit` 设定频率限制，监控 WMI 风扇写入是否被 EC 静默拒绝；测试 beast/gaming/quiet/office 四种 ITSM 下的阻断行为；验证 SetFanManual(false→true) 重激活是否可恢复
+> **Phase 3 — 验证测试** ⏸️ 暂缓（核心功能已成型，按需补充测试）
+> - ⑪ ITSM 长期稳定性测试（30 分钟游戏负载）
+> - ⑫ Fn 热键恢复测试
+> - ⑬ AC 插拔恢复测试
+> - ⑭ 跨模式曲线测试（安静→均衡→斗战路由切换）
+> - ⑮ GPU 功耗保持测试（曲线 + 游戏负载不降频）
+> - ⑯ 停止恢复测试（确认恢复 _savedThermalMode + 固件控制）
+> - ⑯b CPU 频率限制干扰测试（四种 ITSM 下的 WMI 阻断行为）
 
-> **Phase 4 — 打磨与降级**
-- [ ] **⑰ WMI 事件监听加速恢复（可选）**: 订阅 _WDG 事件 GUID，检测到模式切换 notify 时立即触发 ITSM 重写，不等下个 tick
-- [ ] **⑱ EC 写入失败降级**: 连续 3 次 EC 直写 ITSM 后被覆写回原值 → 自动降级到 WMI SetThermalMode + SMU 功耗覆盖，前端提示"降级模式"
-- [ ] **⑲ 睡眠/唤醒处理**: 注册系统电源事件回调，唤醒后立即执行一次 ITSM 修复 tick
-- [ ] **⑳ 日志完善**: Tick 日志增加路由决策（L→mode, S→mode, 交集/回退）、ITSM 读值、偏离计数；降级模式下日志频率提高
+> **Phase 4 — 打磨与降级** ⏸️ 暂缓（⑲ 睡眠恢复已实现，其余按需迭代）
+> - ⑰ WMI 事件监听加速恢复（可选）
+> - ⑱ EC 写入失败降级（连续 3 次失败 → WMI SetThermalMode + SMU 覆盖）
+> - [x] ~~⑲ 睡眠/唤醒处理~~ ✅
+> - ⑳ 日志完善（路由决策过程 + 偏离计数，已部分实现）
 
-> **多配置预设（后续迭代）**: 将单文件 `fan-curve.json` 改为多配置存储（命名预设），后端新增 list/save-named/load/delete 端点，前端增加预设列表 + 命名保存交互。场景：安静办公曲线 / 游戏曲线一键切换。当前"保存配置"按钮功能冗余（"应用曲线"已内含保存），此功能使其真正有用
+> **多配置预设**: 后续迭代 — 单文件 `fan-curve.json` 改为多配置存储（命名预设），前端增加预设列表 + 命名保存交互
 
 ### 其他
 - [x] **Debug 页重构**: 将 debug HTML 从 Program.cs 内嵌字符串（~33KB 单行）提取到 `wwwroot/debug.html` 独立文件，补齐缺失的控制区：SMU 功率/温度、CPU powercfg（freq-limit/turbo/core-limit/reset）、GPU NVAPI（超频/温度限制/P-State dump）、风扇曲线服务（start/stop/status/route-info）、EC scan、系统信息。现有 54 个 API 端点中 debug 页仅覆盖 ~10 个
-- [ ] **CPU 频率限制改用 ryzenadj/SMU 实现**: 砍掉 CpuPowerController 中的 powercfg `SET_PROC_FREQ_LIMIT` 路径，改为通过 SMU 寄存器（ryzenadj）设置 CPU 频率上限。powercfg 路径会触发 EC 锁定 WMI 风扇写入通道（详见 [custom-fan-curve-design §6.7](custom-fan-curve-design-2026-06-10.md)），SMU 路径不经过 EC，从根本上消除此冲突。现有 SmuController + `/api/smu/set` 基础设施可复用
+- ~~**CPU 频率限制改用 ryzenadj/SMU 实现**~~: ❌ 已废弃 (v1.4.0) — 核心发现证明 ryzenadj `--max-cpuclk` 通过 PCI config space 写 SMU 寄存器会干扰 EC 内部 PID 控制回路，导致风扇忽略 EC 写入的目标值。刻意回退保持 powercfg `SET_PROC_FREQ_LIMIT` 路径 — `CpuPowerController.cs`
 - [ ] **一键降压**: 参考游戏加加 Lite，实现 CPU/GPU 降压功能（降低电压以减少发热和功耗）
 - [ ] **游戏自动切换性能模式**: 参考机械革命控制台，监听游戏进程启动/退出，自动切换预设性能模式
 - [ ] **提升控制台进程优先级**: 设置 Douzhanzhe 进程为高优先级（High/Above Normal），减少系统资源竞争导致的性能问题
@@ -348,7 +286,47 @@
 - [x] ~~`tools/`: 清理 WinRing0x64 残留~~ ✅ WinRing0x64.dll/.sys 已清除（文件已从 `server/tools/` 移除）
 - [x] ~~`tools/`: 移除 WinRing0x64.dll + 废弃 ryzenadj.exe~~ ✅ WinRing0x64.dll/.sys 已清除；❌ ryzenadj.exe 仍为 SmuController 运行时依赖，暂无替代方案
 
+### 参数覆盖层重构 ✅ (Phase 0-3 全部完成)
+- [x] **Phase 0**: 恢复被误删的 8 个 API 端点（NVAPI 3 + CPU powercfg 5）
+- [x] **Phase 1**: 存储模型重构 — 删除 MODE_PRESETS、新增 sparse override 模型、dispatchFullMode overrides 感知、resetToFactoryDefaults
+- [x] **Phase 2**: 恢复默认 — clearOverrides + resetToFactoryDefaults、删除分组恢复按钮
+- [x] **Phase 3**: UI 收尾 — 控件灰色/高亮、单项下发三步、风扇 EC 自动 + 曲线互斥、废弃代码清理
+- [x] 详见 [plan-override-layer.md](plan-override-layer.md)
+
+### 下发逻辑审计修复 (28 项 · 已完成 17 项)
+- [x] ~~🔴 **1.1 快速切模式 SMU 重发覆盖**~~ — 已修复
+- [x] ~~🟠 **1.2 isEmpty 路径 CPU reset 未 await**~~ — 已修复
+- [x] ~~🟠 **1.3 SMU 重发不可取消**~~ — 已修复（代际计数器）
+- [x] ~~🟡 **1.4 自定义模式跳过非 EC 重置**~~ — 不适用（custom 模式已移除）
+- [x] ~~🟢 **1.6 NVAPI 温度重置值不一致**~~ — 已修复
+- [x] ~~🟡 **2.1 SMU 参数未显式重置**~~ — 已修复（resetCpuPower + GPU/NVAPI 显式重置）
+- [x] ~~🟢 **2.3 恢复默认后再污染 localStorage**~~ — 已修复
+- [x] ~~🟠 **3.1 全量存储破坏稀疏语义**~~ — 已修复（按 key 单条存储）
+- [x] ~~🟡 **3.3 CPU 睿频开关无去抖无回滚**~~ — 已修复
+- [x] ~~🟡 **3.4 GPU 显存档位无去抖**~~ — 已修复
+- [x] ~~🟢 **3.5 applySmuBatch 死代码**~~ — 已清理
+- [x] ~~🟡 **4.3 快捷启动缺参数**~~ — 已修复
+- [x] ~~🔴 **4.5 曲线停止后参数未恢复**~~ — 已修复（reapplyOverrides）
+- [x] ~~🟠 **5.1 paramsLoaded 缺失于依赖数组**~~ — 已修复
+- [x] ~~🟠 **5.2 服务端 fetch 与 dispatch 竞争**~~ — 已修复
+- [x] ~~🟢 **5.4 clearOldParams 副作用**~~ — 已修复
+- [x] ~~🟡 **C.2 GPU 锁频状态未持久化**~~ — 已修复
+
+### 自定义风扇曲线 EC 直写 — 已修复
+- [x] ~~**⑲ 睡眠/唤醒处理**~~: 已实现 — `FanCurveService.RecoverAfterSleep()` 在 PowerModeChanged 事件中调用，强制重发 ITSM + 重置 ShouldWrite
+
+### v1.4.3 代码审核修复
+- [x] ~~🔴 **CpuFreq 缓存变量错误**~~: `_sgDiskTime` → `_cpuFreqTime` — `HardwareAbstractionLayer.cs:633`
+- [x] ~~🔴 **DriverBridge.WriteBit 竞态**~~: 添加 `lock (_lock)` 包裹读-改-写 — `DriverBridge.cs:166`
+- [x] ~~🟡 **DriverBridge._recovering TOCTOU**~~: `bool` → `int` + `Interlocked.Exchange` — `DriverBridge.cs:38,91`
+- [x] ~~🟡 **FanCurveService.Dispose 不清理 Timer**~~: 先 `_timer?.Dispose()` 再恢复固件 — `FanCurveService.cs:230`
+- [x] ~~🟡 **RyzenAdj 超时未 Kill**~~: 超时后 `proc.Kill()` — `SmuController.cs:55`
+- [x] ~~🟡 **HTML lang 属性错误**~~: `en` → `zh-CN` — `index.html:2`
+- [x] ~~🟡 **ESLint 未排除构建产物**~~: `globalIgnores` 补充 server 路径 — `eslint.config.js:8`
+
 ### 已修复 Bug
+- [x] ~~**🔴 `/api/uxtu/apply` 缺少 `SavePerfOverrides`**~~: 已修复 (v1.4.1) — `BatchApply` 成功后持久化 SMU 四参数到 `performance-overrides.json` — `Program.cs` L1057-1068
+- [x] ~~**🔴 风扇曲线停止/恢复后 `reapplyOverrides` 未自动触发**~~: 已修复 (v1.4.1) — `handleStop()` 等 500ms 后调 `reapplyOverrides` 重发全部自定义参数 — `FanCurvePanel.jsx` L245-267
 - [x] ~~mockTelemetry.js cpuCores:32~~ — 已修复
 - [x] **thermal_mode 走 WMI SystemPerMode 修复**: EC 寄存器直写不触发固件完整模式加载（官方控制台不随动、功率预设不生效）→ 改为 WMI Method 8，与官方控制台/验证脚本一致
 - [x] **UI 文案/主题修复**: SliderRow/SwitchRow 灰色状态「EC」→「默认」；灰色滑动条颜色跟随主题 `var(--muted)`
@@ -394,12 +372,8 @@
 - 2026-06-10: 自定义风扇曲线产品设计方案 + 任务组排入看板 (EC 直写 ITSM, 20 项原子任务, 4 阶段)
 - 2026-06-11: Phase 1+2 实施完成 — RouteMode 路由函数 + Tick EC 直写 ITSM + Start/Stop 保护 + ITSM 守护统计 + WMI 写入验证锁定检测 + route-info API + FanCurvePanel 全范围 + 路由状态轮询 + getFanRange 改全范围 (后端构建 0 error / 前端构建 0 error)
 - 2026-06-12: 持久化缺口审计 + WebView2 缓存修复 — 发现两个 🔴 严重问题：① `/api/uxtu/apply` 缺少 `SavePerfOverrides`（SMU 参数不持久化）；② 风扇曲线停止后 `reapplyOverrides` 未自动触发（ACPI 链重置全部参数无机制补回）；修复 Form1.cs 缓存清理从"删整个 WebView2 目录"改为仅清 Cache/CodeCache/GPUCache/ServiceWorker/ShaderCache（保留 Local Storage/IndexedDB）
+- 2026-06-13: v1.4.3 全量代码审核 — 前后端共发现 58 项问题（严重 5 / 高 9 / 中 26 / 低 18）。关键发现：CpuFreq 缓存变量 Bug、CORS AllowAnyOrigin CSRF、DriverBridge.WriteBit 竞态、全应用零 Error Boundary、15 处空 catch 静默吞错、useControlState 全局状态导致不必要重渲染。同时核查任务看板未勾项：7 项已修复可画勾、1 项已废弃（CPU 频率限制 ryzenadj 路径）、11 项问题仍存在。新增审核发现至看板后端/前端分类
 
 ---
 
 > 项目主记忆：[douzhanzhe-progress.md](vscode://file/c:\Users\liufe\AppData\Roaming\Code\User\globalStorage\github.copilot-chat\memory-tool\memories\douzhanzhe-progress.md) | 操作守则：[.github/copilot-instructions.md](.github/copilot-instructions.md)
-
-#### SMU (2026-06-05)
-- [x] **SMU 写入验证**：Dragon Range 地址确认 + ryzenadj 子进程写入 25W 功率墙成功 ✅
-- [x] **C# 后端集成**: 子进程 0xC0000005 已解决（接受为成功退出码） ✅
-- [x] **Debug 页按钮**: SMU 功率/温度设置按钮已整合 ✅

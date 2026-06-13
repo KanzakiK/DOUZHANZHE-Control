@@ -630,7 +630,7 @@ public sealed class HardwareAbstractionLayer : IDisposable
     {
         get
         {
-            if ((DateTime.UtcNow - _sgDiskTime).TotalSeconds < 0.5 && _cpuFreqCache > 0) return _cpuFreqCache;
+            if ((DateTime.UtcNow - _cpuFreqTime).TotalSeconds < 0.5 && _cpuFreqCache > 0) return _cpuFreqCache;
             return GetCpuFreqDirect();
         }
     }

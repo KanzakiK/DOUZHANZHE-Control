@@ -35,7 +35,7 @@ public sealed class DriverBridge : IDisposable
     volatile bool _init, _dis, _driverOk;
     volatile IntPtr _ecMap;
     volatile bool _ecOk;
-    volatile bool _recovering; // 睡眠恢复中标志，防止并发重入
+    volatile int _recovering; // 睡眠恢复中标志，防止并发重入
     DriverBridge() {}
     public static DriverBridge Instance => _instance.Value;
 
@@ -88,8 +88,7 @@ public sealed class DriverBridge : IDisposable
     /// </summary>
     public void RecoverAfterSleep()
     {
-        if (_recovering) return;
-        _recovering = true;
+        if (Interlocked.Exchange(ref _recovering, 1) == 1) return;
         try
         {
             lock (_lock)
@@ -105,7 +104,7 @@ public sealed class DriverBridge : IDisposable
             Init(3000); // 给更长的超时，让驱动有机会恢复
             Console.WriteLine($"[DriverBridge] 睡眠恢复完成: Ready={_driverOk}, EcOk={_ecOk}");
         }
-        finally { _recovering = false; }
+        finally { _recovering = 0; }
     }
 
     [HandleProcessCorruptedStateExceptions]
@@ -164,7 +163,7 @@ public sealed class DriverBridge : IDisposable
     /// <summary>通过 EC IO 协议写单个字节（端口 0x62/0x66）</summary>
     public void WritePhysByte(ulong a, byte v) => WritePhys(a, v);
     public void WriteBit(ulong a, int b, bool s)
-    { var x = ReadPhys(a); if(s) x|=(byte)(1<<b); else x&=unchecked((byte)~(1<<b)); WritePhys(a,x); }
+    { lock (_lock) { var x = ReadPhys(a); if(s) x|=(byte)(1<<b); else x&=unchecked((byte)~(1<<b)); WritePhys(a,x); } }
     public ushort ReadWord(ulong a) { return (ushort)((ReadPhys(a+1)<<8)|ReadPhys(a)); }
 
     public byte ReadIo(short p)

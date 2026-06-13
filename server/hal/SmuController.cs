@@ -52,7 +52,7 @@ public sealed class SmuController
         };
         using var proc = Process.Start(psi);
         if (proc == null) return -1;
-        proc.WaitForExit(15000);
+        if (!proc.WaitForExit(15000)) { try { proc.Kill(); } catch { } }
         return proc.ExitCode;
     }
 
