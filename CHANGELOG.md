@@ -5,7 +5,7 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
-## [1.4.6] — 2026-06-13
+## [1.4.7] — 2026-06-13
 
 修复开机自启最小化到托盘不生效的问题
 
