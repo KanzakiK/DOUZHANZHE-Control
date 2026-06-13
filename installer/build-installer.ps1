@@ -84,6 +84,9 @@ if (-not $SkipPublish) {
     Write-Host "[3/6] 发布 .NET API..." -ForegroundColor Cyan
     $ApiOut = Join-Path $Root "dist\publish\api"
     if (Test-Path $ApiOut) { Remove-Item -Recurse -Force $ApiOut }
+    # 清理中间产物，防止无 RID 的增量构建缓存污染 deps.json
+    # (开发时 dotnet build 不带 -r，obj/ 缓存会丢失 runtimeTargets → 安装后启动崩溃)
+    dotnet clean (Join-Path $Root "server\api\Douzhanzhe.API.csproj") -c Release -v q 2>&1 | Out-Null
     dotnet publish (Join-Path $Root "server\api\Douzhanzhe.API.csproj") `
         -c Release -r win-x64 --self-contained false -o $ApiOut
     if ($LASTEXITCODE -ne 0) { exit 1 }
