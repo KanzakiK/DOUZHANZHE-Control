@@ -92,7 +92,7 @@ SystemEvents.PowerModeChanged += (sender, e) =>
 
                 // GPU 模式恢复 (从 gpu-mode.json)
                 var saved = JsonRead<Dictionary<string, int>>("gpu-mode.json", new Dictionary<string, int>());
-                if (saved.TryGetValue("gpuMode", out int mode) && mode >= 0 && mode <= 1)
+                if (saved.TryGetValue("gpuMode", out int mode) && mode >= 0 && mode <= 2)
                 {
                     var wmi = app.Services.GetRequiredService<WmiInterface>();
                     if (wmi.Available)
@@ -286,16 +286,6 @@ _ = System.Threading.Tasks.Task.Run(() =>
         var saved = JsonRead<Dictionary<string, int>>("gpu-mode.json", new Dictionary<string, int>());
         bool hasSaved = saved.TryGetValue("gpuMode", out int mode) && mode >= 0 && mode <= 2;
 
-        // 安全网: iGPU-only(mode=2) 会导致本机视频输出口无信号
-        // 此值只可能来自早期 bug 或 dev 配置残留，用户不会主动选择
-        // 自动修正为独显模式(1) — 游戏本用户的预期默认，性能优于混合模式(0)
-        if (hasSaved && mode == 2)
-        {
-            Log("[Startup] Saved GPU mode is iGPU-only(2), which disables video output on this laptop — auto-correcting to discrete(1)");
-            mode = 1;
-            JsonWrite("gpu-mode.json", new { gpuMode = 1 });
-        }
-
         var wmiStartup = app.Services.GetRequiredService<WmiInterface>();
         // 最多重试 3 次，每次间隔 2 秒，等待 WMI 就绪
         for (int attempt = 1; attempt <= 3; attempt++)
@@ -311,24 +301,16 @@ _ = System.Threading.Tasks.Task.Run(() =>
             byte firmware = wmiStartup.GetGpuMode();
             Log($"[Startup] Firmware GPU mode={firmware}, saved={( hasSaved ? mode.ToString() : "none" )}");
 
-            // 如果固件已经是 iGPU-only(2)，无论是否有存档都强制切回独显模式
-            if (firmware == 2)
-            {
-                Log("[Startup] Firmware in iGPU-only(2) — auto-correcting to discrete(1)");
-                if (wmiStartup.SetGpuMode(1))
-                {
-                    JsonWrite("gpu-mode.json", new { gpuMode = 1 });
-                    Log("[Startup] GPU mode corrected to discrete(1)");
-                    return;
-                }
-                Log($"[Startup] SetGpuMode(1) failed, retry {attempt}/3...");
-                System.Threading.Thread.Sleep(2000);
-                continue;
-            }
-
-            // 有存档且有效 → 恢复到存档值
+            // 有存档且有效 → 恢复到存档值（尊重用户选择，包括 iGPU-only）
             if (hasSaved)
             {
+                // 固件已与存档一致，无需切换
+                if (firmware == mode)
+                {
+                    Log($"[Startup] GPU mode already at {mode}, no action needed");
+                    return;
+                }
+
                 if (!wmiStartup.SetGpuMode((byte)mode))
                 {
                     Log($"[Startup] SetGpuMode({mode}) failed, retry {attempt}/3...");
@@ -346,8 +328,8 @@ _ = System.Threading.Tasks.Task.Run(() =>
                 continue;
             }
 
-            // 无存档 + 固件已在安全模式(0或1) → 记录当前状态即可
-            Log($"[Startup] No saved GPU mode, firmware is in safe mode({firmware}), no action needed");
+            // 无存档 → 不干预固件状态，仅记录
+            Log($"[Startup] No saved GPU mode, firmware is at {firmware}, no action needed");
             return;
         }
         Log("[Startup] GPU mode restore failed after 3 attempts");
