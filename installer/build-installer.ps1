@@ -136,6 +136,18 @@ if (Test-Path $SysInfoPs1) {
     if (Test-Path $d) { Remove-Item -Recurse -Force $d }
 }
 
+# 清理开发环境残留配置（dev 值不应打包进安装器）
+# 这些文件虽然 .gitignore 排除了，但物理存在于项目目录，dotnet publish 会复制它们。
+# 用户的配置文件由 API 在运行时按需创建（带安全默认值），不需要安装器预设。
+$PublishConfigDir = Join-Path $ApiDir "config"
+if (Test-Path $PublishConfigDir) {
+    $DevConfigs = Get-ChildItem $PublishConfigDir -Filter "*.json"
+    if ($DevConfigs.Count -gt 0) {
+        Remove-Item (Join-Path $PublishConfigDir "*.json") -Force
+        Write-Host "  已清理 $($DevConfigs.Count) 个开发配置文件（API 运行时按需创建）" -ForegroundColor Green
+    }
+}
+
 $size = (Get-ChildItem -Recurse $ApiDir | Measure-Object -Property Length -Sum).Sum / 1MB
 Write-Host "  合并完成，总大小：$([math]::Round($size, 1)) MB" -ForegroundColor Green
 

@@ -404,8 +404,7 @@ Name: "autostart"; Description: "开机自动启动（后台运行）(&A)"; Grou
 ; API + Shell + 前端 (已合并到同一目录)
 Source: "..\dist\publish\api\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; \
   Excludes: "*.pdb,_bak\*,bin_temp\*,config\*"
-; 用户配置文件 — 仅在首次安装时复制（不覆盖已有配置）
-Source: "..\dist\publish\api\config\*"; DestDir: "{app}\config"; Flags: onlyifdoesntexist recursesubdirs createallsubdirs;
+; 配置文件不再预装 — API 在首次启动时按需创建（带安全默认值）
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
