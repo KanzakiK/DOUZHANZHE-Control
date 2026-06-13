@@ -17,6 +17,7 @@
 - 风扇曲线服务关闭时没有先停定时器：Timer 回调可能在服务 Dispose 之后仍然执行一次
 - ryzenadj 子进程超时后没有被强制终止：如果 ryzenadj 卡住超过 15 秒，进程会一直残留
 - HTML 页面语言标记为英文：屏幕阅读器会按英文发音朗读中文界面
+- 安装后后端无法启动：`dotnet publish -r win-x64` 将 RID 专属 DLL 展平到根目录，但 `deps.json` 仍指向 `runtimes/win/lib/net8.0/` 路径，当 `runtimes/` 目录存在时（WebView2 创建），.NET 运行时优先走 RID 路径找不到文件直接抛 `FileNotFoundException`（涉及 SystemEvents、EventLog、PerformanceCounter、System.Management 等 6 个 DLL）
 
 ### 修复
 
@@ -26,11 +27,13 @@
 - **风扇曲线 Timer 清理**: 服务 Dispose 时先停止定时器再恢复固件控制，避免回调在销毁后执行
 - **ryzenadj 超时清理**: 子进程 15 秒超时后强制 Kill，防止残留进程占用资源
 - **HTML 语言修正**: 页面语言属性从 `en` 改为 `zh-CN`
+- **RID DLL 路径修复**: 构建脚本自动扫描 `deps.json` 的 `runtimeTargets`，将展平的 DLL 复制到正确的 `runtimes/win/lib/net8.0/` 路径，解决安装后后端无法启动的问题
 
 ### 改进
 
 - **ESLint 配置**: 排除后端构建产物目录，lint 不再扫描压缩后的 React 产物报无意义错误
 - **任务看板整理**: 核查历史审计任务，7 项已修复画勾、1 项废弃、新增 18 项审核发现、已完成项归入已完成分类
+- **仓库清理**: 移除临时测试项目和旧构建产物备份，更新 `.gitignore` 规则
 
 ## [1.4.3] — 2026-06-13
 
