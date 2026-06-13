@@ -22,6 +22,10 @@
 - **风扇曲线 ITSM 重发**: `FanCurveService.RecoverAfterSleep()` 在睡眠后立即重发 ITSM 模式 + 重置 ShouldWrite 状态，确保下一个 Tick 必定写入
 - **异步执行**: `PowerModeChanged` 改为 `Task.Run` 异步执行，避免阻塞事件回调线程
 
+### 改进
+
+- **检查更新弹窗**: 点击关于卡片的“检查更新”按钮现在会弹出完整的更新对话框（显示更新日志 + 跳过/稍后/下载按钮），而不是仅显示 toast 通知
+
 ### 新增
 
 - `Microsoft.Win32.SystemEvents` NuGet 包依赖（提供 `PowerModeChanged` 事件）

@@ -20,6 +20,20 @@ export default function SettingsPanel({ settings, setSettings, uxtuPayload, show
       .then(d => { const m = d.minimized === true; setAutoStartMinimized(m); localStorage.setItem("dz_autostart_min", m ? "1" : "0"); })
       .catch(() => {});
   }, [showAutoStart]);
+
+  // 监听手动检查更新结果，显示 toast
+  useEffect(() => {
+    if (!showAbout) return;
+    const handler = (e) => {
+      const d = e.detail;
+      if (d.error) toast?.(d.msg, "error");
+      else if (d.upToDate) toast?.("当前已是最新版本", "success");
+      else if (d.skipped) toast?.(`已跳过 v${d.version}，可在跳过列表中取消`, "info");
+    };
+    window.addEventListener("update-check-result", handler);
+    return () => window.removeEventListener("update-check-result", handler);
+  }, [showAbout]);
+
   const toggleAutoStart = (v) => {
     localStorage.setItem("dz_autostart", v ? "1" : "0");
     setAutoStart(v);
@@ -250,17 +264,8 @@ export default function SettingsPanel({ settings, setSettings, uxtuPayload, show
           <div className="mt-3 pt-3" style={{ borderTop: "1px solid var(--border)" }}>
             <button
               onClick={() => {
-                fetch("/api/update/check")
-                  .then(r => r.json())
-                  .then(d => {
-                    if (d.error) { toast?.("检查更新失败: " + d.error, "error"); return; }
-                    if (d.available) {
-                      toast?.(`发现新版本 v${d.latestVersion}，请重启应用查看更新详情`, "info");
-                    } else {
-                      toast?.("当前已是最新版本", "success");
-                    }
-                  })
-                  .catch(() => toast?.("检查更新失败", "error"));
+                // 触发 UpdateDialog 组件检查更新并弹窗
+                window.dispatchEvent(new Event("check-update-manual"));
               }}
               style={{
                 padding: "6px 12px",

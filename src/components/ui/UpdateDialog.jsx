@@ -9,13 +9,14 @@ export default function UpdateDialog({ autoCheck = true }) {
   const [updateInfo, setUpdateInfo] = useState(null);
 
   // 检查更新
-  const checkUpdate = async () => {
+  const checkUpdate = async (manual = false) => {
     setLoading(true);
     try {
       const res = await fetch("/api/update/check");
       const data = await res.json();
       if (data.error) {
         console.warn("[update] check failed:", data.error);
+        if (manual) window.dispatchEvent(new CustomEvent("update-check-result", { detail: { error: true, msg: "检查更新失败: " + data.error } }));
         return;
       }
 
@@ -23,18 +24,29 @@ export default function UpdateDialog({ autoCheck = true }) {
         // 检查用户是否跳过了此版本
         const skipped = localStorage.getItem(SKIP_KEY);
         if (skipped === data.latestVersion) {
-          return; // 跳过，不提示
+          if (manual) window.dispatchEvent(new CustomEvent("update-check-result", { detail: { skipped: true, version: data.latestVersion } }));
+          return;
         }
 
         setUpdateInfo(data);
         setVisible(true);
+      } else {
+        if (manual) window.dispatchEvent(new CustomEvent("update-check-result", { detail: { upToDate: true } }));
       }
     } catch (e) {
       console.warn("[update] check error:", e);
+      if (manual) window.dispatchEvent(new CustomEvent("update-check-result", { detail: { error: true, msg: "检查更新失败" } }));
     } finally {
       setLoading(false);
     }
   };
+
+  // 监听手动检查事件
+  useEffect(() => {
+    const handler = () => checkUpdate(true);
+    window.addEventListener("check-update-manual", handler);
+    return () => window.removeEventListener("check-update-manual", handler);
+  }, []);
 
   // 记录检查时间
   const recordCheck = () => {
