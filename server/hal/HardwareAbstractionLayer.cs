@@ -32,6 +32,8 @@ public sealed class HardwareAbstractionLayer : IDisposable
     private DateTime _sgGpuTime = DateTime.MinValue;
     private int _sgCpuPct;
     private DateTime _sgCpuTime = DateTime.MinValue;
+    private long _cpuIdlePrev, _cpuKernelPrev, _cpuUserPrev;
+    private bool _cpuTimesInit;
     private int _sgMemUsage, _sgMemTotal, _sgMemFreq;
     private DateTime _sgMemTime = DateTime.MinValue;
     private int _sgDiskUsage, _sgDiskTotal, _sgDiskFree;
@@ -102,6 +104,10 @@ public sealed class HardwareAbstractionLayer : IDisposable
     static extern uint PowerSetActiveScheme(IntPtr userRootPowerKey, ref Guid schemeGuid);
     [DllImport("kernel32.dll")]
     static extern IntPtr LocalFree(IntPtr hMem);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    static extern bool GetSystemTimes(out long idleTime, out long kernelTime, out long userTime);
 
     private static readonly Guid GUID_BALANCED   = new("381b4222-f694-41f0-9685-ff5bb260df2e");
     private static readonly Guid GUID_PERFORMANCE = new("8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c");
@@ -607,18 +613,32 @@ public sealed class HardwareAbstractionLayer : IDisposable
     {
         get
         {
-            if ((DateTime.UtcNow - _sgCpuTime).TotalSeconds < 1 && _sgCpuPct > 0) return _sgCpuPct;
+            // 1 秒缓存
+            if ((DateTime.UtcNow - _sgCpuTime).TotalSeconds < 1 && _sgCpuPct >= 0) return _sgCpuPct;
             try
             {
-                using var pc = new System.Diagnostics.PerformanceCounter("Processor", "% Processor Time", "_Total");
-                pc.NextValue();
-                System.Threading.Thread.Sleep(200);
-                var v = (int)Math.Round(pc.NextValue());
-                if (v >= 0 && v <= 100)
+                if (GetSystemTimes(out long idle, out long kernel, out long user))
                 {
-                    _sgCpuPct = v;
-                    _sgCpuTime = DateTime.UtcNow;
-                    return v;
+                    if (_cpuTimesInit)
+                    {
+                        long dIdle   = idle   - _cpuIdlePrev;
+                        long dKernel = kernel - _cpuKernelPrev;
+                        long dUser   = user   - _cpuUserPrev;
+                        // kernel 包含 idle，活跃时间 = kernel - idle + user
+                        long active = dKernel - dIdle + dUser;
+                        long total  = dKernel + dUser;
+                        if (total > 0)
+                        {
+                            _sgCpuPct = (int)Math.Round((double)active / total * 100.0);
+                            _sgCpuPct = Math.Clamp(_sgCpuPct, 0, 100);
+                        }
+                    }
+                    _cpuIdlePrev   = idle;
+                    _cpuKernelPrev = kernel;
+                    _cpuUserPrev   = user;
+                    _cpuTimesInit  = true;
+                    _sgCpuTime     = DateTime.UtcNow;
+                    return _sgCpuPct;
                 }
             }
             catch { }
