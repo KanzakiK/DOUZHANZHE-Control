@@ -657,24 +657,55 @@ public sealed class HardwareAbstractionLayer : IDisposable
 
     private float _cpuFreqCache;
     private DateTime _cpuFreqTime = DateTime.MinValue;
+    private PerformanceCounter? _cpuFreqCounter;
+    private float _cpuBaseFreqGhz;
     private float GetCpuFreqDirect()
     {
-        if ((DateTime.UtcNow - _cpuFreqTime).TotalSeconds < 1 && _cpuFreqCache > 0)
-            return _cpuFreqCache;
         try
         {
-            using var pc = new System.Diagnostics.PerformanceCounter("Processor Information", "% Processor Performance", "_Total");
-            pc.NextValue();
-            System.Threading.Thread.Sleep(200);
-            var pct = pc.NextValue();
+            // 惰性初始化持久化 PerformanceCounter（不再每次 new/dispose）
+            if (_cpuFreqCounter == null)
+            {
+                _cpuFreqCounter = new PerformanceCounter("Processor Information", "% Processor Performance", "_Total");
+                _cpuFreqCounter.NextValue(); // 首次调用返回 0，用于建立基线
+            }
+
+            var pct = _cpuFreqCounter.NextValue();
             if (pct > 0)
             {
-                _cpuFreqCache = (float)(2.4 * (pct / 100.0));
+                // 惰性检测真实基频（只读一次）
+                if (_cpuBaseFreqGhz <= 0)
+                {
+                    try
+                    {
+                        using var proc = new Process
+                        {
+                            StartInfo = new ProcessStartInfo("powershell",
+                                "-NoProfile -Command \"(Get-CimInstance Win32_Processor).MaxClockSpeed\"")
+                            {
+                                UseShellExecute = false,
+                                RedirectStandardOutput = true,
+                                CreateNoWindow = true
+                            }
+                        };
+                        proc.Start();
+                        if (proc.WaitForExit(3000))
+                        {
+                            var line = proc.StandardOutput.ReadToEnd().Trim();
+                            if (int.TryParse(line, out var mhz) && mhz > 0)
+                                _cpuBaseFreqGhz = mhz / 1000f;
+                        }
+                    }
+                    catch { }
+                    if (_cpuBaseFreqGhz <= 0) _cpuBaseFreqGhz = 2.4f; // 最终兜底
+                }
+
+                _cpuFreqCache = (float)(_cpuBaseFreqGhz * (pct / 100.0));
                 _cpuFreqTime = DateTime.UtcNow;
                 return _cpuFreqCache;
             }
         }
-        catch { }
+        catch { _cpuFreqCounter?.Dispose(); _cpuFreqCounter = null; }
         return _cpuFreqCache > 0 ? _cpuFreqCache : 2.4f;
     }
 
@@ -796,6 +827,7 @@ public sealed class HardwareAbstractionLayer : IDisposable
 
     public void Dispose()
     {
+        _cpuFreqCounter?.Dispose();
         _io.Dispose();
     }
 }
