@@ -64,27 +64,60 @@ void Log(string msg)
 // 每次启动清空旧日志（保留最近一次运行记录）
 try { File.WriteAllText(_logPath, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] API starting, BaseDir={AppContext.BaseDirectory}, ConfigDir={configDir}\n"); } catch { }
 
+// ---- 性能设置持久化 ----
+var _perfLock = new object();
+var _perfFile = "performance-overrides.json";
+PerformanceOverrides LoadPerfOverrides() => JsonRead(_perfFile, new PerformanceOverrides());
+void SavePerfOverrides(Action<PerformanceOverrides> mutate)
+{
+    lock (_perfLock) { var o = LoadPerfOverrides(); mutate(o); JsonWrite(_perfFile, o); }
+}
+
 // ---- 睡眠/休眠恢复：重置底层驱动并重新初始化 ----
 SystemEvents.PowerModeChanged += (sender, e) =>
 {
     if (e.Mode == PowerModes.Resume)
     {
         Log("[PowerEvent] 系统从睡眠恢复，重置底层驱动...");
-        try
+        _ = System.Threading.Tasks.Task.Run(async () =>
         {
-            // inpoutx64 内核驱动在 S3/S4 后可能失效，必须重置映射并重新初始化
-            DriverBridge.Instance.RecoverAfterSleep();
+            try
+            {
+                // inpoutx64 内核驱动在 S3/S4 后可能失效，必须重置映射并重新初始化
+                DriverBridge.Instance.RecoverAfterSleep();
 
-            // NVAPI 也需要重新初始化（GPU 驱动可能在睡眠后重新加载）
-            var nv = app.Services.GetRequiredService<NvapiGpuController>();
-            nv.Init();
+                // NVAPI 也需要重新初始化（GPU 驱动可能在睡眠后重新加载）
+                var nv = app.Services.GetRequiredService<NvapiGpuController>();
+                nv.Init();
 
-            Log("[PowerEvent] 驱动恢复完成");
-        }
-        catch (Exception ex)
-        {
-            Log($"[PowerEvent] 驱动恢复异常: {ex.Message}");
-        }
+                // GPU 模式恢复 (从 gpu-mode.json)
+                var saved = JsonRead<Dictionary<string, int>>("gpu-mode.json", new Dictionary<string, int>());
+                if (saved.TryGetValue("gpuMode", out int mode) && mode >= 0 && mode <= 1)
+                {
+                    var wmi = app.Services.GetRequiredService<WmiInterface>();
+                    if (wmi.Available)
+                    {
+                        if (wmi.SetGpuMode((byte)mode))
+                            Log($"[PowerEvent] GPU mode → {mode}");
+                        else
+                            Log($"[PowerEvent] GPU mode restore to {mode} failed");
+                    }
+                }
+
+                // 恢复所有性能设置 (CPU/SMU/GPU/NVAPI/固定风扇)
+                await RestoreAllPerfSettings("PowerEvent");
+
+                // 自定义风扇曲线: 重新下发 ITSM 模式 + 重置 ShouldWrite 状态
+                var fanCurve = app.Services.GetRequiredService<FanCurveService>();
+                fanCurve.RecoverAfterSleep();
+
+                Log("[PowerEvent] 全部恢复完成");
+            }
+            catch (Exception ex)
+            {
+                Log($"[PowerEvent] 恢复异常: {ex.Message}");
+            }
+        });
     }
 };
 // ---- JSON persistence helpers ----
@@ -117,13 +150,132 @@ void JsonWrite<T>(string fileName, T data)
     File.WriteAllText(tmpPath, json);
     File.Move(tmpPath, filePath, overwrite: true);
 }
-// ---- 性能设置持久化 ----
-var _perfLock = new object();
-var _perfFile = "performance-overrides.json";
-PerformanceOverrides LoadPerfOverrides() => JsonRead(_perfFile, new PerformanceOverrides());
-void SavePerfOverrides(Action<PerformanceOverrides> mutate)
+
+// ---- 恢复所有性能设置 (启动 + 睡眠恢复共用) ----
+async System.Threading.Tasks.Task RestoreAllPerfSettings(string tag)
 {
-    lock (_perfLock) { var o = LoadPerfOverrides(); mutate(o); JsonWrite(_perfFile, o); }
+    try
+    {
+        var o = LoadPerfOverrides();
+        int restored = 0;
+
+        // --- CPU (powercfg) ---
+        if (o.Cpu.FreqLimitMhz.HasValue)
+        {
+            try { await app.Services.GetRequiredService<CpuPowerController>().SetFreqLimitAsync(o.Cpu.FreqLimitMhz.Value); restored++; Log($"[{tag}] CPU freq limit → {o.Cpu.FreqLimitMhz.Value} MHz"); }
+            catch (Exception ex) { Log($"[{tag}] CPU freq limit failed: {ex.Message}"); }
+        }
+        if (o.Cpu.TurboEnabled.HasValue)
+        {
+            try { await app.Services.GetRequiredService<CpuPowerController>().SetTurboAsync(o.Cpu.TurboEnabled.Value); restored++; Log($"[{tag}] CPU turbo → {o.Cpu.TurboEnabled.Value}"); }
+            catch (Exception ex) { Log($"[{tag}] CPU turbo failed: {ex.Message}"); }
+        }
+        if (o.Cpu.CoreLimitPercent.HasValue && o.Cpu.CoreLimitPercent.Value > 0)
+        {
+            try { await app.Services.GetRequiredService<CpuPowerController>().SetCoreLimitAsync(o.Cpu.CoreLimitPercent.Value); restored++; Log($"[{tag}] CPU core limit → {o.Cpu.CoreLimitPercent.Value}%"); }
+            catch (Exception ex) { Log($"[{tag}] CPU core limit failed: {ex.Message}"); }
+        }
+
+        // --- SMU (ryzenadj) ---
+        var smu = app.Services.GetRequiredService<SmuController>();
+        if (o.Smu.StapmLimitW.HasValue)
+        {
+            try { smu.SetPowerLimit((uint)(o.Smu.StapmLimitW.Value * 1000)); restored++; Log($"[{tag}] SMU stapm → {o.Smu.StapmLimitW.Value}W"); }
+            catch (Exception ex) { Log($"[{tag}] SMU stapm failed: {ex.Message}"); }
+        }
+        if (o.Smu.ShortPowerLimitW.HasValue)
+        {
+            try { smu.SetShortPowerLimit((uint)(o.Smu.ShortPowerLimitW.Value * 1000), (uint)(o.Smu.ShortPowerLimitW.Value * 1000)); restored++; Log($"[{tag}] SMU short power → {o.Smu.ShortPowerLimitW.Value}W"); }
+            catch (Exception ex) { Log($"[{tag}] SMU short power failed: {ex.Message}"); }
+        }
+        if (o.Smu.TempLimitC.HasValue)
+        {
+            try { smu.SetTempLimit((uint)o.Smu.TempLimitC.Value); restored++; Log($"[{tag}] SMU temp → {o.Smu.TempLimitC.Value}°C"); }
+            catch (Exception ex) { Log($"[{tag}] SMU temp failed: {ex.Message}"); }
+        }
+        if (o.Smu.CoAll.HasValue)
+        {
+            try { smu.SetCurveOptimizer(o.Smu.CoAll.Value); restored++; Log($"[{tag}] SMU CO → {o.Smu.CoAll.Value}"); }
+            catch (Exception ex) { Log($"[{tag}] SMU CO failed: {ex.Message}"); }
+        }
+
+        // --- GPU (nvidia-smi) ---
+        var gpu = app.Services.GetRequiredService<GpuController>();
+        if (o.Gpu.CoreFreqMhz.HasValue && o.Gpu.CoreFreqMhz.Value > 0)
+        {
+            try
+            {
+                gpu.SetMaxGpuClock(o.Gpu.CoreFreqMhz.Value);
+                if (o.Gpu.FreqLocked == true) gpu.SetExactGpuClock(o.Gpu.CoreFreqMhz.Value);
+                restored++;
+                Log($"[{tag}] GPU core → {o.Gpu.CoreFreqMhz.Value} MHz (locked={o.Gpu.FreqLocked})");
+            }
+            catch (Exception ex) { Log($"[{tag}] GPU core failed: {ex.Message}"); }
+        }
+        if (o.Gpu.MemFreqLevel.HasValue && o.Gpu.MemFreqLevel.Value > 0)
+        {
+            try
+            {
+                var memMap = new int[] { 0, 9001, 11001, 12001 };
+                var idx = Math.Clamp(o.Gpu.MemFreqLevel.Value, 0, 3);
+                if (idx > 0) gpu.SetMaxMemoryClock(memMap[idx]);
+                restored++;
+                Log($"[{tag}] GPU mem level → {idx} ({memMap[idx]} MHz)");
+            }
+            catch (Exception ex) { Log($"[{tag}] GPU mem failed: {ex.Message}"); }
+        }
+
+        // --- NVAPI ---
+        var nv = app.Services.GetRequiredService<NvapiGpuController>();
+        if (o.Nvapi.OcCoreOffsetMhz.HasValue || o.Nvapi.OcMemOffsetMhz.HasValue)
+        {
+            try
+            {
+                nv.SetP0Offset(o.Nvapi.OcCoreOffsetMhz ?? 0, o.Nvapi.OcMemOffsetMhz ?? 0);
+                restored++;
+                Log($"[{tag}] NVAPI OC → core={o.Nvapi.OcCoreOffsetMhz ?? 0}, mem={o.Nvapi.OcMemOffsetMhz ?? 0}");
+            }
+            catch (Exception ex) { Log($"[{tag}] NVAPI OC failed: {ex.Message}"); }
+        }
+        if (o.Nvapi.PowerLimitW.HasValue)
+        {
+            try { nv.SetPowerLimit((uint)(o.Nvapi.PowerLimitW.Value * 1000)); restored++; Log($"[{tag}] NVAPI power → {o.Nvapi.PowerLimitW.Value}W"); }
+            catch (Exception ex) { Log($"[{tag}] NVAPI power failed: {ex.Message}"); }
+        }
+        if (o.Nvapi.ThermalLimitC.HasValue)
+        {
+            try { nv.SetThermalLimit(o.Nvapi.ThermalLimitC.Value); restored++; Log($"[{tag}] NVAPI thermal → {o.Nvapi.ThermalLimitC.Value}°C"); }
+            catch (Exception ex) { Log($"[{tag}] NVAPI thermal failed: {ex.Message}"); }
+        }
+
+        // --- 固定风扇转速 ---
+        if (o.Fan.LargeRpm.HasValue || o.Fan.SmallRpm.HasValue)
+        {
+            try
+            {
+                var wmi = app.Services.GetRequiredService<WmiInterface>();
+                if (o.Fan.LargeRpm.HasValue)
+                {
+                    var speed = (byte)Math.Clamp(o.Fan.LargeRpm.Value / 100, 0, 44);
+                    wmi.SetFanManual(0, true);
+                    wmi.SetFanSpeed(0, speed);
+                }
+                if (o.Fan.SmallRpm.HasValue)
+                {
+                    var speed = (byte)Math.Clamp(o.Fan.SmallRpm.Value / 100, 0, 82);
+                    wmi.SetFanManual(1, true);
+                    wmi.SetFanSpeed(1, speed);
+                }
+                restored++;
+                Log($"[{tag}] Fan target → large={o.Fan.LargeRpm ?? 0} small={o.Fan.SmallRpm ?? 0}");
+            }
+            catch (Exception ex) { Log($"[{tag}] Fan target failed: {ex.Message}"); }
+        }
+
+        if (restored > 0) Log($"[{tag}] Performance overrides restored: {restored} settings applied");
+        else Log($"[{tag}] No performance overrides to restore");
+    }
+    catch (Exception ex) { Log($"[{tag}] Performance overrides failed: {ex.Message}"); }
 }
 
 // ---- 启动时恢复 GPU 模式 (异步，不阻塞服务启动) ----
@@ -203,106 +355,8 @@ _ = System.Threading.Tasks.Task.Run(() =>
 // ---- 启动时恢复性能设置 (异步，在 GPU 模式恢复之后) ----
 _ = System.Threading.Tasks.Task.Run(async () =>
 {
-    try
-    {
-        // 等待 3 秒，让 GPU 模式恢复完成
-        await System.Threading.Tasks.Task.Delay(3000);
-        var o = LoadPerfOverrides();
-        int restored = 0;
-
-        // --- CPU (powercfg) ---
-        if (o.Cpu.FreqLimitMhz.HasValue)
-        {
-            try { await app.Services.GetRequiredService<CpuPowerController>().SetFreqLimitAsync(o.Cpu.FreqLimitMhz.Value); restored++; Log($"[Restore] CPU freq limit → {o.Cpu.FreqLimitMhz.Value} MHz"); }
-            catch (Exception ex) { Log($"[Restore] CPU freq limit failed: {ex.Message}"); }
-        }
-        if (o.Cpu.TurboEnabled.HasValue)
-        {
-            try { await app.Services.GetRequiredService<CpuPowerController>().SetTurboAsync(o.Cpu.TurboEnabled.Value); restored++; Log($"[Restore] CPU turbo → {o.Cpu.TurboEnabled.Value}"); }
-            catch (Exception ex) { Log($"[Restore] CPU turbo failed: {ex.Message}"); }
-        }
-        if (o.Cpu.CoreLimitPercent.HasValue && o.Cpu.CoreLimitPercent.Value > 0)
-        {
-            try { await app.Services.GetRequiredService<CpuPowerController>().SetCoreLimitAsync(o.Cpu.CoreLimitPercent.Value); restored++; Log($"[Restore] CPU core limit → {o.Cpu.CoreLimitPercent.Value}%"); }
-            catch (Exception ex) { Log($"[Restore] CPU core limit failed: {ex.Message}"); }
-        }
-
-        // --- SMU (ryzenadj) ---
-        var smu = app.Services.GetRequiredService<SmuController>();
-        if (o.Smu.StapmLimitW.HasValue)
-        {
-            try { smu.SetPowerLimit((uint)(o.Smu.StapmLimitW.Value * 1000)); restored++; Log($"[Restore] SMU stapm → {o.Smu.StapmLimitW.Value}W"); }
-            catch (Exception ex) { Log($"[Restore] SMU stapm failed: {ex.Message}"); }
-        }
-        if (o.Smu.ShortPowerLimitW.HasValue)
-        {
-            try { smu.SetShortPowerLimit((uint)(o.Smu.ShortPowerLimitW.Value * 1000), (uint)(o.Smu.ShortPowerLimitW.Value * 1000)); restored++; Log($"[Restore] SMU short power → {o.Smu.ShortPowerLimitW.Value}W"); }
-            catch (Exception ex) { Log($"[Restore] SMU short power failed: {ex.Message}"); }
-        }
-        if (o.Smu.TempLimitC.HasValue)
-        {
-            try { smu.SetTempLimit((uint)o.Smu.TempLimitC.Value); restored++; Log($"[Restore] SMU temp → {o.Smu.TempLimitC.Value}°C"); }
-            catch (Exception ex) { Log($"[Restore] SMU temp failed: {ex.Message}"); }
-        }
-        if (o.Smu.CoAll.HasValue)
-        {
-            try { smu.SetCurveOptimizer(o.Smu.CoAll.Value); restored++; Log($"[Restore] SMU CO → {o.Smu.CoAll.Value}"); }
-            catch (Exception ex) { Log($"[Restore] SMU CO failed: {ex.Message}"); }
-        }
-
-        // --- GPU (nvidia-smi) ---
-        var gpu = app.Services.GetRequiredService<GpuController>();
-        if (o.Gpu.CoreFreqMhz.HasValue && o.Gpu.CoreFreqMhz.Value > 0)
-        {
-            try
-            {
-                gpu.SetMaxGpuClock(o.Gpu.CoreFreqMhz.Value);
-                if (o.Gpu.FreqLocked == true) gpu.SetExactGpuClock(o.Gpu.CoreFreqMhz.Value);
-                restored++;
-                Log($"[Restore] GPU core → {o.Gpu.CoreFreqMhz.Value} MHz (locked={o.Gpu.FreqLocked})");
-            }
-            catch (Exception ex) { Log($"[Restore] GPU core failed: {ex.Message}"); }
-        }
-        if (o.Gpu.MemFreqLevel.HasValue && o.Gpu.MemFreqLevel.Value > 0)
-        {
-            try
-            {
-                var memMap = new int[] { 0, 9001, 11001, 12001 };
-                var idx = Math.Clamp(o.Gpu.MemFreqLevel.Value, 0, 3);
-                if (idx > 0) gpu.SetMaxMemoryClock(memMap[idx]);
-                restored++;
-                Log($"[Restore] GPU mem level → {idx} ({memMap[idx]} MHz)");
-            }
-            catch (Exception ex) { Log($"[Restore] GPU mem failed: {ex.Message}"); }
-        }
-
-        // --- NVAPI ---
-        var nv = app.Services.GetRequiredService<NvapiGpuController>();
-        if (o.Nvapi.OcCoreOffsetMhz.HasValue || o.Nvapi.OcMemOffsetMhz.HasValue)
-        {
-            try
-            {
-                nv.SetP0Offset(o.Nvapi.OcCoreOffsetMhz ?? 0, o.Nvapi.OcMemOffsetMhz ?? 0);
-                restored++;
-                Log($"[Restore] NVAPI OC → core={o.Nvapi.OcCoreOffsetMhz ?? 0}, mem={o.Nvapi.OcMemOffsetMhz ?? 0}");
-            }
-            catch (Exception ex) { Log($"[Restore] NVAPI OC failed: {ex.Message}"); }
-        }
-        if (o.Nvapi.PowerLimitW.HasValue)
-        {
-            try { nv.SetPowerLimit((uint)(o.Nvapi.PowerLimitW.Value * 1000)); restored++; Log($"[Restore] NVAPI power → {o.Nvapi.PowerLimitW.Value}W"); }
-            catch (Exception ex) { Log($"[Restore] NVAPI power failed: {ex.Message}"); }
-        }
-        if (o.Nvapi.ThermalLimitC.HasValue)
-        {
-            try { nv.SetThermalLimit(o.Nvapi.ThermalLimitC.Value); restored++; Log($"[Restore] NVAPI thermal → {o.Nvapi.ThermalLimitC.Value}°C"); }
-            catch (Exception ex) { Log($"[Restore] NVAPI thermal failed: {ex.Message}"); }
-        }
-
-        if (restored > 0) Log($"[Restore] Performance overrides restored: {restored} settings applied");
-        else Log("[Restore] No performance overrides to restore");
-    }
-    catch (Exception ex) { Log($"[Restore] Performance overrides failed: {ex.Message}"); }
+    await System.Threading.Tasks.Task.Delay(3000);
+    await RestoreAllPerfSettings("Startup");
 });
 app.Map("/ws", async (HttpContext ctx) =>
 {
@@ -666,6 +720,12 @@ app.MapPost("/api/fan/set-target", (FanSetRequest req, WmiInterface wmi) =>
             wmi.SetFanManual(1, true);
             wmi.SetFanSpeed(1, speed); // FanType 1 = SYSFan
         }
+        // 持久化固定风扇转速，供睡眠恢复 + 启动恢复使用
+        SavePerfOverrides(o =>
+        {
+            if (req.LargeRpm.HasValue) o.Fan.LargeRpm = req.LargeRpm.Value;
+            if (req.SmallRpm.HasValue) o.Fan.SmallRpm = req.SmallRpm.Value;
+        });
         return Results.Json(new { ok = true });
     }
     catch (Exception ex)
@@ -731,6 +791,8 @@ app.MapPost("/api/fan/restore", (WmiInterface wmi) =>
     {
         wmi.SetFanManual(0, false);
         wmi.SetFanManual(1, false);
+        // 清除持久化的风扇转速
+        SavePerfOverrides(o => { o.Fan.LargeRpm = null; o.Fan.SmallRpm = null; });
         return Results.Json(new { ok = true });
     }
     catch (Exception ex)
@@ -1688,4 +1750,5 @@ public class CpuOverrides { public int? FreqLimitMhz; public bool? TurboEnabled;
 public class GpuOverrides { public int? CoreFreqMhz; public bool? FreqLocked; public int? MemFreqLevel; }
 public class NvapiOverrides { public int? OcCoreOffsetMhz; public int? OcMemOffsetMhz; public int? PowerLimitW; public float? ThermalLimitC; }
 public class SmuOverrides { public int? StapmLimitW; public int? ShortPowerLimitW; public int? TempLimitC; public int? CoAll; }
-public class PerformanceOverrides { public CpuOverrides Cpu = new(); public GpuOverrides Gpu = new(); public NvapiOverrides Nvapi = new(); public SmuOverrides Smu = new(); }
+public class FanOverrides { public int? LargeRpm; public int? SmallRpm; }
+public class PerformanceOverrides { public CpuOverrides Cpu = new(); public GpuOverrides Gpu = new(); public NvapiOverrides Nvapi = new(); public SmuOverrides Smu = new(); public FanOverrides Fan = new(); }

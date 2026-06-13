@@ -5,6 +5,27 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
+## [1.4.3] — 2026-06-13
+
+睡眠恢复完整参数下发 — 修复唤醒后自定义参数未重新应用
+
+### 问题
+
+- 系统从睡眠恢复时，仅恢复了底层驱动和 NVAPI，但所有硬件控制参数（CPU 频率/功耗、SMU 功耗/温度、GPU 频率/显存、NVAPI 超频/功耗/温度、GPU 模式、固定风扇转速、自定义风扇曲线 ITSM 模式）均未重新下发，导致睡眠后 EC 重置回 BIOS 默认状态，所有自定义设置失效
+- 固定风扇转速仅存储在浏览器 localStorage，服务端无持久化，睡眠后无法恢复
+
+### 修复
+
+- **完整参数恢复**: 提取 `RestoreAllPerfSettings()` 共享函数（启动 + 睡眠共用），睡眠唤醒后自动恢复 CPU 频率限制/睿频/核心限制、SMU 功耗/温度/CO、GPU 核心频率/显存/锁频、NVAPI 超频偏移/功耗/温度限制
+- **GPU 模式恢复**: 睡眠恢复时从 `gpu-mode.json` 恢复混合/独显模式
+- **风扇转速服务端持久化**: 新增 `FanOverrides` 类，`/api/fan/set-target` 保存固定风扇转速到 `performance-overrides.json`，`/api/fan/restore` 清除保存值
+- **风扇曲线 ITSM 重发**: `FanCurveService.RecoverAfterSleep()` 在睡眠后立即重发 ITSM 模式 + 重置 ShouldWrite 状态，确保下一个 Tick 必定写入
+- **异步执行**: `PowerModeChanged` 改为 `Task.Run` 异步执行，避免阻塞事件回调线程
+
+### 新增
+
+- `Microsoft.Win32.SystemEvents` NuGet 包依赖（提供 `PowerModeChanged` 事件）
+
 ## [1.4.2] — 2026-06-13
 
 睡眠/休眠恢复支持 — 修复系统唤醒后后端进程崩溃退出

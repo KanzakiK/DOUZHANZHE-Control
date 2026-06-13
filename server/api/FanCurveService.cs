@@ -44,6 +44,20 @@ public sealed class FanCurveService : IDisposable
 
     public bool Active => _active;
 
+    /// <summary>
+    /// 睡眠恢复后调用：重置内部状态，让下一个 Tick 强制重新下发 ITSM 和风扇转速
+    /// </summary>
+    public void RecoverAfterSleep()
+    {
+        if (!_active) return;
+        _lastHotspot = null;      // 重置 ShouldWrite 状态 → 下一个 Tick 必定写入
+        _lastLargeTarget = 0;
+        _lastSmallTarget = 0;
+        // 立即写一次 ITSM，不依赖 Tick 的 targetChanged 判断
+        _hal.WriteEcPort(0xE4, _itsmCurveMode);
+        _log.LogInformation("[FanCurve] 睡眠恢复: 已强制重发 ITSM={Mode}, 重置 ShouldWrite 状态", _itsmCurveMode);
+    }
+
     // ── API 查询属性 (供 /api/fan-curve/route-info 使用) ──
     public byte CurrentItsm { get; private set; }
     public byte RoutedMode { get; private set; }
