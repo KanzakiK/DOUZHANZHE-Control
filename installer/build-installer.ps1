@@ -136,28 +136,6 @@ if (Test-Path $SysInfoPs1) {
     if (Test-Path $d) { Remove-Item -Recurse -Force $d }
 }
 
-# Fix: dotnet publish -r win-x64 将 runtimeTargets 引用的 RID 专属 DLL
-# 展平到根目录，但 deps.json 仍指向 runtimes/win/lib/net8.0/ 路径。
-# 当 runtimes/ 目录存在时（WebView2 创建），.NET 运行时优先走 RID 路径，
-# 找不到文件直接抛 FileNotFoundException。需要手动补全 RID 路径。
-$DepsFile = Join-Path $ApiDir "Douzhanzhe.API.deps.json"
-if (Test-Path $DepsFile) {
-    $DepsContent = Get-Content $DepsFile -Raw
-    $RidPattern = 'runtimes/win/lib/net8\.0/([A-Za-z0-9_.]+\.dll)'
-    $RidDlls = [regex]::Matches($DepsContent, $RidPattern) | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique
-    if ($RidDlls.Count -gt 0) {
-        $RidLibDir = Join-Path $ApiDir "runtimes\win\lib\net8.0"
-        if (-not (Test-Path $RidLibDir)) { New-Item -ItemType Directory -Path $RidLibDir -Force | Out-Null }
-        foreach ($dll in $RidDlls) {
-            $src = Join-Path $ApiDir $dll
-            if (Test-Path $src) {
-                Copy-Item $src (Join-Path $RidLibDir $dll) -Force
-                Write-Host "  已修复 RID 路径: $dll → runtimes/win/lib/net8.0/" -ForegroundColor Green
-            }
-        }
-    }
-}
-
 $size = (Get-ChildItem -Recurse $ApiDir | Measure-Object -Property Length -Sum).Sum / 1MB
 Write-Host "  合并完成，总大小：$([math]::Round($size, 1)) MB" -ForegroundColor Green
 
