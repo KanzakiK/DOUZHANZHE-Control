@@ -6,6 +6,7 @@ using System.Text.Json.Serialization;
 using System.IO;
 using System.Text.Json;
 using System.Diagnostics;
+using Microsoft.Win32;
 using Microsoft.Win32.TaskScheduler;
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton<HardwareAbstractionLayer>();
@@ -62,6 +63,30 @@ void Log(string msg)
 }
 // 每次启动清空旧日志（保留最近一次运行记录）
 try { File.WriteAllText(_logPath, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] API starting, BaseDir={AppContext.BaseDirectory}, ConfigDir={configDir}\n"); } catch { }
+
+// ---- 睡眠/休眠恢复：重置底层驱动并重新初始化 ----
+SystemEvents.PowerModeChanged += (sender, e) =>
+{
+    if (e.Mode == PowerModes.Resume)
+    {
+        Log("[PowerEvent] 系统从睡眠恢复，重置底层驱动...");
+        try
+        {
+            // inpoutx64 内核驱动在 S3/S4 后可能失效，必须重置映射并重新初始化
+            DriverBridge.Instance.RecoverAfterSleep();
+
+            // NVAPI 也需要重新初始化（GPU 驱动可能在睡眠后重新加载）
+            var nv = app.Services.GetRequiredService<NvapiGpuController>();
+            nv.Init();
+
+            Log("[PowerEvent] 驱动恢复完成");
+        }
+        catch (Exception ex)
+        {
+            Log($"[PowerEvent] 驱动恢复异常: {ex.Message}");
+        }
+    }
+};
 // ---- JSON persistence helpers ----
 T JsonRead<T>(string fileName, T fallback) where T : class
 {

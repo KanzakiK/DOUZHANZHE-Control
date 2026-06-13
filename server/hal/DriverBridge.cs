@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 using System;
+using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
+using System.Security;
 using System.Diagnostics;
 using System.Threading;
 
@@ -30,9 +32,10 @@ public sealed class DriverBridge : IDisposable
     static readonly Lazy<DriverBridge> _instance = new(() => new DriverBridge(), LazyThreadSafetyMode.ExecutionAndPublication);
     readonly object _lock = new();
     readonly object _ecLock = new();
-    bool _init, _dis, _driverOk;
-    IntPtr _ecMap;
-    bool _ecOk;
+    volatile bool _init, _dis, _driverOk;
+    volatile IntPtr _ecMap;
+    volatile bool _ecOk;
+    volatile bool _recovering; // 睡眠恢复中标志，防止并发重入
     DriverBridge() {}
     public static DriverBridge Instance => _instance.Value;
 
@@ -63,14 +66,75 @@ public sealed class DriverBridge : IDisposable
     public bool Ready => _driverOk;
     public void Dispose() { _dis = true; _init = false; _driverOk = false; _ecMap = IntPtr.Zero; _ecOk = false; }
 
+    /// <summary>
+    /// 重置驱动状态，允许下次访问时重新初始化。
+    /// 用于系统从睡眠/休眠恢复后，内核驱动可能已失效的场景。
+    /// </summary>
+    public void Reset()
+    {
+        lock (_lock)
+        {
+            _init = false;
+            _driverOk = false;
+            _ecMap = IntPtr.Zero;
+            _ecOk = false;
+            Console.WriteLine("[DriverBridge] 已重置，下次访问将重新初始化驱动");
+        }
+    }
+
+    /// <summary>
+    /// 系统从睡眠/休眠恢复时调用：重置驱动状态并尝试重新初始化。
+    /// inpoutx64 内核驱动在 S3/S4 恢复后可能已失效，必须重新建立映射。
+    /// </summary>
+    public void RecoverAfterSleep()
+    {
+        if (_recovering) return;
+        _recovering = true;
+        try
+        {
+            lock (_lock)
+            {
+                Console.WriteLine("[DriverBridge] 睡眠恢复: 重置驱动状态...");
+                _init = false;
+                _driverOk = false;
+                _ecMap = IntPtr.Zero;
+                _ecOk = false;
+            }
+            // 等待内核驱动稳定（inpoutx64 在 S3 恢复后需要时间重新就绪）
+            Thread.Sleep(1500);
+            Init(3000); // 给更长的超时，让驱动有机会恢复
+            Console.WriteLine($"[DriverBridge] 睡眠恢复完成: Ready={_driverOk}, EcOk={_ecOk}");
+        }
+        finally { _recovering = false; }
+    }
+
+    [HandleProcessCorruptedStateExceptions]
+    [SecurityCritical]
     public byte ReadPhys(ulong a)
     {
         Ensure();
         if (!_driverOk) return 0;
-        if (_ecOk && a >= EC_BASE && a < (ulong)(EC_BASE + EC_SIZE))
-            unsafe { return *(byte*)((nint)((long)_ecMap + (long)(a - EC_BASE))); }
-        if (MapPhysToLinNative(a, 1, out var l)) unsafe { return *(byte*)l; }
-        if (a <= 0xFFFFFFFF && GetPhysLongNative(out var v, a)) return (byte)(v & 0xFF);
+        try
+        {
+            if (_ecOk && a >= EC_BASE && a < (ulong)(EC_BASE + EC_SIZE))
+                unsafe { return *(byte*)((nint)((long)_ecMap + (long)(a - EC_BASE))); }
+            if (MapPhysToLinNative(a, 1, out var l)) unsafe { return *(byte*)l; }
+            if (a <= 0xFFFFFFFF && GetPhysLongNative(out var v, a)) return (byte)(v & 0xFF);
+        }
+        catch (AccessViolationException)
+        {
+            // 睡眠恢复后映射指针失效，降级到 GetPhysLong 或返回安全默认值
+            Console.WriteLine("[DriverBridge] ReadPhys: AccessViolation, 尝试 GetPhysLong 降级");
+            _ecOk = false; _ecMap = IntPtr.Zero; // 废弃失效的映射
+            if (a <= 0xFFFFFFFF && GetPhysLongNative(out var v2, a)) return (byte)(v2 & 0xFF);
+            return 0;
+        }
+        catch (SEHException)
+        {
+            Console.WriteLine("[DriverBridge] ReadPhys: SEHException, 驱动可能已失效");
+            _driverOk = false;
+            return 0;
+        }
         throw new InvalidOperationException("读失败");
     }
     public uint ReadPhys32(ulong a)
@@ -103,47 +167,94 @@ public sealed class DriverBridge : IDisposable
     { var x = ReadPhys(a); if(s) x|=(byte)(1<<b); else x&=unchecked((byte)~(1<<b)); WritePhys(a,x); }
     public ushort ReadWord(ulong a) { return (ushort)((ReadPhys(a+1)<<8)|ReadPhys(a)); }
 
-    public byte ReadIo(short p) { Ensure(); if (!_driverOk) return 0; return ReadPortUcharNative(p); }
-    public void WriteIo(short p, byte v) { Ensure(); if (!_driverOk) return; WritePortUcharNative(p, v); }
-    public int ReadIo32(short p) { Ensure(); if (!_driverOk) return 0; return Inp32Native(p); }
-    public void WriteIo32(short p, int v) { Ensure(); if (!_driverOk) return; Out32Native(p, v); }
+    public byte ReadIo(short p)
+    {
+        Ensure(); if (!_driverOk) return 0;
+        try { return ReadPortUcharNative(p); }
+        catch (SEHException) { _driverOk = false; return 0; }
+    }
+    public void WriteIo(short p, byte v)
+    {
+        Ensure(); if (!_driverOk) return;
+        try { WritePortUcharNative(p, v); }
+        catch (SEHException) { _driverOk = false; }
+    }
+    public int ReadIo32(short p)
+    {
+        Ensure(); if (!_driverOk) return 0;
+        try { return Inp32Native(p); }
+        catch (SEHException) { _driverOk = false; return 0; }
+    }
+    public void WriteIo32(short p, int v)
+    {
+        Ensure(); if (!_driverOk) return;
+        try { Out32Native(p, v); }
+        catch (SEHException) { _driverOk = false; }
+    }
 
+    [HandleProcessCorruptedStateExceptions]
+    [SecurityCritical]
     public byte ReadEc(byte r)
     {
         Ensure();
         if (!_driverOk) return 0;
         lock(_ecLock) {
-            WritePortUcharNative(0x66, 0x80); Thread.Sleep(2);
-            WritePortUcharNative(0x62, r); Thread.Sleep(5);
-            return ReadPortUcharNative(0x62);
+            try
+            {
+                WritePortUcharNative(0x66, 0x80); Thread.Sleep(2);
+                WritePortUcharNative(0x62, r); Thread.Sleep(5);
+                return ReadPortUcharNative(0x62);
+            }
+            catch (SEHException)
+            {
+                Console.WriteLine("[DriverBridge] ReadEc: SEHException, 驱动可能已失效");
+                _driverOk = false;
+                return 0;
+            }
         }
     }
+    [HandleProcessCorruptedStateExceptions]
+    [SecurityCritical]
     public void WriteEc(byte r, byte v)
     {
         Ensure();
         if (!_driverOk) return;
         lock(_ecLock) {
-            // 标准 EC 写入协议（与旧版 ec_writer.cs 一致）
-            // 1. 等待 IBF 为空，发送写入命令
-            WaitEcReady();
-            WritePortUcharNative(0x66, 0x81); Thread.Sleep(5);
-            // 2. 等待 IBF 为空，发送寄存器地址
-            WaitEcReady();
-            WritePortUcharNative(0x62, r); Thread.Sleep(5);
-            // 3. 等待 IBF 为空，发送数据
-            WaitEcReady();
-            WritePortUcharNative(0x62, v); Thread.Sleep(10);
+            try
+            {
+                // 标准 EC 写入协议（与旧版 ec_writer.cs 一致）
+                // 1. 等待 IBF 为空，发送写入命令
+                WaitEcReady();
+                WritePortUcharNative(0x66, 0x81); Thread.Sleep(5);
+                // 2. 等待 IBF 为空，发送寄存器地址
+                WaitEcReady();
+                WritePortUcharNative(0x62, r); Thread.Sleep(5);
+                // 3. 等待 IBF 为空，发送数据
+                WaitEcReady();
+                WritePortUcharNative(0x62, v); Thread.Sleep(10);
+            }
+            catch (SEHException)
+            {
+                Console.WriteLine("[DriverBridge] WriteEc: SEHException, 驱动可能已失效");
+                _driverOk = false;
+            }
         }
     }
     /// <summary>等待 EC IBF (Input Buffer Full) 为空</summary>
+    [HandleProcessCorruptedStateExceptions]
+    [SecurityCritical]
     void WaitEcReady()
     {
         if (!_driverOk) return;
-        for (int i = 0; i < 100; i++)
+        try
         {
-            if ((ReadPortUcharNative(0x66) & 0x02) == 0) return;
-            Thread.Sleep(1);
+            for (int i = 0; i < 100; i++)
+            {
+                if ((ReadPortUcharNative(0x66) & 0x02) == 0) return;
+                Thread.Sleep(1);
+            }
         }
+        catch (SEHException) { _driverOk = false; }
     }
     void Ensure() { if (_dis) throw new ObjectDisposedException(""); if (!_init) Init(); }
 }
