@@ -5,6 +5,26 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
+## [1.4.2] — 2026-06-13
+
+睡眠/休眠恢复支持 — 修复系统唤醒后后端进程崩溃退出
+
+### 问题
+
+- 系统从 S3/S4 睡眠恢复时，`inpoutx64` 内核驱动状态丢失，但 `DriverBridge` 的 `_ecMap` 物理内存映射指针未失效。`TelemetryBackgroundService` 每 250ms 读取硬件时访问野指针，触发 `AccessViolationException`（.NET 8 无法被 try/catch 捕获），进程直接被 OS 杀死，前端所有 fetch 报 "Failed to fetch"
+
+### 修复
+
+- **DriverBridge 睡眠恢复**: 新增 `RecoverAfterSleep()` 方法，立即将 `_driverOk=false` + `_ecOk=false`（让遥测 Tick 安全返回 0），等 1.5s 驱动稳定后重新 `Init()`
+- **PowerModeChanged 事件监听**: `Program.cs` 注册 `SystemEvents.PowerModeChanged`，系统唤醒时自动调用 `RecoverAfterSleep()` + `NvapiGpuController.Init()`
+- **P/Invoke 异常保护**: `ReadPhys` / `ReadEc` / `WriteEc` / `WaitEcReady` / `ReadIo` / `WriteIo` 全部加 `SEHException` 捕获，驱动异常时自动降级为安全默认值
+- **ReadPhys 多级降级**: EC 预映射区域访问加 `AccessViolationException` 捕获，失败时降级到 `GetPhysLong` 兆底路径
+- **字段线程安全**: `_init` / `_driverOk` / `_ecMap` / `_ecOk` / `_recovering` 改为 `volatile`，确保跨线程可见性
+
+### 新增
+
+- `Microsoft.Win32.SystemEvents` NuGet 包依赖（提供 `PowerModeChanged` 事件）
+
 ## [1.4.1] — 2026-06-12
 
 持久化修复 — 覆盖安装 / 重启后用户自定义参数不再丢失
