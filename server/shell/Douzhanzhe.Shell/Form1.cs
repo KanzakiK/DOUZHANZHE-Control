@@ -11,6 +11,7 @@ public partial class Form1 : Form
     private NotifyIcon _trayIcon;
     private ContextMenuStrip _trayMenu;
     private bool _closeToTray = true;
+    private bool _isStartupMinimized = false;
 
     private static readonly string _winStatePath = Path.Combine(AppContext.BaseDirectory, "config", "window-state.json");
 
@@ -22,12 +23,23 @@ public partial class Form1 : Form
 
     public Form1()
     {
+        // 尽早检测 --minimized 参数，在窗口显示之前设置隐藏状态
+        var startupArgs = Environment.GetCommandLineArgs();
+        _isStartupMinimized = startupArgs.Any(a => a.Equals("--minimized", StringComparison.OrdinalIgnoreCase));
+
         Text = "斗战者控制台";
         Width = 1500;
         Height = 1200;
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = Color.FromArgb(13, 17, 23); // 深色背景防白闪
         Icon = LoadAppIcon();
+
+        // 开机自启最小化：在 RestoreWindowState 之前设置，防止恢复最大化状态覆盖
+        if (_isStartupMinimized)
+        {
+            WindowState = FormWindowState.Minimized;
+            ShowInTaskbar = false;
+        }
 
         // 恢复上次关闭时的窗口尺寸和位置
         RestoreWindowState();
@@ -75,9 +87,8 @@ public partial class Form1 : Form
 
     private async void Form1_Load(object? sender, EventArgs e)
     {
-        // 检查 --minimized 参数：开机自启时隐藏到托盘不显示窗口
-        var args = Environment.GetCommandLineArgs();
-        if (args.Any(a => a.Equals("--minimized", StringComparison.OrdinalIgnoreCase)))
+        // 开机自启最小化：立即隐藏窗口（构造函数已预设状态）
+        if (_isStartupMinimized)
         {
             WindowState = FormWindowState.Minimized;
             Hide();
@@ -167,6 +178,7 @@ public partial class Form1 : Form
                        $"错误详情：{webViewError}"
             };
             Controls.Add(lbl);
+            if (_isStartupMinimized) { WindowState = FormWindowState.Minimized; Hide(); }
             return;
         }
 
@@ -216,10 +228,19 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
 {(string.IsNullOrEmpty(logContent) ? "" : $"<p style='color:#c9d1d9;margin-top:24px'>启动日志（请截图反馈）：</p><pre>{logContent}</pre>")}
 </body></html>";
             _webView.NavigateToString(errorHtml);
+            if (_isStartupMinimized) { WindowState = FormWindowState.Minimized; Hide(); }
             return;
         }
 
         _webView.Source = new Uri("http://127.0.0.1:3100/");
+
+        // 异步初始化（WebView2、API 轮询）期间 WinForms 可能隐式重新显示了窗口
+        // 在所有初始化完成后再次确保窗口隐藏到托盘
+        if (_isStartupMinimized)
+        {
+            WindowState = FormWindowState.Minimized;
+            Hide();
+        }
     }
 
     private void Form1_FormClosing(object? sender, FormClosingEventArgs e)
@@ -241,12 +262,15 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
         if (WindowState == FormWindowState.Minimized)
         {
             Hide();
-            _trayIcon.ShowBalloonTip(2000, "斗战者控制台", "已最小化到系统托盘。", ToolTipIcon.Info);
+            if (!_isStartupMinimized)
+                _trayIcon.ShowBalloonTip(2000, "斗战者控制台", "已最小化到系统托盘。", ToolTipIcon.Info);
         }
     }
 
     private void ShowWindow()
     {
+        _isStartupMinimized = false;  // 清除开机标志，后续手动最小化正常显示气球通知
+        ShowInTaskbar = true;
         Show();
         WindowState = FormWindowState.Normal;
         BringToFront();
@@ -440,7 +464,7 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
                 }
             }
 
-            if (max)
+            if (max && !_isStartupMinimized)
                 WindowState = FormWindowState.Maximized;
         }
         catch { }

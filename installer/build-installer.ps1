@@ -112,7 +112,7 @@ $ToolsDir = Join-Path $Root "server\tools"
 Copy-Item -Path (Join-Path $ShellDir "*") -Destination $ApiDir -Recurse -Force
 
 # 复制运行时工具
-$ToolFiles = @("ryzenadj.exe", "WinRing0x64.dll", "WinRing0x64.sys")
+$ToolFiles = @("ryzenadj.exe", "WinRing0x64.dll", "WinRing0x64.sys", "inpoutx64.dll")
 foreach ($f in $ToolFiles) {
     $src = Join-Path $ToolsDir $f
     if (Test-Path $src) {

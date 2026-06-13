@@ -5,6 +5,14 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
+## [1.4.6] — 2026-06-13
+
+修复开机自启最小化到托盘不生效的问题
+
+### 修复
+
+- **开机最小化失效**: 带 `--minimized` 参数启动时窗口未隐藏到托盘、仍显示在任务栏。根因是 `Form1_Load` 中异步初始化（WebView2、API 轮询）期间 WinForms 隐式重新显示了窗口。修复方式：在构造函数中提前设置最小化状态和 `ShowInTaskbar = false`，并在所有异步初始化完成后再次确保窗口隐藏；同时抑制开机时的气球通知，用户首次从托盘恢复后恢复正常行为
+
 ## [1.4.5] — 2026-06-13
 
 提升进程与线程优先级，合并 SMU 命令为单次调用，加速启动恢复
