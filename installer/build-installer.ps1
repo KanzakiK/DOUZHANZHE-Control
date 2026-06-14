@@ -54,7 +54,7 @@ if ($Version) {
     $PkgText = [regex]::Replace($PkgText, '("version":\s*")\d+\.\d+\.\d+(")', "`${1}$Version`${2}")
     [System.IO.File]::WriteAllText($PkgJson, $PkgText, $utf8NoBom)
 
-    Write-Host "  版本号已同步至 $Version (SettingsPanel/iss 由 ISCC /d 参数覆盖)" -ForegroundColor Green
+    Write-Host "  版本号已同步至 $Version (SettingsPanel 由 vite define 读取, iss 由 ISCC /d 参数覆盖)" -ForegroundColor Green
 }
 
 # ── 1. 环境检查 ──

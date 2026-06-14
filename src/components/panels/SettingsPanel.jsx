@@ -253,7 +253,7 @@ export default function SettingsPanel({ settings, setSettings, uxtuPayload, show
       )}
       {showAbout && (<Card title="关于" className="!p-3">
         <div className="text-xs space-y-1" style={{ color: "var(--muted)" }}>
-          <p>Douzhanzhe Console v1.4.8</p>
+          <p>{`Douzhanzhe Console v${__APP_VERSION__}`}</p>
           <p>适用于联想 Legion N176 2025 (宝龙达 OEM)</p>
           <p className="mt-2"><span className="font-semibold">开发者：</span>KanzakiK</p>
           <p><span className="font-semibold">开源协议：</span>GNU General Public License v3.0</p>
