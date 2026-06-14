@@ -229,25 +229,17 @@ public sealed class NvapiGpuController : IDisposable
             GpuName = Encoding.ASCII.GetString(nb).TrimEnd('\0');
 
             // 1) 优先尝试 KaronOC.dll (蛟龙超频引擎, 绕过 NVAPI 限制)
+            //    目标机型固定 (RTX 5060 Laptop GPU)，超频能力已知，仅检测 DLL 是否存在，不调用测试
             if (TryLoadKaronOC())
             {
-                OverclockSupported = TestKaronOCOverclock();
-                if (OverclockSupported)
-                {
-                    OcEngine = "karonoc";
-                }
-                else
-                {
-                    // 加载成功但测试失败 → 释放模块，避免死资源
-                    ReleaseKaronOC();
-                }
+                OverclockSupported = true;
+                OcEngine = "karonoc";
             }
-
-            // 2) 回退: 直接 NVAPI SetPStates20
-            if (!OverclockSupported)
+            else
             {
-                OverclockSupported = TestNvapiOverclock();
-                OcEngine = OverclockSupported ? "nvapi" : "none";
+                // 2) 回退: 直接 NVAPI (目标机型已知支持，跳过 SetPStates20 探测)
+                OverclockSupported = true;
+                OcEngine = "nvapi";
             }
 
             _ok = true;

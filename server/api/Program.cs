@@ -1135,17 +1135,14 @@ app.MapPost("/api/uxtu/apply", async (HttpContext ctx, SmuController smu) =>
         bool? turboOff = cpuTurboOff;
         var rc = smu.BatchApply(stapmMw, fastMw, slowMw, tempC, coAllMv, turboOff);
         if (cpuCoreLimit.HasValue) { CpuAffinityManager.SetCoreLimit(cpuCoreLimit.Value); }
-        // 持久化 SMU 参数（与各独立端点 /api/smu/set 对齐）
-        if (rc == 0)
+        // 持久化 SMU 参数（与各独立端点 /api/smu/set 对齐，无条件保存）
+        SavePerfOverrides(o =>
         {
-            SavePerfOverrides(o =>
-            {
-                if (cpuPpt.HasValue) o.Smu.StapmLimitW = cpuPpt.Value;
-                if (cpuShortPpt.HasValue) o.Smu.ShortPowerLimitW = cpuShortPpt.Value;
-                if (cpuTemp.HasValue) o.Smu.TempLimitC = cpuTemp.Value;
-                if (cpuVoltage.HasValue) o.Smu.CoAll = cpuVoltage.Value;
-            });
-        }
+            if (cpuPpt.HasValue) o.Smu.StapmLimitW = cpuPpt.Value;
+            if (cpuShortPpt.HasValue) o.Smu.ShortPowerLimitW = cpuShortPpt.Value;
+            if (cpuTemp.HasValue) o.Smu.TempLimitC = cpuTemp.Value;
+            if (cpuVoltage.HasValue) o.Smu.CoAll = cpuVoltage.Value;
+        });
         return Results.Json(new { ok = rc == 0, message = rc == 0 ? "OK" : $"rc={rc}" });
     }
     catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }); }

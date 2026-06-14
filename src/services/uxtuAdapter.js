@@ -325,11 +325,9 @@ export async function reapplyOverrides(mode, overrides) {
 
   const isEmpty = !overrides || Object.keys(overrides).length === 0;
 
-  // overrides 为空时，发 GPU/NVAPI/CPU 重置
+  // overrides 为空时，发 NVAPI/CPU 重置（GPU 时钟不动——用户没动过 GPU 就不应触碰）
   if (isEmpty) {
-    console.log("[reapply] overrides 为空，发送 GPU/NVAPI/CPU 重置");
-    try { await applyGpuControl("reset-clocks"); } catch (e) { console.warn("[GPU] reset:", e); }
-    try { await applyGpuControl("reset-memory-clocks"); } catch (e) { console.warn("[GPU] mem-reset:", e); }
+    console.log("[reapply] overrides 为空，发送 NVAPI/CPU 重置");
     await Promise.all([
       applyNvapiOverclock(0, 0).catch(e => console.warn("[NVAPI] OC-reset:", e)),
       applyNvapiThermalLimit(87).catch(e => console.warn("[NVAPI] thermal-reset:", e)),
@@ -352,23 +350,27 @@ export async function reapplyOverrides(mode, overrides) {
     );
   }
 
-  // ③ GPU 频率控制（nvidia-smi: 先 reset 解锁，再按需 lock）
-  try {
-    await applyGpuControl("reset-clocks");
-    if (overrides.gpuFreqLimitEnabled && overrides.gpuCoreFreqMhz !== GPU_BASE_CLOCK) {
-      await applyGpuControl("limit-max", overrides.gpuCoreFreqMhz);
-      await applyGpuControl("lock-exact", overrides.gpuCoreFreqMhz);
-    }
-  } catch (e) { console.warn("[GPU] freq:", e); }
+  // ③ GPU 核心频率（仅当 overrides 有核心频率相关字段时执行）
+  const hasGpuCore = "gpuFreqLimitEnabled" in overrides || "gpuCoreFreqMhz" in overrides;
+  if (hasGpuCore) {
+    try {
+      await applyGpuControl("reset-clocks");
+      if (overrides.gpuFreqLimitEnabled && overrides.gpuCoreFreqMhz !== GPU_BASE_CLOCK) {
+        await applyGpuControl("limit-max", overrides.gpuCoreFreqMhz);
+        await applyGpuControl("lock-exact", overrides.gpuCoreFreqMhz);
+      }
+    } catch (e) { console.warn("[GPU] freq:", e); }
+  }
 
-  // GPU 显存频率
-  try {
-    const memMap = [0, 9001, 11001, 12001];
-    await applyGpuControl("reset-memory-clocks");
-    if (overrides.gpuMemFreqMhz > 0) {
+  // GPU 显存频率（仅当 overrides 有显存频率字段且 > 0 时执行）
+  const hasGpuMem = "gpuMemFreqMhz" in overrides && overrides.gpuMemFreqMhz > 0;
+  if (hasGpuMem) {
+    try {
+      const memMap = [0, 9001, 11001, 12001];
+      await applyGpuControl("reset-memory-clocks");
       await applyGpuControl("limit-memory", memMap[overrides.gpuMemFreqMhz]);
-    }
-  } catch (e) { console.warn("[GPU] memory:", e); }
+    } catch (e) { console.warn("[GPU] memory:", e); }
+  }
 
   // ④ NVAPI: 超频偏移 + 温度限制（并行）
   const thermalC = clampParam("gpuTempLimitC", overrides.gpuTempLimitC ?? 87);
