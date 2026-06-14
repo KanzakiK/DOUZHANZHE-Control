@@ -325,9 +325,14 @@ export async function reapplyOverrides(mode, overrides) {
 
   const isEmpty = !overrides || Object.keys(overrides).length === 0;
 
-  // overrides 为空时，发 NVAPI/CPU 重置（GPU 时钟不动——用户没动过 GPU 就不应触碰）
+  // overrides 为空时，发 GPU/NVAPI/CPU 全通道重置（清理上一个模式可能残留的锁）
   if (isEmpty) {
-    console.log("[reapply] overrides 为空，发送 NVAPI/CPU 重置");
+    console.log("[reapply] overrides 为空，发送全通道重置");
+    // GPU: 解除上一个模式可能残留的核心/显存频率锁
+    await Promise.all([
+      applyGpuControl("reset-clocks").catch(e => console.warn("[GPU] reset-clocks:", e)),
+      applyGpuControl("reset-memory-clocks").catch(e => console.warn("[GPU] reset-mem:", e)),
+    ]);
     await Promise.all([
       applyNvapiOverclock(0, 0).catch(e => console.warn("[NVAPI] OC-reset:", e)),
       applyNvapiThermalLimit(87).catch(e => console.warn("[NVAPI] thermal-reset:", e)),
@@ -350,7 +355,7 @@ export async function reapplyOverrides(mode, overrides) {
     );
   }
 
-  // ③ GPU 核心频率（仅当 overrides 有核心频率相关字段时执行）
+  // ③ GPU 核心频率
   const hasGpuCore = "gpuFreqLimitEnabled" in overrides || "gpuCoreFreqMhz" in overrides;
   if (hasGpuCore) {
     try {
@@ -360,9 +365,12 @@ export async function reapplyOverrides(mode, overrides) {
         await applyGpuControl("lock-exact", overrides.gpuCoreFreqMhz);
       }
     } catch (e) { console.warn("[GPU] freq:", e); }
+  } else {
+    // 新模式未设核心频率 → 清理上一个模式可能残留的核心锁
+    await applyGpuControl("reset-clocks").catch(e => console.warn("[GPU] cleanup reset-clocks:", e));
   }
 
-  // GPU 显存频率（仅当 overrides 有显存频率字段且 > 0 时执行）
+  // GPU 显存频率
   const hasGpuMem = "gpuMemFreqMhz" in overrides && overrides.gpuMemFreqMhz > 0;
   if (hasGpuMem) {
     try {
@@ -370,6 +378,9 @@ export async function reapplyOverrides(mode, overrides) {
       await applyGpuControl("reset-memory-clocks");
       await applyGpuControl("limit-memory", memMap[overrides.gpuMemFreqMhz]);
     } catch (e) { console.warn("[GPU] memory:", e); }
+  } else {
+    // 新模式未设显存频率 → 清理上一个模式可能残留的显存锁
+    await applyGpuControl("reset-memory-clocks").catch(e => console.warn("[GPU] cleanup reset-mem:", e));
   }
 
   // ④ NVAPI: 超频偏移 + 温度限制（并行）
