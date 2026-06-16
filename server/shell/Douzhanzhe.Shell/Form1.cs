@@ -20,9 +20,6 @@ public partial class Form1 : Form
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 
-    // 静态 HttpClient，避免 socket 耗尽
-    private static readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(3) };
-
     private const int HOTKEY_ID_MONITOR_OFF = 1;
     private const uint WM_HOTKEY = 0x0312;
     private const uint MOD_ALT = 0x0001;
@@ -533,11 +530,20 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
             int hotkeyId = m.WParam.ToInt32();
             if (hotkeyId == HOTKEY_ID_MONITOR_OFF)
             {
-                // 不在 Shell UI 线程调用 SendMessage(HWND_BROADCAST)：
-                // Shell 有 WebView2 窗口，UI 线程广播会阻塞→卡死+锁屏。
-                // 改为 fire-and-forget HTTP 调用后端 API，
-                // 后端是 ASP.NET 线程池线程、无 UI 窗口，行为与"执行"按钮完全一致。
-                _ = _http.PostAsync("http://127.0.0.1:3100/api/monitor/off", null);
+                // 启动自身子进程带 --monitor-off 参数：
+                // 子进程无 UI、无 WebView2、无线程泵，SendMessage 行为与后端 API 完全一致。
+                // 不在 Shell UI 线程直接调 SendMessage，因为 WebView2 窗口会导致卡死+锁屏。
+                try
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = Application.ExecutablePath,
+                        Arguments = "--monitor-off",
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    });
+                }
+                catch { }
             }
         }
         base.WndProc(ref m);

@@ -46,6 +46,14 @@ static class Program
     [STAThread]
     static void Main(string[] args)
     {
+        // --monitor-off: 独立进程关闭显示器（无 UI、无 WebView2、无消息泵）
+        // Shell 快捷键通过启动自身带此参数来关屏，避免在 Shell UI 线程调用 SendMessage
+        if (args.Any(a => a == "--monitor-off"))
+        {
+            SendMessage(new IntPtr(0xFFFF), 0x0112, new IntPtr(0xF170), new IntPtr(2));
+            return;
+        }
+
         ApplicationConfiguration.Initialize();
 
         // ── 1. 单实例检测 ──
