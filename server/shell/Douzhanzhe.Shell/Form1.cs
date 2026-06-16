@@ -19,14 +19,9 @@ public partial class Form1 : Form
     private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    private static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
-    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-    private static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, IntPtr lParam,
-        uint fuFlags, uint uTimeout, out UIntPtr lpdwResult);
 
-    private const uint SMTO_NORMAL = 0x0000;
-    private const uint SMTO_ABORTIFHUNG = 0x0002;
+    // 静态 HttpClient，避免 socket 耗尽
+    private static readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(3) };
 
     private const int HOTKEY_ID_MONITOR_OFF = 1;
     private const uint WM_HOTKEY = 0x0312;
@@ -538,8 +533,11 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
             int hotkeyId = m.WParam.ToInt32();
             if (hotkeyId == HOTKEY_ID_MONITOR_OFF)
             {
-                // 与执行按钮调用的后端 API 完全一致的调用
-                SendMessage(new IntPtr(0xFFFF), 0x0112, new IntPtr(0xF170), new IntPtr(2));
+                // 不在 Shell UI 线程调用 SendMessage(HWND_BROADCAST)：
+                // Shell 有 WebView2 窗口，UI 线程广播会阻塞→卡死+锁屏。
+                // 改为 fire-and-forget HTTP 调用后端 API，
+                // 后端是 ASP.NET 线程池线程、无 UI 窗口，行为与"执行"按钮完全一致。
+                _ = _http.PostAsync("http://127.0.0.1:3100/api/monitor/off", null);
             }
         }
         base.WndProc(ref m);
