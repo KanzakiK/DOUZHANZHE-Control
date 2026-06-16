@@ -525,6 +525,8 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
         catch { }
     }
 
+    private static readonly HttpClient _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+
     protected override void WndProc(ref Message m)
     {
         if (m.Msg == WM_HOTKEY)
@@ -532,13 +534,19 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
             int hotkeyId = m.WParam.ToInt32();
             if (hotkeyId == HOTKEY_ID_MONITOR_OFF)
             {
-                // 在后台线程执行 SendMessage，避免阻塞 UI 线程导致 WebView2 死锁
-                // SendMessage(HWND_BROADCAST) 虽是 SC_MONITORPOWER 的正确 API，
-                // 但在 UI 线程同步调用可能与 WebView2 GPU 渲染产生死锁
-                Task.Run(() =>
+                // 通过后端 API 关闭显示器（而非 Shell 进程内 SendMessage）
+                // Shell 进程内 SendMessage(HWND_BROADCAST) 与 WebView2 GPU 渲染存在死锁：
+                //   - UI 线程同步调用 → Shell 卡死
+                //   - 后台线程调用   → Windows 路由异常，变为锁屏
+                // 后端 API 运行在独立进程，SendMessage 工作正常且不影响 Shell
+                Task.Run(async () =>
                 {
-                    SendMessage(HWND_BROADCAST, WM_SYSCOMMAND, new IntPtr(0xF170), new IntPtr(2));
-                    // 显示器恢复后刷新 WebView2，防止 GPU 上下文丢失导致白屏/卡死
+                    try
+                    {
+                        await _httpClient.PostAsync("http://localhost:5000/api/monitor/off", null);
+                    }
+                    catch { }
+                    // 显示器恢复后刷新 WebView2，防止 GPU 上下文丢失导致白屏
                     Thread.Sleep(2000);
                     try { BeginInvoke(new Action(() => { try { _webView.Reload(); } catch { } })); }
                     catch { }
