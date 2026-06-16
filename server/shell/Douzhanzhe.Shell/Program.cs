@@ -37,8 +37,7 @@ static class Program
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-    private static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, IntPtr lParam,
-        uint fuFlags, uint uTimeout, out UIntPtr lpdwResult);
+    private static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
 
     private const int SW_SHOW = 5;
     private const int SW_RESTORE = 9;
@@ -55,10 +54,15 @@ static class Program
         {
             // 延迟 300ms：等待用户松开快捷键，避免 key-up 事件唤醒显示器并触发锁屏
             Thread.Sleep(300);
-            // SendMessageTimeout 而非 SendMessage：防止广播阻塞导致子进程变僵尸
-            // SMTO_NORMAL (0x0000)：行为与 SendMessage 一致，但带 2 秒超时保护
-            SendMessageTimeout(new IntPtr(0xFFFF), 0x0112, new UIntPtr(0xF170), new IntPtr(2),
-                0x0000, 2000, out _);
+            // PostMessage（异步广播，立即返回）：
+            // - 不阻塞子进程 → 子进程立即退出，不产生僵尸
+            // - 不取消广播 → 所有窗口按自身节奏处理，不会因超时导致系统状态不一致
+            // - 不用 SendMessageTimeout（2s 超时取消广播 → 显示器亮灭反复循环）
+            // - 不用 SendMessage（同步阻塞 → 子进程变僵尸）
+            var hwnd = new IntPtr(0xFFFF);
+            PostMessage(hwnd, WM_SYSCOMMAND, new IntPtr(0xF170), new IntPtr(2));
+            Thread.Sleep(500); // 等待窗口处理第一条消息
+            PostMessage(hwnd, WM_SYSCOMMAND, new IntPtr(0xF170), new IntPtr(2)); // 二次发送，确保生效
             return;
         }
 
