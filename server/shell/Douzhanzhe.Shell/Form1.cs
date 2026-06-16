@@ -541,7 +541,7 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
                 // SendMessageTimeout 替代 SendMessage：
                 // - SMTO_ABORTIFHUNG 跳过卡住的窗口（如 WebView2 渲染进程）
                 // - 3秒超时防止 Shell UI 线程被永久阻塞
-                SendMessageTimeout(new IntPtr(0xFFFF), 0x0112, UIntPtr.Zero, new IntPtr(2),
+                SendMessageTimeout(new IntPtr(0xFFFF), 0x0112, new UIntPtr(0xF170), new IntPtr(2),
                     SMTO_ABORTIFHUNG, 3000, out _);
             }
         }
