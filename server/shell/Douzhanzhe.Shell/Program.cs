@@ -50,6 +50,8 @@ static class Program
         // Shell 快捷键通过启动自身带此参数来关屏，避免在 Shell UI 线程调用 SendMessage
         if (args.Any(a => a == "--monitor-off"))
         {
+            // 延迟 300ms：等待用户松开快捷键，避免 key-up 事件唤醒显示器并触发锁屏
+            Thread.Sleep(300);
             SendMessage(new IntPtr(0xFFFF), 0x0112, new IntPtr(0xF170), new IntPtr(2));
             return;
         }
