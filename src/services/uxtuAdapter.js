@@ -465,3 +465,27 @@ export async function dispatchFullMode(mode, overrides) {
   // ②-⑦ 重发稀疏 overrides
   await reapplyOverrides(mode, overrides);
 }
+
+// ── 关闭显示器 ──
+export async function monitorOff() {
+  const res = await fetch("/api/monitor/off", { method: "POST" });
+  if (!res.ok) throw new Error("monitor off returned " + res.status);
+  return res.json();
+}
+
+// ── 快捷键配置 ──
+export async function fetchHotkeyConfig() {
+  const res = await fetch("/api/hotkey/monitor-off");
+  if (!res.ok) throw new Error("hotkey config returned " + res.status);
+  return res.json();
+}
+
+export async function setHotkeyConfig(config) {
+  const res = await fetch("/api/hotkey/monitor-off", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(config),
+  });
+  if (!res.ok) throw new Error("hotkey config returned " + res.status);
+  return res.json();
+}

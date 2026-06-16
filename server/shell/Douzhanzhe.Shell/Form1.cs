@@ -1,6 +1,7 @@
 using Microsoft.Web.WebView2.WinForms;
 using Microsoft.Web.WebView2.Core;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 
 namespace Douzhanzhe.Shell;
@@ -12,6 +13,29 @@ public partial class Form1 : Form
     private ContextMenuStrip _trayMenu;
     private bool _closeToTray = true;
     private bool _isStartupMinimized = false;
+
+    // ---- 全局热键 ----
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+    private const int HOTKEY_ID_MONITOR_OFF = 1;
+    private const uint WM_HOTKEY = 0x0312;
+    private const uint MOD_ALT = 0x0001;
+    private const uint MOD_CONTROL = 0x0002;
+    private const uint MOD_SHIFT = 0x0004;
+    private const uint MOD_WIN = 0x0008;
+    private const uint MOD_NOREPEAT = 0x4000;
+    // SC_MONITORPOWER: wParam=2 = turn off
+    private const uint WM_SYSCOMMAND = 0x0112;
+    private static readonly IntPtr HWND_BROADCAST = new IntPtr(0xFFFF);
+
+    private FileSystemWatcher? _hotkeyWatcher;
+    private string? _currentHotkeyModifiers;
+    private string? _currentHotkeyKey;
 
     private static readonly string _winStatePath = Path.Combine(AppContext.BaseDirectory, "config", "window-state.json");
 
@@ -241,6 +265,10 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
             WindowState = FormWindowState.Minimized;
             Hide();
         }
+
+        // ---- 全局热键初始化 ----
+        RegisterHotkeysFromConfig();
+        StartHotkeyWatcher();
     }
 
     private void Form1_FormClosing(object? sender, FormClosingEventArgs e)
@@ -495,14 +523,142 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
         catch { }
     }
 
+    protected override void WndProc(ref Message m)
+    {
+        if (m.Msg == WM_HOTKEY)
+        {
+            int hotkeyId = m.WParam.ToInt32();
+            if (hotkeyId == HOTKEY_ID_MONITOR_OFF)
+            {
+                // 直接关闭显示器，无需绕后端
+                SendMessage(HWND_BROADCAST, WM_SYSCOMMAND, new IntPtr(0xF170), new IntPtr(2));
+            }
+        }
+        base.WndProc(ref m);
+    }
+
     protected override void Dispose(bool disposing)
     {
         if (disposing)
         {
+            // 清理热键
+            UnregisterHotKey(Handle, HOTKEY_ID_MONITOR_OFF);
+            _hotkeyWatcher?.Dispose();
             _trayIcon?.Dispose();
             _trayMenu?.Dispose();
             _webView?.Dispose();
         }
         base.Dispose(disposing);
+    }
+
+    // ---- 热键管理 ----
+
+    private string HotkeyConfigPath => Path.Combine(AppContext.BaseDirectory, "config", "hotkey-config.json");
+    private string HotkeyStatusPath => Path.Combine(AppContext.BaseDirectory, "config", "hotkey-status.json");
+
+    private void RegisterHotkeysFromConfig()
+    {
+        // 先注销旧注册
+        UnregisterHotKey(Handle, HOTKEY_ID_MONITOR_OFF);
+
+        // 默认值
+        bool enabled = true;
+        string modifiers = "ctrl,shift";
+        string key = "Q";
+
+        try
+        {
+            if (File.Exists(HotkeyConfigPath))
+            {
+                var json = File.ReadAllText(HotkeyConfigPath);
+                using var doc = JsonDocument.Parse(json);
+                if (doc.RootElement.TryGetProperty("monitorOff", out var mo))
+                {
+                    if (mo.TryGetProperty("enabled", out var ev)) enabled = ev.GetBoolean();
+                    if (mo.TryGetProperty("modifiers", out var mv)) modifiers = mv.GetString() ?? "ctrl,shift";
+                    if (mo.TryGetProperty("key", out var kv)) key = kv.GetString() ?? "Q";
+                }
+            }
+        }
+        catch { }
+
+        _currentHotkeyModifiers = modifiers;
+        _currentHotkeyKey = key;
+
+        if (!enabled)
+        {
+            WriteHotkeyStatus(false);
+            return;
+        }
+
+        bool ok = TryRegisterHotkey(HOTKEY_ID_MONITOR_OFF, modifiers, key);
+        WriteHotkeyStatus(!ok); // conflict = 注册失败
+    }
+
+    private bool TryRegisterHotkey(int id, string modifiersStr, string keyStr)
+    {
+        uint fsModifiers = MOD_NOREPEAT;
+        var parts = modifiersStr.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        foreach (var m in parts)
+        {
+            switch (m.ToLowerInvariant())
+            {
+                case "ctrl": case "control": fsModifiers |= MOD_CONTROL; break;
+                case "alt": fsModifiers |= MOD_ALT; break;
+                case "shift": fsModifiers |= MOD_SHIFT; break;
+                case "win": fsModifiers |= MOD_WIN; break;
+            }
+        }
+
+        uint vk = 0;
+        if (keyStr.Length == 1 && char.IsLetter(keyStr[0]))
+            vk = (uint)char.ToUpperInvariant(keyStr[0]);
+        else if (keyStr.Length == 1 && char.IsDigit(keyStr[0]))
+            vk = (uint)keyStr[0];
+        else if (Enum.TryParse<Keys>(keyStr, true, out var parsedKey))
+            vk = (uint)parsedKey;
+        else
+            vk = (uint)Keys.Q; // fallback
+
+        return RegisterHotKey(Handle, id, fsModifiers, vk);
+    }
+
+    private void WriteHotkeyStatus(bool conflict)
+    {
+        try
+        {
+            var dir = Path.GetDirectoryName(HotkeyStatusPath)!;
+            if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+            File.WriteAllText(HotkeyStatusPath,
+                JsonSerializer.Serialize(new { monitorOffConflict = conflict }));
+        }
+        catch { }
+    }
+
+    private void StartHotkeyWatcher()
+    {
+        var dir = Path.GetDirectoryName(HotkeyConfigPath);
+        var file = Path.GetFileName(HotkeyConfigPath);
+        if (dir == null || !Directory.Exists(dir)) return;
+
+        _hotkeyWatcher = new FileSystemWatcher(dir, file)
+        {
+            NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.CreationTime,
+            EnableRaisingEvents = true
+        };
+        // 防抖：短时间内多次变更只触发一次
+        System.Timers.Timer? debounce = null;
+        _hotkeyWatcher.Changed += (s, e) =>
+        {
+            debounce?.Stop();
+            debounce?.Dispose();
+            debounce = new System.Timers.Timer(300) { AutoReset = false };
+            debounce.Elapsed += (_, _) =>
+            {
+                if (InvokeRequired) BeginInvoke(new Action(RegisterHotkeysFromConfig));
+                else RegisterHotkeysFromConfig();
+            };
+            debounce.Start();
+        };
     }
 }

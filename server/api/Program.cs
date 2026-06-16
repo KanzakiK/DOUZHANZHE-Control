@@ -6,6 +6,7 @@ using System.Text.Json.Serialization;
 using System.IO;
 using System.Text.Json;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using Microsoft.Win32;
 using Microsoft.Win32.TaskScheduler;
 
@@ -552,6 +553,72 @@ app.MapPost("/api/control", (ControlRequest req, HardwareAbstractionLayer hal, W
         return Results.Problem(ex.Message, statusCode: 500);
     }
 });
+
+// ---- 关闭显示器 ----
+app.MapPost("/api/monitor/off", () =>
+{
+    NativeMethods.SendMessage(new IntPtr(0xFFFF), 0x0112, new IntPtr(0xF170), new IntPtr(2));
+    return Results.Ok(new { ok = true });
+});
+
+// ---- 快捷键配置 ----
+app.MapGet("/api/hotkey/monitor-off", () =>
+{
+    var cfgPath = Path.Combine(configDir, "hotkey-config.json");
+    if (!File.Exists(cfgPath))
+        return Results.Json(new { enabled = true, modifiers = "ctrl,shift", key = "Q", conflict = false });
+    try
+    {
+        var json = File.ReadAllText(cfgPath);
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+        var mo = root.TryGetProperty("monitorOff", out var moVal) ? moVal : root;
+        bool conflict = false;
+        var statusPath = Path.Combine(configDir, "hotkey-status.json");
+        if (File.Exists(statusPath))
+        {
+            try
+            {
+                var sJson = File.ReadAllText(statusPath);
+                using var sDoc = JsonDocument.Parse(sJson);
+                conflict = sDoc.RootElement.TryGetProperty("monitorOffConflict", out var cv) && cv.GetBoolean();
+            }
+            catch { }
+        }
+        return Results.Json(new
+        {
+            enabled = mo.TryGetProperty("enabled", out var ev) ? ev.GetBoolean() : true,
+            modifiers = mo.TryGetProperty("modifiers", out var mv) ? mv.GetString() : "ctrl,shift",
+            key = mo.TryGetProperty("key", out var kv) ? kv.GetString() : "Q",
+            conflict
+        });
+    }
+    catch
+    {
+        return Results.Json(new { enabled = true, modifiers = "ctrl,shift", key = "Q", conflict = false });
+    }
+});
+
+app.MapPost("/api/hotkey/monitor-off", (HotkeyConfigRequest req) =>
+{
+    var cfgPath = Path.Combine(configDir, "hotkey-config.json");
+    // 读取现有配置并合并
+    var existing = new Dictionary<string, object>();
+    if (File.Exists(cfgPath))
+    {
+        try { existing = JsonSerializer.Deserialize<Dictionary<string, object>>(File.ReadAllText(cfgPath)) ?? new(); } catch { }
+    }
+    var monitorOff = new Dictionary<string, object>
+    {
+        ["enabled"] = req.Enabled,
+        ["modifiers"] = req.Modifiers ?? "ctrl,shift",
+        ["key"] = req.Key ?? "Q"
+    };
+    existing["monitorOff"] = monitorOff;
+    JsonWrite("hotkey-config.json", existing);
+    return Results.Ok(new { ok = true });
+});
+
 app.MapGet("/api/discover", (HardwareAbstractionLayer hal) =>
 {
     return Results.Json(new
@@ -1741,3 +1808,17 @@ public class NvapiOverrides { public int? OcCoreOffsetMhz; public int? OcMemOffs
 public class SmuOverrides { public int? StapmLimitW; public int? ShortPowerLimitW; public int? TempLimitC; public int? CoAll; }
 public class FanOverrides { public int? LargeRpm; public int? SmallRpm; }
 public class PerformanceOverrides { public CpuOverrides Cpu = new(); public GpuOverrides Gpu = new(); public NvapiOverrides Nvapi = new(); public SmuOverrides Smu = new(); public FanOverrides Fan = new(); }
+
+// ---- 快捷键请求模型 ----
+public record HotkeyConfigRequest(
+    [property: JsonPropertyName("enabled")] bool Enabled,
+    [property: JsonPropertyName("modifiers")] string? Modifiers,
+    [property: JsonPropertyName("key")] string? Key
+);
+
+// ---- 系统级 P/Invoke ----
+public static class NativeMethods
+{
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    public static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+}

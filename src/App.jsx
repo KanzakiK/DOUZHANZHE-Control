@@ -186,7 +186,7 @@ export default function App() {
           {activeTab === "settings" && (
             <SettingsPanel settings={settings} setSettings={setSettings} uxtuPayload={uxtuPayload}
               showSwitches={true} showKeyboard={true} showSummary={true} showCredits={true} showAutoStart={true}
-              showBackground={true} bg={bg} updateBg={updateBg} />
+              showBackground={true} showHotkey={true} bg={bg} updateBg={updateBg} />
           )}
           {activeTab === "fancurve" && <FanCurvePanel telemetry={telemetry} overrides={overrides} settings={settings} />}
         </main>
