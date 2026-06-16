@@ -21,6 +21,12 @@ public partial class Form1 : Form
     private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, IntPtr lParam,
+        uint fuFlags, uint uTimeout, out UIntPtr lpdwResult);
+
+    private const uint SMTO_NORMAL = 0x0000;
+    private const uint SMTO_ABORTIFHUNG = 0x0002;
 
     private const int HOTKEY_ID_MONITOR_OFF = 1;
     private const uint WM_HOTKEY = 0x0312;
@@ -532,7 +538,11 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
             int hotkeyId = m.WParam.ToInt32();
             if (hotkeyId == HOTKEY_ID_MONITOR_OFF)
             {
-                SendMessage(new IntPtr(0xFFFF), 0x0112, new IntPtr(0xF170), new IntPtr(2));
+                // SendMessageTimeout 替代 SendMessage：
+                // - SMTO_ABORTIFHUNG 跳过卡住的窗口（如 WebView2 渲染进程）
+                // - 3秒超时防止 Shell UI 线程被永久阻塞
+                SendMessageTimeout(new IntPtr(0xFFFF), 0x0112, UIntPtr.Zero, new IntPtr(2),
+                    SMTO_ABORTIFHUNG, 3000, out _);
             }
         }
         base.WndProc(ref m);
