@@ -36,6 +36,9 @@ static class Program
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, IntPtr lParam,
+        uint fuFlags, uint uTimeout, out UIntPtr lpdwResult);
 
     private const int SW_SHOW = 5;
     private const int SW_RESTORE = 9;
@@ -52,7 +55,10 @@ static class Program
         {
             // 延迟 300ms：等待用户松开快捷键，避免 key-up 事件唤醒显示器并触发锁屏
             Thread.Sleep(300);
-            SendMessage(new IntPtr(0xFFFF), 0x0112, new IntPtr(0xF170), new IntPtr(2));
+            // SendMessageTimeout 而非 SendMessage：防止广播阻塞导致子进程变僵尸
+            // SMTO_NORMAL (0x0000)：行为与 SendMessage 一致，但带 2 秒超时保护
+            SendMessageTimeout(new IntPtr(0xFFFF), 0x0112, new UIntPtr(0xF170), new IntPtr(2),
+                0x0000, 2000, out _);
             return;
         }
 
