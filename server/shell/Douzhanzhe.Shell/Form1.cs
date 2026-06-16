@@ -532,9 +532,17 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
             int hotkeyId = m.WParam.ToInt32();
             if (hotkeyId == HOTKEY_ID_MONITOR_OFF)
             {
-                // SendMessage 是关闭显示器的正确 API（与后端 /api/monitor/off 一致）
-                // PostMessage 不可靠：WM_SYSCOMMAND 可能被系统拦截并映射为锁屏操作
-                SendMessage(HWND_BROADCAST, WM_SYSCOMMAND, new IntPtr(0xF170), new IntPtr(2));
+                // 在后台线程执行 SendMessage，避免阻塞 UI 线程导致 WebView2 死锁
+                // SendMessage(HWND_BROADCAST) 虽是 SC_MONITORPOWER 的正确 API，
+                // 但在 UI 线程同步调用可能与 WebView2 GPU 渲染产生死锁
+                Task.Run(() =>
+                {
+                    SendMessage(HWND_BROADCAST, WM_SYSCOMMAND, new IntPtr(0xF170), new IntPtr(2));
+                    // 显示器恢复后刷新 WebView2，防止 GPU 上下文丢失导致白屏/卡死
+                    Thread.Sleep(2000);
+                    try { BeginInvoke(new Action(() => { try { _webView.Reload(); } catch { } })); }
+                    catch { }
+                });
             }
         }
         base.WndProc(ref m);
