@@ -21,6 +21,8 @@ public partial class Form1 : Form
     private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
 
     private const int HOTKEY_ID_MONITOR_OFF = 1;
     private const uint WM_HOTKEY = 0x0312;
@@ -34,8 +36,10 @@ public partial class Form1 : Form
     private static readonly IntPtr HWND_BROADCAST = new IntPtr(0xFFFF);
 
     private FileSystemWatcher? _hotkeyWatcher;
+    private System.Windows.Forms.Timer? _hotkeyPollTimer;
     private string? _currentHotkeyModifiers;
     private string? _currentHotkeyKey;
+    private DateTime _lastHotkeyConfigWrite = DateTime.MinValue;
 
     private static readonly string _winStatePath = Path.Combine(AppContext.BaseDirectory, "config", "window-state.json");
 
@@ -530,8 +534,8 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
             int hotkeyId = m.WParam.ToInt32();
             if (hotkeyId == HOTKEY_ID_MONITOR_OFF)
             {
-                // 直接关闭显示器，无需绕后端
-                SendMessage(HWND_BROADCAST, WM_SYSCOMMAND, new IntPtr(0xF170), new IntPtr(2));
+                // 使用 PostMessage（非阻塞）防止同步 SendMessage 导致 Shell 卡死
+                PostMessage(HWND_BROADCAST, WM_SYSCOMMAND, new IntPtr(0xF170), new IntPtr(2));
             }
         }
         base.WndProc(ref m);
@@ -543,6 +547,7 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
         {
             // 清理热键
             UnregisterHotKey(Handle, HOTKEY_ID_MONITOR_OFF);
+            _hotkeyPollTimer?.Dispose();
             _hotkeyWatcher?.Dispose();
             _trayIcon?.Dispose();
             _trayMenu?.Dispose();
@@ -553,8 +558,25 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
 
     // ---- 热键管理 ----
 
-    private string HotkeyConfigPath => Path.Combine(AppContext.BaseDirectory, "config", "hotkey-config.json");
-    private string HotkeyStatusPath => Path.Combine(AppContext.BaseDirectory, "config", "hotkey-status.json");
+    /// <summary>
+    /// 解析 config 目录，与 API 端 Program.cs 使用相同逻辑：
+    /// 优先 BaseDirectory/config/，若不存在则回退到项目根目录/config/
+    /// </summary>
+    private string ResolveConfigDir()
+    {
+        var configDir = Path.Combine(AppContext.BaseDirectory, "config");
+        if (!Directory.Exists(configDir))
+        {
+            var devConfig = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "config"));
+            if (Directory.Exists(devConfig))
+                configDir = devConfig;
+        }
+        Directory.CreateDirectory(configDir);
+        return configDir;
+    }
+
+    private string HotkeyConfigPath => Path.Combine(ResolveConfigDir(), "hotkey-config.json");
+    private string HotkeyStatusPath => Path.Combine(ResolveConfigDir(), "hotkey-status.json");
 
     private void RegisterHotkeysFromConfig()
     {
@@ -570,6 +592,7 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
         {
             if (File.Exists(HotkeyConfigPath))
             {
+                _lastHotkeyConfigWrite = File.GetLastWriteTime(HotkeyConfigPath);
                 var json = File.ReadAllText(HotkeyConfigPath);
                 using var doc = JsonDocument.Parse(json);
                 if (doc.RootElement.TryGetProperty("monitorOff", out var mo))
@@ -643,7 +666,7 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
 
         _hotkeyWatcher = new FileSystemWatcher(dir, file)
         {
-            NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.CreationTime,
+            NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.CreationTime | NotifyFilters.Size,
             EnableRaisingEvents = true
         };
         // 防抖：短时间内多次变更只触发一次
@@ -660,5 +683,25 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
             };
             debounce.Start();
         };
+
+        // 定时器轮询回退：每 2 秒检查配置文件写入时间，补偿 FileSystemWatcher 可能漏检
+        _hotkeyPollTimer = new System.Windows.Forms.Timer { Interval = 2000 };
+        _hotkeyPollTimer.Tick += (s, e) =>
+        {
+            try
+            {
+                if (File.Exists(HotkeyConfigPath))
+                {
+                    var writeTime = File.GetLastWriteTime(HotkeyConfigPath);
+                    if (writeTime > _lastHotkeyConfigWrite)
+                    {
+                        _lastHotkeyConfigWrite = writeTime;
+                        RegisterHotkeysFromConfig();
+                    }
+                }
+            }
+            catch { }
+        };
+        _hotkeyPollTimer.Start();
     }
 }
