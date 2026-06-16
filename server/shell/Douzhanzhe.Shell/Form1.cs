@@ -21,8 +21,6 @@ public partial class Form1 : Form
     private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    private static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
 
     private const int HOTKEY_ID_MONITOR_OFF = 1;
     private const uint WM_HOTKEY = 0x0312;
@@ -534,8 +532,9 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
             int hotkeyId = m.WParam.ToInt32();
             if (hotkeyId == HOTKEY_ID_MONITOR_OFF)
             {
-                // 使用 PostMessage（非阻塞）防止同步 SendMessage 导致 Shell 卡死
-                PostMessage(HWND_BROADCAST, WM_SYSCOMMAND, new IntPtr(0xF170), new IntPtr(2));
+                // SendMessage 是关闭显示器的正确 API（与后端 /api/monitor/off 一致）
+                // PostMessage 不可靠：WM_SYSCOMMAND 可能被系统拦截并映射为锁屏操作
+                SendMessage(HWND_BROADCAST, WM_SYSCOMMAND, new IntPtr(0xF170), new IntPtr(2));
             }
         }
         base.WndProc(ref m);
