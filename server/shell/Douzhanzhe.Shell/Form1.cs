@@ -532,16 +532,7 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
             int hotkeyId = m.WParam.ToInt32();
             if (hotkeyId == HOTKEY_ID_MONITOR_OFF)
             {
-                // 直接使用 SendMessage 关闭显示器（与后端 /api/monitor/off 逻辑完全一致）
-                // 此前报告的"Shell 卡死"实为配置路径 bug 导致（已修复），非 SendMessage 问题
                 SendMessage(new IntPtr(0xFFFF), 0x0112, new IntPtr(0xF170), new IntPtr(2));
-                // 显示器恢复后刷新 WebView2，防止 GPU 上下文丢失导致白屏
-                Task.Run(async () =>
-                {
-                    await Task.Delay(2000);
-                    try { BeginInvoke(new Action(() => { try { _webView.Reload(); } catch { } })); }
-                    catch { }
-                });
             }
         }
         base.WndProc(ref m);
