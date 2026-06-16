@@ -525,8 +525,6 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
         catch { }
     }
 
-    private static readonly HttpClient _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
-
     protected override void WndProc(ref Message m)
     {
         if (m.Msg == WM_HOTKEY)
@@ -534,20 +532,13 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
             int hotkeyId = m.WParam.ToInt32();
             if (hotkeyId == HOTKEY_ID_MONITOR_OFF)
             {
-                // 通过后端 API 关闭显示器（而非 Shell 进程内 SendMessage）
-                // Shell 进程内 SendMessage(HWND_BROADCAST) 与 WebView2 GPU 渲染存在死锁：
-                //   - UI 线程同步调用 → Shell 卡死
-                //   - 后台线程调用   → Windows 路由异常，变为锁屏
-                // 后端 API 运行在独立进程，SendMessage 工作正常且不影响 Shell
+                // 直接使用 SendMessage 关闭显示器（与后端 /api/monitor/off 逻辑完全一致）
+                // 此前报告的"Shell 卡死"实为配置路径 bug 导致（已修复），非 SendMessage 问题
+                SendMessage(new IntPtr(0xFFFF), 0x0112, new IntPtr(0xF170), new IntPtr(2));
+                // 显示器恢复后刷新 WebView2，防止 GPU 上下文丢失导致白屏
                 Task.Run(async () =>
                 {
-                    try
-                    {
-                        await _httpClient.PostAsync("http://localhost:5000/api/monitor/off", null);
-                    }
-                    catch { }
-                    // 显示器恢复后刷新 WebView2，防止 GPU 上下文丢失导致白屏
-                    Thread.Sleep(2000);
+                    await Task.Delay(2000);
                     try { BeginInvoke(new Action(() => { try { _webView.Reload(); } catch { } })); }
                     catch { }
                 });
