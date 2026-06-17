@@ -536,6 +536,7 @@ app.MapPost("/api/control", (ControlRequest req, HardwareAbstractionLayer hal, W
 {
     try
     {
+        Log($"[control] ← target={req.Target} value={req.Value}");
         switch (req.Target)
         {
             case "kb_light":
@@ -561,6 +562,7 @@ app.MapPost("/api/control", (ControlRequest req, HardwareAbstractionLayer hal, W
                 // 优先走 WMI Method 8 (SystemPerMode) — 固件完整加载模式预设
                 // WMI 不可用时降级到 EC 直写
                 var clampedMode = (byte)int.Clamp(req.Value, 0, 3);
+                Log($"[control/thermal_mode] ← mode={clampedMode} (raw={req.Value})");
                 if (wmi.Available)
                     wmi.SetThermalMode(clampedMode);
                 else
@@ -813,6 +815,7 @@ app.MapPost("/api/fan/set-target", (FanSetRequest req, WmiInterface wmi) =>
 {
     try
     {
+        Log($"[fan/set-target] ← large={req.LargeRpm} small={req.SmallRpm}");
         // Bellator 协议: 交错式 — Switch(fan) → Speed(fan) 逐扇操作
         if (req.LargeRpm.HasValue)
         {
@@ -1173,12 +1176,14 @@ app.MapPost("/api/cpu/freq-limit", async (CpuPowerController cpu, CpuFreqLimitRe
 {
     try
     {
+        Log($"[cpu/freq-limit] ← mhz={req.Mhz}");
         await cpu.SetFreqLimitAsync(req.Mhz);
         SavePerfOverrides(o => o.Cpu.FreqLimitMhz = req.Mhz);
         return Results.Json(new { ok = true });
     }
     catch (Exception ex)
     {
+        Log($"[cpu/freq-limit] ✗ {ex.Message}");
         return Results.Json(new { ok = false, error = ex.Message });
     }
 });
@@ -1187,12 +1192,14 @@ app.MapPost("/api/cpu/turbo", async (CpuPowerController cpu, CpuTurboRequest req
 {
     try
     {
+        Log($"[cpu/turbo] ← enabled={req.Enabled}");
         await cpu.SetTurboAsync(req.Enabled);
         SavePerfOverrides(o => o.Cpu.TurboEnabled = req.Enabled);
         return Results.Json(new { ok = true });
     }
     catch (Exception ex)
     {
+        Log($"[cpu/turbo] ✗ {ex.Message}");
         return Results.Json(new { ok = false, error = ex.Message });
     }
 });
@@ -1201,12 +1208,14 @@ app.MapPost("/api/cpu/core-limit", async (CpuPowerController cpu, CpuCoreLimitRe
 {
     try
     {
+        Log($"[cpu/core-limit] ← percent={req.Percent}");
         await cpu.SetCoreLimitAsync(req.Percent);
         SavePerfOverrides(o => o.Cpu.CoreLimitPercent = req.Percent);
         return Results.Json(new { ok = true });
     }
     catch (Exception ex)
     {
+        Log($"[cpu/core-limit] ✗ {ex.Message}");
         return Results.Json(new { ok = false, error = ex.Message });
     }
 });
@@ -1231,9 +1240,11 @@ app.MapPost("/api/uxtu/apply", async (HttpContext ctx, SmuController smu) =>
     try
     {
         using var reader = new StreamReader(ctx.Request.Body);
+        var rawJson = await reader.ReadToEndAsync();
+        Log($"[uxtu/apply] ← {rawJson}");
         var jsonOpts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-        var body = JsonSerializer.Deserialize<UxtuApplyRequest>(await reader.ReadToEndAsync(), jsonOpts);
-        if (body == null) return Results.Json(new { ok = false, error = "invalid body" });
+        var body = JsonSerializer.Deserialize<UxtuApplyRequest>(rawJson, jsonOpts);
+        if (body == null) { Log("[uxtu/apply] ✗ invalid body"); return Results.Json(new { ok = false, error = "invalid body" }); }
         int? cpuPpt = body.Params?.CpuLongPptW ?? body.Limits?.Cpu?.PptLimitW;
         int? cpuShortPpt = body.Params?.CpuShortPptW;
         int? cpuTemp = body.Params?.CpuTempLimitC ?? body.Limits?.Cpu?.TempLimitC;
@@ -1271,16 +1282,17 @@ app.MapPost("/api/uxtu/apply", async (HttpContext ctx, SmuController smu) =>
             if (body.Params?.CpuFreqLimitMhz.HasValue == true)
                 o.Cpu.FreqLimitMhz = body.Params.CpuFreqLimitEnabled == true ? body.Params.CpuFreqLimitMhz : 0;
             if (cpuTurboOff.HasValue) o.Cpu.TurboEnabled = !cpuTurboOff.Value;
-            if (cpuCoreLimit.HasValue) o.Cpu.CoreLimitPercent = cpuCoreLimit.Value;
+            if (cpuCoreLimit.HasValue) o.Cpu.CoreLimitPercent = cpuCoreLimit.Value > 0 ? (int)Math.Round(cpuCoreLimit.Value / 16.0 * 100) : 100;
             // SMU
             if (cpuPpt.HasValue) o.Smu.StapmLimitW = cpuPpt.Value;
             if (cpuShortPpt.HasValue) o.Smu.ShortPowerLimitW = cpuShortPpt.Value;
             if (cpuTemp.HasValue) o.Smu.TempLimitC = cpuTemp.Value;
             if (cpuVoltage.HasValue) o.Smu.CoAll = cpuVoltage.Value;
         });
+        Log($"[uxtu/apply] ✓ saved ppt={cpuPpt} short={cpuShortPpt} temp={cpuTemp} co={cpuVoltage} freqLim={body.Params?.CpuFreqLimitMhz} turbo={cpuTurboOff} core={cpuCoreLimit} rc={rc}");
         return Results.Json(new { ok = rc == 0, message = rc == 0 ? "OK" : $"rc={rc}" });
     }
-    catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }); }
+    catch (Exception ex) { Log($"[uxtu/apply] ✗ {ex.Message}"); return Results.Json(new { ok = false, error = ex.Message }); }
 });
 app.MapGet("/api/ryzenadj/info", (SmuController smu) =>
 {
@@ -1320,6 +1332,16 @@ app.MapPost("/api/system/settings", async (HttpContext ctx) =>
 app.MapPost("/api/fan/full-speed", () =>
 {
     return Results.Json(new { ok = false, error = "此端点已废弃，请使用 /api/fan/set-target 手动控制风扇" });
+});
+// ---- 日志导出（供用户反馈问题时使用）----
+app.MapGet("/api/logs/export", () =>
+{
+    var logFile = Path.Combine(_logDir, "app.log");
+    if (!File.Exists(logFile))
+        return Results.Json(new { ok = false, error = "日志文件不存在" });
+    var bytes = File.ReadAllBytes(logFile);
+    var ts = DateTime.Now.ToString("yyyyMMdd-HHmmss");
+    return Results.File(bytes, "text/plain; charset=utf-8", $"douzhanzhe-log-{ts}.log");
 });
 app.MapGet("/api/smu/api-type", () =>
 {

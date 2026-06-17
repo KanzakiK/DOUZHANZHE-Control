@@ -264,7 +264,7 @@ export default function SettingsPanel({ settings, setSettings, uxtuPayload, show
             <a href="https://github.com/KanzakiK/DOUZHANZHE-Control" target="_blank" rel="noopener noreferrer"
               style={{ color: "var(--primary)" }}>KanzakiK/DOUZHANZHE-Control</a>
           </p>
-          <div className="mt-3 pt-3" style={{ borderTop: "1px solid var(--border)" }}>
+          <div className="mt-3 pt-3 flex gap-2" style={{ borderTop: "1px solid var(--border)" }}>
             <button
               onClick={() => {
                 // 触发 UpdateDialog 组件检查更新并弹窗
@@ -281,6 +281,38 @@ export default function SettingsPanel({ settings, setSettings, uxtuPayload, show
               }}
             >
               检查更新
+            </button>
+            <button
+              onClick={async () => {
+                try {
+                  const res = await fetch("/api/logs/export");
+                  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                  const blob = await res.blob();
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  const cd = res.headers.get("content-disposition") || "";
+                  const m = cd.match(/filename="([^"]+)"/) || cd.match(/filename=([^;\s]+)/);
+                  a.download = m?.[1] || `douzhanzhe-log-${Date.now()}.log`;
+                  document.body.appendChild(a);
+                  a.click();
+                  a.remove();
+                  URL.revokeObjectURL(url);
+                } catch (e) {
+                  toast?.("导出日志失败: " + e.message, "error");
+                }
+              }}
+              style={{
+                padding: "6px 12px",
+                borderRadius: "6px",
+                border: "1px solid var(--border)",
+                background: "transparent",
+                color: "var(--muted)",
+                cursor: "pointer",
+                fontSize: "12px",
+              }}
+            >
+              导出日志
             </button>
           </div>
         </div>
