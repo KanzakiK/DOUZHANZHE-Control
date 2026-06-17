@@ -219,7 +219,7 @@ public sealed class NvapiGpuController : IDisposable
             _thrG = Q<NvApiThrSt>(NvApiId.GPU_GetThermalStatus);
             _thrS = Q<NvApiThrSt>(NvApiId.GPU_SetThermalStatus);
 
-            if (_init() != OK) { Console.WriteLine("[NVAPI] Init failed"); return false; }
+            if (_init() != OK) { AppLog.Write("NVAPI", "Init failed"); return false; }
 
             var handles = new IntPtr[4]; int count = 0;
             if (_enum(handles, ref count) != OK || count == 0) return false;
@@ -243,10 +243,10 @@ public sealed class NvapiGpuController : IDisposable
             }
 
             _ok = true;
-            Console.WriteLine($"[NVAPI] OK: {GpuName} | OC={OverclockSupported} engine={OcEngine}");
+            AppLog.Write("NVAPI", $"OK: {GpuName} | OC={OverclockSupported} engine={OcEngine}");
             return true;
         }
-        catch (Exception ex) { Console.WriteLine($"[NVAPI] {ex.Message}"); return false; }
+        catch (Exception ex) { AppLog.Write("NVAPI", ex.Message); return false; }
     }
 
     private bool TryLoadKaronOC()
@@ -263,12 +263,12 @@ public sealed class NvapiGpuController : IDisposable
                 _karonSet = Marshal.GetDelegateForFunctionPointer<KaronChangePStates>(pSet);
                 _karonGet = Marshal.GetDelegateForFunctionPointer<KaronGetPStates>(pGet);
                 _karonMod = mod; // 全部成功后才保存句柄
-                Console.WriteLine($"[KaronOC] Loaded: {path}");
+                AppLog.Write("KaronOC", $"Loaded: {path}");
                 return true;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[KaronOC] Load failed ({path}): {ex.Message}");
+                AppLog.Write("KaronOC", $"Load failed ({path}): {ex.Message}");
                 if (mod != IntPtr.Zero) NativeLibrary.Free(mod);
                 _karonSet = null; _karonGet = null; // 清理残留委托
             }

@@ -10,6 +10,12 @@ using System.Runtime.InteropServices;
 using Microsoft.Win32;
 using Microsoft.Win32.TaskScheduler;
 
+// ---- AppLog 统一日志初始化（所有服务注册之前）----
+var _logDir = Path.Combine(
+    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+    "Douzhanzhe Console", "logs");
+AppLog.Init(_logDir);
+
 // 提升进程与主线程优先级，确保在游戏满载时遥测采样与风扇控制仍能及时响应
 var proc = Process.GetCurrentProcess();
 proc.PriorityClass = ProcessPriorityClass.High;
@@ -56,20 +62,12 @@ if (!Directory.Exists(configDir))
 }
 Directory.CreateDirectory(configDir);
 
-// ---- File logger ----
-var _logDir = Path.Combine(
-    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-    "Douzhanzhe Console");
-Directory.CreateDirectory(_logDir);
-var _logPath = Path.Combine(_logDir, "api.log");
+// ---- File logger (统一走 AppLog) ----
 void Log(string msg)
 {
-    var line = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {msg}\n";
-    Console.WriteLine(msg);
-    try { File.AppendAllText(_logPath, line); } catch { }
+    AppLog.Write("API", msg);
 }
-// 每次启动清空旧日志（保留最近一次运行记录）
-try { File.WriteAllText(_logPath, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] API starting, BaseDir={AppContext.BaseDirectory}, ConfigDir={configDir}\n"); } catch { }
+Log($"API starting, BaseDir={AppContext.BaseDirectory}, ConfigDir={configDir}");
 
 // ---- 性能设置持久化 ----
 var _perfLock = new object();
@@ -92,6 +90,10 @@ SystemEvents.PowerModeChanged += (sender, e) =>
             {
                 // inpoutx64 内核驱动在 S3/S4 后可能失效，必须重置映射并重新初始化
                 DriverBridge.Instance.RecoverAfterSleep();
+
+                // LHM 需要重新初始化（SMN 总线可能在睡眠后失效）
+                LhmSensor.Close();
+                LhmSensor.Open();
 
                 // NVAPI 也需要重新初始化（GPU 驱动可能在睡眠后重新加载）
                 var nv = app.Services.GetRequiredService<NvapiGpuController>();
@@ -158,8 +160,9 @@ void JsonWrite<T>(string fileName, T data)
     File.Move(tmpPath, filePath, overwrite: true);
 }
 
-// ---- 恢复所有性能设置 (启动 + 睡眠恢复共用) ----
-async System.Threading.Tasks.Task RestoreAllPerfSettings(string tag)
+// ---- 恢复计算类性能设置 (CPU + SMU + GPU + NVAPI, 不含风扇) ----
+// 供启动、睡眠恢复、ParameterGuard 共用
+async System.Threading.Tasks.Task RestoreComputeSettings(string tag)
 {
     try
     {
@@ -257,35 +260,78 @@ async System.Threading.Tasks.Task RestoreAllPerfSettings(string tag)
             catch (Exception ex) { Log($"[{tag}] NVAPI thermal failed: {ex.Message}"); }
         }
 
-        // --- 固定风扇转速 ---
-        if (o.Fan.LargeRpm.HasValue || o.Fan.SmallRpm.HasValue)
+        // --- 电源计划 ---
+        if (o.PowerPlan.HasValue)
         {
             try
             {
-                var wmi = app.Services.GetRequiredService<WmiInterface>();
-                if (o.Fan.LargeRpm.HasValue)
-                {
-                    var speed = (byte)Math.Clamp(o.Fan.LargeRpm.Value / 100, 0, 44);
-                    wmi.SetFanManual(0, true);
-                    wmi.SetFanSpeed(0, speed);
-                }
-                if (o.Fan.SmallRpm.HasValue)
-                {
-                    var speed = (byte)Math.Clamp(o.Fan.SmallRpm.Value / 100, 0, 82);
-                    wmi.SetFanManual(1, true);
-                    wmi.SetFanSpeed(1, speed);
-                }
+                var hal2 = app.Services.GetRequiredService<HardwareAbstractionLayer>();
+                hal2.PowerPlan = o.PowerPlan.Value;
                 restored++;
-                Log($"[{tag}] Fan target → large={o.Fan.LargeRpm ?? 0} small={o.Fan.SmallRpm ?? 0}");
+                var planNames = new[] { "平衡", "高性能", "节能" };
+                var idx = Math.Clamp(o.PowerPlan.Value, 0, 2);
+                Log($"[{tag}] Power plan → {planNames[idx]} ({idx})");
             }
-            catch (Exception ex) { Log($"[{tag}] Fan target failed: {ex.Message}"); }
+            catch (Exception ex) { Log($"[{tag}] Power plan failed: {ex.Message}"); }
         }
 
-        if (restored > 0) Log($"[{tag}] Performance overrides restored: {restored} settings applied");
-        else Log($"[{tag}] No performance overrides to restore");
+        if (restored > 0) Log($"[{tag}] Compute settings restored: {restored} applied");
+        else Log($"[{tag}] No compute settings to restore");
     }
-    catch (Exception ex) { Log($"[{tag}] Performance overrides failed: {ex.Message}"); }
+    catch (Exception ex) { Log($"[{tag}] Compute settings restore failed: {ex.Message}"); }
 }
+
+// ---- 恢复所有性能设置 (启动 + 睡眠恢复共用, 含风扇) ----
+async System.Threading.Tasks.Task RestoreAllPerfSettings(string tag)
+{
+    await RestoreComputeSettings(tag);
+
+    // --- 固定风扇转速 (仅启动和睡眠恢复时执行, ParameterGuard 不调用) ---
+    try
+    {
+        var o = LoadPerfOverrides();
+        if (o.Fan.LargeRpm.HasValue || o.Fan.SmallRpm.HasValue)
+        {
+            var wmi = app.Services.GetRequiredService<WmiInterface>();
+            if (o.Fan.LargeRpm.HasValue)
+            {
+                var speed = (byte)Math.Clamp(o.Fan.LargeRpm.Value / 100, 0, 44);
+                wmi.SetFanManual(0, true);
+                wmi.SetFanSpeed(0, speed);
+            }
+            if (o.Fan.SmallRpm.HasValue)
+            {
+                var speed = (byte)Math.Clamp(o.Fan.SmallRpm.Value / 100, 0, 82);
+                wmi.SetFanManual(1, true);
+                wmi.SetFanSpeed(1, speed);
+            }
+            Log($"[{tag}] Fan target → large={o.Fan.LargeRpm ?? 0} small={o.Fan.SmallRpm ?? 0}");
+        }
+    }
+    catch (Exception ex) { Log($"[{tag}] Fan target failed: {ex.Message}"); }
+}
+
+// ---- ParameterGuard: 60 秒周期性幂等重发计算类参数 ----
+_ = System.Threading.Tasks.Task.Run(async () =>
+{
+    await System.Threading.Tasks.Task.Delay(10_000); // 启动后等 10 秒再开始
+    using var timer = new PeriodicTimer(TimeSpan.FromSeconds(60));
+    try
+    {
+        while (await timer.WaitForNextTickAsync())
+        {
+            try
+            {
+                await RestoreComputeSettings("ParameterGuard");
+            }
+            catch (Exception ex)
+            {
+                AppLog.Write("ParameterGuard", $"参数重发失败: {ex.Message}");
+            }
+        }
+    }
+    catch (OperationCanceledException) { /* 正常退出 */ }
+});
 
 // ---- 启动时恢复 GPU 模式 (异步，不阻塞服务启动) ----
 _ = System.Threading.Tasks.Task.Run(() =>
@@ -509,6 +555,7 @@ app.MapPost("/api/control", (ControlRequest req, HardwareAbstractionLayer hal, W
                 break;
             case "power_plan":
                 hal.PowerPlan = req.Value;
+                SavePerfOverrides(o => o.PowerPlan = req.Value);
                 break;
             case "thermal_mode":
                 // 优先走 WMI Method 8 (SystemPerMode) — 固件完整加载模式预设
@@ -1200,11 +1247,32 @@ app.MapPost("/api/uxtu/apply", async (HttpContext ctx, SmuController smu) =>
         uint? tempC = cpuTemp.HasValue ? (uint)cpuTemp.Value : null;
         int? coAllMv = cpuVoltage;
         bool? turboOff = cpuTurboOff;
-        var rc = smu.BatchApply(stapmMw, fastMw, slowMw, tempC, coAllMv, turboOff);
+        // turbo 统一走 powercfg 路径（与独立端点 /api/cpu/turbo 对齐），不通过 ryzenadj
+        var rc = smu.BatchApply(stapmMw, fastMw, slowMw, tempC, coAllMv, null);
         if (cpuCoreLimit.HasValue) { CpuAffinityManager.SetCoreLimit(cpuCoreLimit.Value); }
-        // 持久化 SMU 参数（与各独立端点 /api/smu/set 对齐，无条件保存）
+        // CPU 频率限制 (powercfg 路径)
+        if (body.Params?.CpuFreqLimitEnabled == true && body.Params.CpuFreqLimitMhz.HasValue && body.Params.CpuFreqLimitMhz.Value > 0)
+        {
+            try { await app.Services.GetRequiredService<CpuPowerController>().SetFreqLimitAsync(body.Params.CpuFreqLimitMhz.Value); } catch { }
+        }
+        else if (body.Params?.CpuFreqLimitEnabled == false)
+        {
+            try { await app.Services.GetRequiredService<CpuPowerController>().SetFreqLimitAsync(0); } catch { }
+        }
+        // Turbo 开关
+        if (cpuTurboOff.HasValue)
+        {
+            try { await app.Services.GetRequiredService<CpuPowerController>().SetTurboAsync(!cpuTurboOff.Value); } catch { }
+        }
+        // 持久化全部 CPU / SMU 参数（与各独立端点对齐）
         SavePerfOverrides(o =>
         {
+            // CPU
+            if (body.Params?.CpuFreqLimitMhz.HasValue == true)
+                o.Cpu.FreqLimitMhz = body.Params.CpuFreqLimitEnabled == true ? body.Params.CpuFreqLimitMhz : 0;
+            if (cpuTurboOff.HasValue) o.Cpu.TurboEnabled = !cpuTurboOff.Value;
+            if (cpuCoreLimit.HasValue) o.Cpu.CoreLimitPercent = cpuCoreLimit.Value;
+            // SMU
             if (cpuPpt.HasValue) o.Smu.StapmLimitW = cpuPpt.Value;
             if (cpuShortPpt.HasValue) o.Smu.ShortPowerLimitW = cpuShortPpt.Value;
             if (cpuTemp.HasValue) o.Smu.TempLimitC = cpuTemp.Value;
@@ -1244,7 +1312,7 @@ app.MapPost("/api/system/settings", async (HttpContext ctx) =>
     {
         using var reader = new StreamReader(ctx.Request.Body);
         var body = JsonSerializer.Deserialize<SystemSettingsRequest>(await reader.ReadToEndAsync());
-        Console.WriteLine($"[system] {body?.Key}={body?.Value} — Node.js 已废弃，此端点仅做兼容");
+        AppLog.Write("API", $"[system] {body?.Key}={body?.Value} — Node.js 已废弃，此端点仅做兼容");
         return Results.Json(new { ok = false, error = "此端点已废弃，请使用 /api/control" });
     }
     catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }); }
@@ -1689,6 +1757,9 @@ try
 }
 catch (Exception ex) { Log("[WinRing0] Error: " + ex.Message); }
 
+// ---- LHM 初始化（WinRing0 加载之后）----
+LhmSensor.Open();
+
 // ---- Start server ----
 try
 {
@@ -1807,7 +1878,7 @@ public class GpuOverrides { public int? CoreFreqMhz; public bool? FreqLocked; pu
 public class NvapiOverrides { public int? OcCoreOffsetMhz; public int? OcMemOffsetMhz; public int? PowerLimitW; public float? ThermalLimitC; }
 public class SmuOverrides { public int? StapmLimitW; public int? ShortPowerLimitW; public int? TempLimitC; public int? CoAll; }
 public class FanOverrides { public int? LargeRpm; public int? SmallRpm; }
-public class PerformanceOverrides { public CpuOverrides Cpu = new(); public GpuOverrides Gpu = new(); public NvapiOverrides Nvapi = new(); public SmuOverrides Smu = new(); public FanOverrides Fan = new(); }
+public class PerformanceOverrides { public CpuOverrides Cpu = new(); public GpuOverrides Gpu = new(); public NvapiOverrides Nvapi = new(); public SmuOverrides Smu = new(); public FanOverrides Fan = new(); public int? PowerPlan; }
 
 // ---- 快捷键请求模型 ----
 public record HotkeyConfigRequest(

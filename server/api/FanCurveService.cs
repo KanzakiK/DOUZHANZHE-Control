@@ -361,7 +361,7 @@ public sealed class FanCurveService : IDisposable
             }
             catch { }
 
-            // 6. 偏离检测：连续偏离时输出告警日志（不主动恢复，避免 SetThermalMode 副作用）
+            // 7. 偏离检测：分级自动恢复
             {
                 bool fanDeviated = ActualCpuFanRpm > 0 &&
                     Math.Abs(ActualCpuFanRpm - largeTarget * 100) > 500;
@@ -369,12 +369,38 @@ public sealed class FanCurveService : IDisposable
                 if (fanDeviated)
                 {
                     _consecutiveDeviation++;
-                    if (_consecutiveDeviation % 10 == 1) // 每 10 个 tick 告警一次，避免刷屏
+
+                    if (_consecutiveDeviation % 10 == 1 && _consecutiveDeviation < 12)
                     {
+                        // 每 10 个 tick 记一次日志（未达恢复阈值时）
                         _log.LogWarning(
                             "[FanCurve] 偏离告警 #{N}: 目标={Target} 实际={Actual} (差值={Diff})",
                             _consecutiveDeviation, largeTarget * 100, ActualCpuFanRpm,
                             Math.Abs(ActualCpuFanRpm - largeTarget * 100));
+                    }
+
+                    // 一级恢复: 连续 12 tick (= 60s) → 重写 SetFanManual + SetFanSpeed
+                    if (_consecutiveDeviation == 12)
+                    {
+                        _log.LogWarning("[FanCurve] 偏离 60s, 一级恢复: 重写 Manual+Speed");
+                        AppLog.Write("FanCurve", $"一级恢复: 偏差={Math.Abs(ActualCpuFanRpm - largeTarget * 100)} RPM");
+                        _wmi.SetFanManual(0, true);
+                        _wmi.SetFanSpeed(0, (byte)largeTarget);
+                        _wmi.SetFanManual(1, true);
+                        _wmi.SetFanSpeed(1, (byte)smallTarget);
+                    }
+
+                    // 二级恢复: 连续 24 tick (= 120s) → 重写 ITSM + 完整风扇参数
+                    if (_consecutiveDeviation >= 24)
+                    {
+                        _log.LogWarning("[FanCurve] 偏离 120s, 二级恢复: 重写 ITSM={Mode} + 完整风扇参数", _itsmCurveMode);
+                        AppLog.Write("FanCurve", $"二级恢复: ITSM={_itsmCurveMode}, 偏差={Math.Abs(ActualCpuFanRpm - largeTarget * 100)} RPM");
+                        _hal.WriteEcPort(0xE4, _itsmCurveMode);
+                        _wmi.SetFanManual(0, true);
+                        _wmi.SetFanSpeed(0, (byte)largeTarget);
+                        _wmi.SetFanManual(1, true);
+                        _wmi.SetFanSpeed(1, (byte)smallTarget);
+                        _consecutiveDeviation = 12; // 重置到一级后，继续循环监控
                     }
                 }
                 else

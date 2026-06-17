@@ -50,7 +50,7 @@ public sealed class DriverBridge : IDisposable
                 var sw = Stopwatch.StartNew();
                 while (!IsInpOutDriverOpenNative() && sw.ElapsedMilliseconds < r) Thread.Sleep(50);
                 if (!IsInpOutDriverOpenNative()) {
-                    Console.WriteLine("[DriverBridge] inpoutx64 驱动不可用，硬件访问降级为安全默认值");
+                    AppLog.Write("DriverBridge", "inpoutx64 驱动不可用，硬件访问降级为安全默认值");
                     _init = true; // 标记已尝试初始化，不再重试
                     return;
                 }
@@ -58,7 +58,7 @@ public sealed class DriverBridge : IDisposable
                 _driverOk = true;
                 _init = true;
             } catch (Exception ex) {
-                Console.WriteLine($"[DriverBridge] 驱动初始化异常: {ex.Message}，硬件访问降级");
+                AppLog.Write("DriverBridge", $"驱动初始化异常: {ex.Message}，硬件访问降级");
                 _init = true; // 标记已尝试，不再重试
             }
         }
@@ -78,7 +78,7 @@ public sealed class DriverBridge : IDisposable
             _driverOk = false;
             _ecMap = IntPtr.Zero;
             _ecOk = false;
-            Console.WriteLine("[DriverBridge] 已重置，下次访问将重新初始化驱动");
+            AppLog.Write("DriverBridge", "已重置，下次访问将重新初始化驱动");
         }
     }
 
@@ -93,7 +93,7 @@ public sealed class DriverBridge : IDisposable
         {
             lock (_lock)
             {
-                Console.WriteLine("[DriverBridge] 睡眠恢复: 重置驱动状态...");
+                AppLog.Write("DriverBridge", "睡眠恢复: 重置驱动状态...");
                 _init = false;
                 _driverOk = false;
                 _ecMap = IntPtr.Zero;
@@ -102,7 +102,7 @@ public sealed class DriverBridge : IDisposable
             // 等待内核驱动稳定（inpoutx64 在 S3 恢复后需要时间重新就绪）
             Thread.Sleep(1500);
             Init(3000); // 给更长的超时，让驱动有机会恢复
-            Console.WriteLine($"[DriverBridge] 睡眠恢复完成: Ready={_driverOk}, EcOk={_ecOk}");
+            AppLog.Write("DriverBridge", $"睡眠恢复完成: Ready={_driverOk}, EcOk={_ecOk}");
         }
         finally { _recovering = 0; }
     }
@@ -123,14 +123,14 @@ public sealed class DriverBridge : IDisposable
         catch (AccessViolationException)
         {
             // 睡眠恢复后映射指针失效，降级到 GetPhysLong 或返回安全默认值
-            Console.WriteLine("[DriverBridge] ReadPhys: AccessViolation, 尝试 GetPhysLong 降级");
+            AppLog.Write("DriverBridge", "ReadPhys: AccessViolation, 尝试 GetPhysLong 降级");
             _ecOk = false; _ecMap = IntPtr.Zero; // 废弃失效的映射
             if (a <= 0xFFFFFFFF && GetPhysLongNative(out var v2, a)) return (byte)(v2 & 0xFF);
             return 0;
         }
         catch (SEHException)
         {
-            Console.WriteLine("[DriverBridge] ReadPhys: SEHException, 驱动可能已失效");
+            AppLog.Write("DriverBridge", "ReadPhys: SEHException, 驱动可能已失效");
             _driverOk = false;
             return 0;
         }
@@ -200,13 +200,14 @@ public sealed class DriverBridge : IDisposable
         lock(_ecLock) {
             try
             {
+                if (!WaitEcReady()) return 0; // 发命令前检查 IBF
                 WritePortUcharNative(0x66, 0x80); Thread.Sleep(2);
                 WritePortUcharNative(0x62, r); Thread.Sleep(5);
                 return ReadPortUcharNative(0x62);
             }
             catch (SEHException)
             {
-                Console.WriteLine("[DriverBridge] ReadEc: SEHException, 驱动可能已失效");
+                AppLog.Write("DriverBridge", "ReadEc: SEHException, 驱动可能已失效");
                 _driverOk = false;
                 return 0;
             }
@@ -223,37 +224,40 @@ public sealed class DriverBridge : IDisposable
             {
                 // 标准 EC 写入协议（与旧版 ec_writer.cs 一致）
                 // 1. 等待 IBF 为空，发送写入命令
-                WaitEcReady();
+                if (!WaitEcReady()) return;
                 WritePortUcharNative(0x66, 0x81); Thread.Sleep(5);
                 // 2. 等待 IBF 为空，发送寄存器地址
-                WaitEcReady();
+                if (!WaitEcReady()) return;
                 WritePortUcharNative(0x62, r); Thread.Sleep(5);
                 // 3. 等待 IBF 为空，发送数据
-                WaitEcReady();
+                if (!WaitEcReady()) return;
                 WritePortUcharNative(0x62, v); Thread.Sleep(10);
             }
             catch (SEHException)
             {
-                Console.WriteLine("[DriverBridge] WriteEc: SEHException, 驱动可能已失效");
+                AppLog.Write("DriverBridge", "WriteEc: SEHException, 驱动可能已失效");
                 _driverOk = false;
             }
         }
     }
-    /// <summary>等待 EC IBF (Input Buffer Full) 为空</summary>
+    /// <summary>等待 EC IBF (Input Buffer Full) 为空，返回是否成功</summary>
     [HandleProcessCorruptedStateExceptions]
     [SecurityCritical]
-    void WaitEcReady()
+    bool WaitEcReady(int timeoutMs = 200)
     {
-        if (!_driverOk) return;
+        if (!_driverOk) return false;
+        var sw = Stopwatch.StartNew();
         try
         {
-            for (int i = 0; i < 100; i++)
+            while (sw.ElapsedMilliseconds < timeoutMs)
             {
-                if ((ReadPortUcharNative(0x66) & 0x02) == 0) return;
+                if ((ReadPortUcharNative(0x66) & 0x02) == 0) return true;
                 Thread.Sleep(1);
             }
+            AppLog.Write("DriverBridge", $"WaitEcReady: 超时 {timeoutMs}ms");
+            return false;
         }
-        catch (SEHException) { _driverOk = false; }
+        catch (SEHException) { _driverOk = false; return false; }
     }
     void Ensure() { if (_dis) throw new ObjectDisposedException(""); if (!_init) Init(); }
 }

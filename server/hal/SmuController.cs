@@ -13,6 +13,7 @@ public sealed class SmuController
 {
     private readonly string _ryzenadjPath;
     private readonly string _toolsDir;
+    private readonly object _ryzenAdjLock = new(); // 序列化所有 ryzenadj 调用，防止 SMN 总线并发冲突
 
     public SmuController()
     {
@@ -42,18 +43,28 @@ public sealed class SmuController
 
     private int RyzenAdj(params string[] args)
     {
-        var psi = new ProcessStartInfo
+        lock (_ryzenAdjLock)
         {
-            FileName = _ryzenadjPath,
-            Arguments = string.Join(" ", args),
-            WorkingDirectory = _toolsDir,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-        };
-        using var proc = Process.Start(psi);
-        if (proc == null) return -1;
-        if (!proc.WaitForExit(15000)) { try { proc.Kill(); } catch { } }
-        return proc.ExitCode;
+            var sw = Stopwatch.StartNew();
+            var argStr = string.Join(" ", args);
+            var psi = new ProcessStartInfo
+            {
+                FileName = _ryzenadjPath,
+                Arguments = argStr,
+                WorkingDirectory = _toolsDir,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            using var proc = Process.Start(psi);
+            if (proc == null) { AppLog.Write("SMU", $"ryzenadj {argStr} → null (进程启动失败)"); return -1; }
+            if (!proc.WaitForExit(15000)) { try { proc.Kill(); } catch { } AppLog.Write("SMU", $"ryzenadj {argStr} → timeout 15s"); }
+            var rc = proc.ExitCode;
+            sw.Stop();
+            // 只记录真正的错误；0/1=成功，SMU_OK_CRASH=上游已知崩溃(写入已完成)
+            if (rc != 0 && rc != 1 && rc != SMU_OK_CRASH)
+                AppLog.Write("SMU", $"ryzenadj {argStr} → exit={rc} ({sw.ElapsedMilliseconds}ms)");
+            return rc;
+        }
     }
 
     const int SMU_OK_CRASH = -1073741819; // 0xC0000005: ryzenadj write succeeds then crashes on exit

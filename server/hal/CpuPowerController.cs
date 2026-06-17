@@ -167,7 +167,7 @@ public sealed class CpuPowerController : IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[CpuPower] GetStatus error: {ex.Message}");
+            AppLog.Write("CpuPower", $"GetStatus error: {ex.Message}");
             status.Available = false;
         }
         return status;

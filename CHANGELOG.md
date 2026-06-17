@@ -5,6 +5,24 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
+## [1.5.0] — 2026-06-17
+
+遥测稳定性全面优化，解决休眠后数据归零、参数漂移、风扇偏差三大问题
+
+### 新增
+
+- **HealthWatchdog**: 遥测数据连续健康监测，零值计数器分级恢复（LHM 重置 → 驱动重建 → 全量恢复），防止休眠/长运行后数据归零
+- **ParameterGuard**: 60 秒周期自动重放 SMU/CPU/GPU/NVAPI 设置，消除长时间运行后的参数漂移
+- **LhmSensor**: 引入 LibreHardwareMonitor 通过 SMN 总线直读 CPU 温度，绕开不稳定的 EC IO 端口
+- **AppLog 统一日志**: 替换三套分散的 Console.WriteLine，2MB 自动轮转，全链路可追溯
+
+### 改进
+
+- **风扇转速读取**: 改用物理内存大端读取（微秒级）+ EC IO 端口降级，替代纯 IO 端口方案
+- **风扇偏差自动修复**: 偏差检测从仅日志升级为分级自动修复（重写手动模式 → 重写 ITSM 热控寄存器）
+- **EC 通信健壮性**: WaitEcReady 从 void 改为 bool 返回值 + 200ms 超时；ReadEc/WriteEc 失败快速返回
+- **SMN 总线互斥**: SmuController 加锁防止 ryzenadj 与 LHM 并发访问 SMN 总线冲突
+
 ## [1.4.9] — 2026-06-14
 
 修复设置丢失和模式切换残留问题

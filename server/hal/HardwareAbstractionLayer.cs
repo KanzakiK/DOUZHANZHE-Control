@@ -53,7 +53,7 @@ public sealed class HardwareAbstractionLayer : IDisposable
         _io = DriverBridge.Instance;
         _io.Init();
         if (!_io.Ready)
-            Console.WriteLine("[HAL] 硬件驱动不可用，所有硬件读取将返回安全默认值");
+            AppLog.Write("HAL", "硬件驱动不可用，所有硬件读取将返回安全默认值");
     }
 
     /// <summary>硬件驱动是否可用</summary>
@@ -150,8 +150,8 @@ public sealed class HardwareAbstractionLayer : IDisposable
     // 键盘背光通过物理内存 (ec_kb_map.cs 已验证)
     // ================================================================
 
-    /// <summary>CPU 温度 (摄氏度) — EC IO 端口 0x1C</summary>
-    public byte CpuTemperature => _io.ReadEc(0x1C);
+    /// <summary>CPU 温度 (摄氏度) — LHM SMN 总线直读，绕过 EC</summary>
+    public byte CpuTemperature => LhmSensor.GetCpuTemperature();
 
     /// <summary>GPU 温度 (摄氏度) — 优先物理内存，回退 nvidia-smi</summary>
     public byte GpuTemperature
@@ -200,12 +200,24 @@ public sealed class HardwareAbstractionLayer : IDisposable
         }
     }
 
-    /// <summary>CPU 风扇转速 (RPM) — EC IO 端口 0x9D/0x9E</summary>
+    /// <summary>CPU 风扇转速 (RPM) — 主路径: 物理内存 0x9B/0x9C, 回退: EC IO 0x9D/0x9E</summary>
     public ushort CpuFanRpm
     {
         get
         {
-            // 双读仲裁：最多 3 次，取首个非零值，消除 EC 16 位竞态
+            // 主路径：物理内存映射读取（微秒级，不受 EC IO 协议影响）
+            // ⚠️ 字节序: 与 IO 路径一致 (hi@低地址, lo@高地址 = big-endian)
+            // ReadWord 是 little-endian，所以手动拼接
+            try
+            {
+                var hi = _io.ReadPhys(DriverBridge.EC_BASE + OFF_F1HI);
+                var lo = _io.ReadPhys(DriverBridge.EC_BASE + OFF_F1LO);
+                var val = (ushort)((hi << 8) | lo);
+                if (val != 0) return val;
+            }
+            catch { /* 物理内存读取失败，回退 IO 端口 */ }
+
+            // 回退路径：EC IO 端口（原有逻辑）
             for (int i = 0; i < 3; i++)
             {
                 var hi = _io.ReadEc(0x9D);
@@ -217,12 +229,22 @@ public sealed class HardwareAbstractionLayer : IDisposable
         }
     }
 
-    /// <summary>GPU 风扇转速 (RPM) — EC IO 端口 0x96/0x97</summary>
+    /// <summary>GPU 风扇转速 (RPM) — 主路径: 物理内存 0x96/0x97, 回退: EC IO</summary>
     public ushort GpuFanRpm
     {
         get
         {
-            // 双读仲裁：最多 3 次，取首个非零值，消除 EC 16 位竞态
+            // 主路径：物理内存映射读取
+            try
+            {
+                var hi = _io.ReadPhys(DriverBridge.EC_BASE + OFF_F3HI);
+                var lo = _io.ReadPhys(DriverBridge.EC_BASE + OFF_F3LO);
+                var val = (ushort)((hi << 8) | lo);
+                if (val != 0) return val;
+            }
+            catch { /* 物理内存读取失败，回退 IO 端口 */ }
+
+            // 回退路径：EC IO 端口（原有逻辑）
             for (int i = 0; i < 3; i++)
             {
                 var hi = _io.ReadEc(0x96);
