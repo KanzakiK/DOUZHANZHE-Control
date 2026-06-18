@@ -46,10 +46,21 @@ public sealed class DriverBridge : IDisposable
             if (_init) return;
             if (_dis) throw new ObjectDisposedException("");
             try {
+                // 诊断日志：记录 DLL 加载位置
+                var dllPath = System.Reflection.Assembly.GetExecutingAssembly().Location;
+                var procDir = System.IO.Path.GetDirectoryName(System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName ?? "?");
+                AppLog.Write("DriverBridge", $"Init 开始 (timeout={r}ms), 进程目录={procDir}");
+                // 检查 inpoutx64.dll 是否存在
+                var dllCheck = System.IO.Path.Combine(procDir ?? ".", "inpoutx64.dll");
+                AppLog.Write("DriverBridge", $"inpoutx64.dll 检查: {dllCheck} exists={System.IO.File.Exists(dllCheck)}");
                 Out32Native(0x80, 0);
+                AppLog.Write("DriverBridge", "Out32(0x80,0) 已调用");
                 var sw = Stopwatch.StartNew();
-                while (!IsInpOutDriverOpenNative() && sw.ElapsedMilliseconds < r) Thread.Sleep(50);
-                if (!IsInpOutDriverOpenNative()) {
+                bool opened = false;
+                while (!IsInpOutDriverOpenNative() && sw.ElapsedMilliseconds < r) { Thread.Sleep(50); }
+                opened = IsInpOutDriverOpenNative();
+                AppLog.Write("DriverBridge", $"IsInpOutDriverOpen={opened}, 耗时={sw.ElapsedMilliseconds}ms");
+                if (!opened) {
                     AppLog.Write("DriverBridge", "inpoutx64 驱动不可用，硬件访问降级为安全默认值");
                     _init = true; // 标记已尝试初始化，不再重试
                     return;
@@ -57,12 +68,28 @@ public sealed class DriverBridge : IDisposable
                 if (MapPhysToLinNative(EC_BASE, EC_SIZE, out var m)) { _ecMap = m; _ecOk = true; }
                 _driverOk = true;
                 _init = true;
+                AppLog.Write("DriverBridge", $"inpoutx64 初始化成功, EC映射={_ecOk}");
             } catch (Exception ex) {
                 AppLog.Write("DriverBridge", $"驱动初始化异常: {ex.Message}，硬件访问降级");
                 _init = true; // 标记已尝试，不再重试
             }
         }
     }
+    /// <summary>
+    /// 冷启动重试：如果首次 Init 失败（驱动未就绪），允许用更长超时重新初始化。
+    /// 仅在 _driverOk == false 时生效，已成功初始化的不会受影响。
+    /// </summary>
+    public void RetryInit(int timeoutMs)
+    {
+        if (_driverOk) return; // 已经成功，无需重试
+        lock (_lock)
+        {
+            if (_driverOk) return;
+            _init = false; // 解锁，允许重新初始化
+        }
+        Init(timeoutMs);
+    }
+
     public bool Ready => _driverOk;
     public void Dispose() { _dis = true; _init = false; _driverOk = false; _ecMap = IntPtr.Zero; _ecOk = false; }
 

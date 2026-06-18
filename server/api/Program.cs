@@ -72,6 +72,7 @@ Log($"API starting, BaseDir={AppContext.BaseDirectory}, ConfigDir={configDir}");
 // ---- 性能设置持久化 ----
 var _perfLock = new object();
 var _perfFile = "performance-overrides.json";
+bool _pgSuppress = false; // ParameterGuard 睡眠期间暂停标志
 PerformanceOverrides LoadPerfOverrides() => JsonRead(_perfFile, new PerformanceOverrides());
 void SavePerfOverrides(Action<PerformanceOverrides> mutate)
 {
@@ -81,7 +82,14 @@ void SavePerfOverrides(Action<PerformanceOverrides> mutate)
 // ---- 睡眠/休眠恢复：重置底层驱动并重新初始化 ----
 SystemEvents.PowerModeChanged += (sender, e) =>
 {
-    if (e.Mode == PowerModes.Resume)
+    if (e.Mode == PowerModes.Suspend)
+    {
+        // 系统即将进入睡眠，暂停 ParameterGuard 和 HealthWatchdog 恢复
+        _pgSuppress = true;
+        TelemetryBackgroundService.SetSleeping(true);
+        Log("[PowerEvent] 系统即将睡眠，暂停 ParameterGuard + HealthWatchdog");
+    }
+    else if (e.Mode == PowerModes.Resume)
     {
         Log("[PowerEvent] 系统从睡眠恢复，重置底层驱动...");
         _ = System.Threading.Tasks.Task.Run(async () =>
@@ -121,6 +129,12 @@ SystemEvents.PowerModeChanged += (sender, e) =>
                 fanCurve.RecoverAfterSleep();
 
                 Log("[PowerEvent] 全部恢复完成");
+
+                // 等 SMU 完全稳定后再恢复 ParameterGuard 和 HealthWatchdog
+                await System.Threading.Tasks.Task.Delay(30_000);
+                _pgSuppress = false;
+                TelemetryBackgroundService.SetSleeping(false);
+                Log("[PowerEvent] ParameterGuard + HealthWatchdog 已恢复");
             }
             catch (Exception ex)
             {
@@ -320,6 +334,11 @@ _ = System.Threading.Tasks.Task.Run(async () =>
     {
         while (await timer.WaitForNextTickAsync())
         {
+            if (_pgSuppress)
+            {
+                AppLog.Write("ParameterGuard", "睡眠期间暂停，跳过本轮重发");
+                continue;
+            }
             try
             {
                 await RestoreComputeSettings("ParameterGuard");
@@ -1746,6 +1765,40 @@ app.MapGet("/api/update/check", async () =>
 });
 
 app.MapGet("/debug", () => Results.File("wwwroot/debug.html", "text/html"));
+// ---- 预启动 inpoutx64 内核驱动 ----
+// 必须在任何 inpoutx64.dll 的 DllImport 调用之前执行！
+// 原因：inpoutx64.dll 的 DllMain 在首次加载时会尝试打开 \\.\InpOut64 设备，
+//       如果此时服务未运行，内部变量 bInpOutDriverOpened 会被永久设为 false，
+//       即使之后启动了服务，IsInpOutDriverOpen() 也永远返回 false。
+try
+{
+    var inpCheck = Process.Start(new ProcessStartInfo("sc.exe", "query inpoutx64") { UseShellExecute = false, CreateNoWindow = true });
+    inpCheck?.WaitForExit(2000);
+    if (inpCheck?.ExitCode != 0)
+    {
+        Log("[inpoutx64] 驱动未运行，尝试启动...");
+        // 确保启动类型为 AUTO_START（下次开机自动加载）
+        var cfgSvc = Process.Start(new ProcessStartInfo("sc.exe", "config inpoutx64 start=auto") { UseShellExecute = false, CreateNoWindow = true });
+        cfgSvc?.WaitForExit(2000);
+        // 立即启动驱动服务
+        var startSvc = Process.Start(new ProcessStartInfo("sc.exe", "start inpoutx64") { UseShellExecute = false, CreateNoWindow = true });
+        startSvc?.WaitForExit(3000);
+        // 验证
+        var verify = Process.Start(new ProcessStartInfo("sc.exe", "query inpoutx64") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true });
+        if (verify != null)
+        {
+            var outText = verify.StandardOutput.ReadToEnd();
+            verify.WaitForExit(1000);
+            if (outText.Contains("RUNNING"))
+                Log("[inpoutx64] 驱动启动成功");
+            else
+                Log("[inpoutx64] 驱动启动可能失败: " + outText.Trim());
+        }
+    }
+    else Log("[inpoutx64] 驱动已在运行");
+}
+catch (Exception ex) { Log("[inpoutx64] 预启动异常: " + ex.Message); }
+
 // ---- Auto-load WinRing0 kernel driver for SMU ----
 try
 {
@@ -1781,6 +1834,22 @@ catch (Exception ex) { Log("[WinRing0] Error: " + ex.Message); }
 
 // ---- LHM 初始化（WinRing0 加载之后）----
 LhmSensor.Open();
+
+// ---- DriverBridge 冷启动重试（安全网） ----
+// 正常情况下 inpoutx64 已在预启动阶段启动，这里只是兜底
+if (!DriverBridge.Instance.Ready)
+{
+    Log("[DriverBridge] inpoutx64 首次初始化未成功，尝试最后补救...");
+    try
+    {
+        var startSvc = Process.Start(new ProcessStartInfo("sc.exe", "start inpoutx64") { UseShellExecute = false, CreateNoWindow = true });
+        startSvc?.WaitForExit(3000);
+    }
+    catch (Exception ex) { Log($"[DriverBridge] inpoutx64 补救异常: {ex.Message}"); }
+    Log("[DriverBridge] 重试初始化，等待最多 5 秒...");
+    DriverBridge.Instance.RetryInit(5000);
+    Log($"[DriverBridge] 重试结果: Ready={DriverBridge.Instance.Ready}");
+}
 
 // ---- Start server ----
 try

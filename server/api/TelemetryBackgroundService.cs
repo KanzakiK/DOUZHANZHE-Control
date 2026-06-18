@@ -24,6 +24,10 @@ public class TelemetryBackgroundService : BackgroundService
     private static readonly List<WebSocket> _clients = new();
     private static readonly object _clientLock = new();
 
+    // 睡眠暂停标志：睡眠期间跳过 HealthWatchdog 恢复，防止在 SMU 下电时访问硬件
+    private static volatile bool _sleeping;
+    public static void SetSleeping(bool sleeping) => _sleeping = sleeping;
+
     private static readonly JsonSerializerOptions _jsonOpt = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -64,6 +68,9 @@ public class TelemetryBackgroundService : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
         _log.LogInformation("[Telemetry] 后台遥测服务已启动 (HealthWatchdog enabled)");
+
+        // 冷启动预热：等待驱动和 EC 寄存器稳定（开机自启时 inpoutx64 可能刚加载完成）
+        await Task.Delay(2000, ct);
 
         while (!ct.IsCancellationRequested)
         {
@@ -191,6 +198,7 @@ public class TelemetryBackgroundService : BackgroundService
     /// </summary>
     private void HealthWatchdogRecovery()
     {
+        if (_sleeping) return; // 睡眠期间暂停恢复，防止在 SMU 下电时访问硬件
         if (_recovering != 0) return; // 恢复中，跳过
 
         // ── CPU 温度零值恢复 ──

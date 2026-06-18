@@ -114,6 +114,21 @@
 
 ## ✅ 二、已完成
 
+### v1.5.0 — 遥测稳定性 + 模式切换同步修复
+
+- [x] **HealthWatchdog**: 遥测数据连续健康监测，零值计数器分级恢复（LHM 重置 → 驱动重建 → 全量恢复）
+- [x] **ParameterGuard**: 60 秒周期自动重放 SMU/CPU/GPU/NVAPI/风扇/电源计划设置
+- [x] **LhmSensor**: LibreHardwareMonitor 直读 CPU 温度（SMN 总线），替代不稳定的 EC IO 端口
+- [x] **AppLog 统一日志**: 替换分散的 Console.WriteLine，2MB 自动轮转，统一写入 `%LOCALAPPDATA%/Douzhanzhe Console/logs/app.log`
+- [x] **日志导出**: 关于卡片新增"导出日志"按钮 (`GET /api/logs/export`)
+- [x] **电源计划持久化**: `power_plan` 写入 `performance-overrides.json`，启动/ParameterGuard 自动恢复
+- [x] **System.Management 版本修复**: API 项目 `Version="8.0.0"` 与 HAL 项目 `Version="*"` (10.0.0.9) 冲突，导致 `/api/uxtu/apply` 运行时 FileNotFoundException。统一为 `Version="*"`
+- [x] **`/api/uxtu/apply` CPU 字段持久化**: 补全 CpuFreqLimitMhz / TurboEnabled / CoreLimitPercent 保存到 `performance-overrides.json`
+- [x] **coreLimit 单位转换**: 前端发送原始核心数(0-16)，批量端点存为百分比字段时未转换（8核→8%而非50%），已添加 `count/16×100` 转换
+- [x] **Turbo 统一到 powercfg**: BatchApply 不再传 turbo 参数给 ryzenadj，统一走 CpuPowerController.SetTurboAsync
+- [x] **ryzenadj 日志降噪**: 已知上游崩溃 (exit=0xC0000005) 不再写入日志
+- [x] **performance-overrides.json 扩展**: 新增 cpu / gpu / nvapi / smu / fan / powerPlan 完整字段结构
+
 ### 后端 — 架构与驱动
 - [x] DriverBridge 单例（inpoutx64 P/Invoke）
 - [x] DriverBridge 32-bit IO: Inp32/Out32 + ReadPhys32/WritePhys32
@@ -373,6 +388,7 @@
 - 2026-06-11: Phase 1+2 实施完成 — RouteMode 路由函数 + Tick EC 直写 ITSM + Start/Stop 保护 + ITSM 守护统计 + WMI 写入验证锁定检测 + route-info API + FanCurvePanel 全范围 + 路由状态轮询 + getFanRange 改全范围 (后端构建 0 error / 前端构建 0 error)
 - 2026-06-12: 持久化缺口审计 + WebView2 缓存修复 — 发现两个 🔴 严重问题：① `/api/uxtu/apply` 缺少 `SavePerfOverrides`（SMU 参数不持久化）；② 风扇曲线停止后 `reapplyOverrides` 未自动触发（ACPI 链重置全部参数无机制补回）；修复 Form1.cs 缓存清理从"删整个 WebView2 目录"改为仅清 Cache/CodeCache/GPUCache/ServiceWorker/ShaderCache（保留 Local Storage/IndexedDB）
 - 2026-06-13: v1.4.3 全量代码审核 — 前后端共发现 58 项问题（严重 5 / 高 9 / 中 26 / 低 18）。关键发现：CpuFreq 缓存变量 Bug、CORS AllowAnyOrigin CSRF、DriverBridge.WriteBit 竞态、全应用零 Error Boundary、15 处空 catch 静默吞错、useControlState 全局状态导致不必要重渲染。同时核查任务看板未勾项：7 项已修复可画勾、1 项已废弃（CPU 频率限制 ryzenadj 路径）、11 项问题仍存在。新增审核发现至看板后端/前端分类
+- 2026-06-17: v1.5.0 遥测稳定性 + 模式切换同步修复 — HealthWatchdog 连续健康监测（零值计数器分级恢复）、ParameterGuard 60s 周期自动重放全量设置、LhmSensor 直读 CPU 温度替代 EC IO、AppLog 统一日志（2MB 轮转）、日志导出按钮、电源计划持久化、System.Management 版本冲突修复、CPU 字段持久化补全、coreLimit 单位转换、Turbo 统一 powercfg、ryzenadj 日志降噪、performance-overrides.json 全量字段扩展
 
 ---
 
