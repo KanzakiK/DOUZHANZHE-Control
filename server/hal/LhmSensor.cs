@@ -37,6 +37,27 @@ public static class LhmSensor
                 _opened = true;
                 _lastUpdate = DateTime.MinValue; // 重置缓存，强制下次 Update
                 AppLog.Write("LHM", "Computer.Open() 成功");
+
+                // 诊断：枚举所有 CPU 温度传感器名称
+                try
+                {
+                    foreach (var hw in _pc.Hardware)
+                    {
+                        if (hw.HardwareType == HardwareType.Cpu)
+                        {
+                            hw.Update();
+                            var sensors = hw.Sensors
+                                .Where(s => s.SensorType == SensorType.Temperature)
+                                .Select(s => $"{s.Name}={s.Value?.ToString("F1") ?? "null"}")
+                                .ToList();
+                            AppLog.Write("LHM", $"CPU sensors: [{string.Join(", ", sensors)}]");
+                        }
+                    }
+                }
+                catch (Exception dex)
+                {
+                    AppLog.Write("LHM", $"Sensor 枚举失败: {dex.Message}");
+                }
             }
             catch (Exception ex)
             {

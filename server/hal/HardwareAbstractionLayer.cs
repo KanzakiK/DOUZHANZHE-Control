@@ -150,8 +150,26 @@ public sealed class HardwareAbstractionLayer : IDisposable
     // 键盘背光通过物理内存 (ec_kb_map.cs 已验证)
     // ================================================================
 
-    /// <summary>CPU 温度 (摄氏度) — LHM SMN 总线直读，绕过 EC</summary>
-    public byte CpuTemperature => LhmSensor.GetCpuTemperature();
+    /// <summary>CPU 温度 (摄氏度) — LHM SMN 总线优先，EC 寄存器 0xE1 兜底</summary>
+    public byte CpuTemperature
+    {
+        get
+        {
+            // 1) LHM SMN 总线直读（精度更高，直接读 CPU die temperature）
+            var lhm = LhmSensor.GetCpuTemperature();
+            if (lhm > 0) return lhm;
+
+            // 2) LHM 返回 0，回退 EC 寄存器 0xE1（物理内存映射）
+            try
+            {
+                var ecVal = _io.ReadPhys(DriverBridge.EC_BASE + OFF_CPUT);
+                if (ecVal > 0 && ecVal < 128) return ecVal;
+            }
+            catch { /* EC 回退失败 */ }
+
+            return 0;
+        }
+    }
 
     /// <summary>GPU 温度 (摄氏度) — 优先物理内存，回退 nvidia-smi</summary>
     public byte GpuTemperature

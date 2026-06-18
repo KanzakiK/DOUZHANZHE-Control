@@ -5,6 +5,20 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
+## [1.6.1] — 2026-06-18
+
+修复部分用户 CPU 温度始终显示为 0 的问题
+
+### 修复
+
+- **CPU 温度读取双路径回退**: 当 LHM SMN 总线读取失败时，自动回退到 EC 寄存器 0xE1（物理内存映射），解决部分用户机器上 CPU 温度始终显示为 0 的问题
+- **LHM 传感器诊断日志**: 启动时打印所有 CPU 温度传感器名称和数值，便于排查硬件兼容性问题
+
+### 技术细节
+
+- `CpuTemperature` 属性改为 LHM 优先、EC 兜底的双路径架构，与 `GpuTemperature` 的回退策略保持一致
+- EC 回退值增加 `<128` 上界校验，防止读到异常数据
+
 ## [1.6.0] — 2026-06-18
 
 游戏进程自动切换性能模式 + OSD 切换提示
