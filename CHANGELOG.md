@@ -5,6 +5,14 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
+## [1.6.3] — 2026-06-18
+
+修复 CPU 温度 EC 回退寄存器地址错误
+
+### 修复
+
+- **EC 回退寄存器修正**: CPU 温度 EC 回退从错误的 0xE1 改回 v1.4.8 验证的 0x1C（IO 端口协议），修复 LHM 失效时 EC 兜底也无效的问题
+
 ## [1.6.2] — 2026-06-18
 
 增强 CPU 温度读取诊断 + 三路回退
