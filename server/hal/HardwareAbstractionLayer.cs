@@ -150,7 +150,10 @@ public sealed class HardwareAbstractionLayer : IDisposable
     // 键盘背光通过物理内存 (ec_kb_map.cs 已验证)
     // ================================================================
 
-    /// <summary>CPU 温度 (摄氏度) — LHM SMN 总线优先，EC 寄存器 0xE1 兜底</summary>
+    // CPU 温度诊断：首次失败时打印各路径返回值
+    private static int _cpuTempDiagCount;
+
+    /// <summary>CPU 温度 (摄氏度) — LHM SMN 优先，EC IO 端口 + 物理内存兜底</summary>
     public byte CpuTemperature
     {
         get
@@ -159,13 +162,21 @@ public sealed class HardwareAbstractionLayer : IDisposable
             var lhm = LhmSensor.GetCpuTemperature();
             if (lhm > 0) return lhm;
 
-            // 2) LHM 返回 0，回退 EC 寄存器 0xE1（物理内存映射）
-            try
-            {
-                var ecVal = _io.ReadPhys(DriverBridge.EC_BASE + OFF_CPUT);
-                if (ecVal > 0 && ecVal < 128) return ecVal;
-            }
-            catch { /* EC 回退失败 */ }
+            // 2) EC IO 端口协议读（0x66/0x62，标准 EC 命令 0x80）
+            byte ecIo = 0;
+            try { ecIo = _io.ReadEc((byte)OFF_CPUT); }
+            catch { /* ignore */ }
+            if (ecIo > 0 && ecIo < 128) return ecIo;
+
+            // 3) EC 物理内存映射读
+            byte ecPhys = 0;
+            try { ecPhys = _io.ReadPhys(DriverBridge.EC_BASE + OFF_CPUT); }
+            catch { /* ignore */ }
+            if (ecPhys > 0 && ecPhys < 128) return ecPhys;
+
+            // 首次或每 100 次失败打印诊断
+            if (++_cpuTempDiagCount == 1 || _cpuTempDiagCount % 100 == 0)
+                AppLog.Write("CpuTemp", $"三路均为0: LHM={lhm}, EC_IO=0x{ecIo:X2}, EC_Phys=0x{ecPhys:X2} (第{_cpuTempDiagCount}次)");
 
             return 0;
         }

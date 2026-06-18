@@ -5,6 +5,15 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
+## [1.6.2] — 2026-06-18
+
+增强 CPU 温度读取诊断 + 三路回退
+
+### 修复
+
+- **CPU 温度三路回退**: LHM SMN → EC IO 端口协议 (0x62/0x66) → EC 物理内存映射，增加 EC IO 端口读路径
+- **三路诊断日志**: 当三路均返回 0 时，打印每路的具体返回值，便于精确定位哪个环节失效
+
 ## [1.6.1] — 2026-06-18
 
 修复部分用户 CPU 温度始终显示为 0 的问题
