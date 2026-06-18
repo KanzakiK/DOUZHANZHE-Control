@@ -29,10 +29,14 @@ builder.Services.AddSingleton<NvapiGpuController>();
 builder.Services.AddSingleton<CpuPowerController>();
 builder.Services.AddSingleton<WmiInterface>();
 builder.Services.AddSingleton<FanCurveService>();
+builder.Services.AddSingleton<OsdService>();
+builder.Services.AddSingleton<GameProfileService>();
+builder.Services.AddSingleton<ProcessMonitorService>();
 builder.Services.AddHostedService<TelemetryBackgroundService>();
 builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
     p.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader()));
 var app = builder.Build();
+var osdService = app.Services.GetRequiredService<OsdService>();
 app.UseCors();
 app.UseWebSockets();
 app.UseDefaultFiles();
@@ -426,6 +430,7 @@ app.Map("/ws", async (HttpContext ctx) =>
     }
     var ws = await ctx.WebSockets.AcceptWebSocketAsync();
     TelemetryBackgroundService.AddClient(ws);
+    ProcessMonitorService.AddClient(ws);
     try
     {
         var buf = new byte[4096];
@@ -440,6 +445,7 @@ app.Map("/ws", async (HttpContext ctx) =>
     finally
     {
         TelemetryBackgroundService.RemoveClient(ws);
+        ProcessMonitorService.RemoveClient(ws);
         if (ws.State == WebSocketState.Open || ws.State == WebSocketState.CloseReceived)
         {
             try { await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None); }
@@ -586,6 +592,14 @@ app.MapPost("/api/control", (ControlRequest req, HardwareAbstractionLayer hal, W
                     wmi.SetThermalMode(clampedMode);
                 else
                     hal.ThermalMode = clampedMode;
+                // OSD 提示（模式切换时自动触发）
+                var modeNames = new[] { "office", "beast", "silent", "gaming" };
+                if (clampedMode < modeNames.Length)
+                {
+                    osdService.Show(modeNames[clampedMode]);
+                    // 通知 ProcessMonitorService 更新当前模式
+                    app.Services.GetRequiredService<ProcessMonitorService>().UpdateCurrentMode(modeNames[clampedMode]);
+                }
                 break;
             case "igpu_only":
                 hal.IgpuOnly = req.Value != 0;
@@ -1851,6 +1865,118 @@ if (!DriverBridge.Instance.Ready)
     Log($"[DriverBridge] 重试结果: Ready={DriverBridge.Instance.Ready}");
 }
 
+// ---- OSD API ----
+app.MapPost("/api/osd/show", (OsdShowRequest req, OsdService osd) =>
+{
+    if (!string.IsNullOrWhiteSpace(req.Text))
+        osd.Show(req.Text);
+    return Results.Ok();
+});
+
+// ---- Game Profiles API ----
+app.MapGet("/api/game-profiles", (GameProfileService svc) =>
+{
+    return Results.Json(new
+    {
+        enabled = svc.Enabled,
+        defaultMode = svc.DefaultMode,
+        profiles = svc.GetAll()
+    });
+});
+
+app.MapPost("/api/game-profiles", (GameProfileRequest req, GameProfileService svc) =>
+{
+    try
+    {
+        var profile = new GameProfile
+        {
+            Name = req.Name ?? "",
+            ExePath = req.ExePath ?? "",
+            ExeName = req.ExeName ?? Path.GetFileName(req.ExePath ?? ""),
+            TargetMode = req.TargetMode ?? svc.DefaultMode,
+            Enabled = req.Enabled ?? true,
+            Source = req.Source ?? "manual"
+        };
+        var created = svc.Add(profile);
+        return Results.Created($"/api/game-profiles/{created.Id}", created);
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+});
+
+app.MapPut("/api/game-profiles/{id}", (string id, GameProfileRequest req, GameProfileService svc) =>
+{
+    try
+    {
+        var existing = svc.GetById(id);
+        if (existing == null)
+            return Results.NotFound(new { error = "规则不存在" });
+
+        var updated = svc.Update(id, new GameProfile
+        {
+            Id = id,
+            Name = req.Name ?? existing.Name,
+            ExePath = req.ExePath ?? existing.ExePath,
+            ExeName = req.ExeName ?? existing.ExeName,
+            TargetMode = req.TargetMode ?? existing.TargetMode,
+            Enabled = req.Enabled ?? existing.Enabled,
+            Source = req.Source ?? existing.Source
+        });
+        return Results.Ok(updated);
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+});
+
+app.MapDelete("/api/game-profiles/{id}", (string id, GameProfileService svc) =>
+{
+    svc.Delete(id);
+    return Results.Ok();
+});
+
+app.MapPut("/api/game-profiles/config", (GameConfigRequest req, GameProfileService svc) =>
+{
+    svc.UpdateConfig(req.Enabled, req.DefaultMode);
+    return Results.Ok(new { enabled = svc.Enabled, defaultMode = svc.DefaultMode });
+});
+
+app.MapGet("/api/game-profiles/status", (ProcessMonitorService svc) =>
+{
+    return Results.Json(svc.GetStatus());
+});
+
+app.MapGet("/api/game-profiles/file-pick", () =>
+{
+    // 使用 Windows 文件选择对话框
+    var ofd = new System.Windows.Forms.OpenFileDialog
+    {
+        Filter = "可执行文件 (*.exe)|*.exe|所有文件 (*.*)|*.*",
+        Title = "选择游戏主程序",
+        Multiselect = false
+    };
+
+    // 需要在 STA 线程上运行
+    string? result = null;
+    var thread = new Thread(() =>
+    {
+        if (ofd.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+            result = ofd.FileName;
+    });
+    thread.SetApartmentState(ApartmentState.STA);
+    thread.Start();
+    thread.Join();
+
+    if (result == null)
+        return Results.Ok(new { selected = false, path = (string?)null, name = (string?)null });
+
+    var fileName = Path.GetFileNameWithoutExtension(result);
+    return Results.Ok(new { selected = true, path = result, name = fileName });
+});
+
 // ---- Start server ----
 try
 {
@@ -1874,6 +2000,7 @@ record ControlRequest(
     [property: JsonPropertyName("target")] string Target,
     [property: JsonPropertyName("value")] int Value
 );
+record OsdShowRequest([property: JsonPropertyName("text")] string Text);
 public record SmuRawRequest(uint Cmd, uint Arg0);
 record SmuSetRequest(string Parameter, int ValueM);
 public record FanSetRequest(

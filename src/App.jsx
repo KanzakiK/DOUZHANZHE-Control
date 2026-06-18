@@ -2,6 +2,8 @@ import ThemeSwitcher from "./components/ThemeSwitcher";
 import SettingsPanel from "./components/panels/SettingsPanel";
 import SystemInfoPanel from "./components/panels/SystemInfoPanel";
 import FanCurvePanel from "./components/panels/FanCurvePanel";
+import GameProfilesPanel from "./components/panels/GameProfilesPanel";
+import AutoSwitchStatus from "./components/ui/AutoSwitchStatus";
 import Card from "./components/ui/Card";
 import SortableDashboard from "./components/SortableDashboard";
 import UpdateDialog from "./components/ui/UpdateDialog";
@@ -10,8 +12,8 @@ import { useControlState } from "./hooks/useControlState";
 import { fetchFanCurveStatus, stopFanCurve, resetToFactoryDefaults } from "./services/uxtuAdapter";
 import { useCallback, useState, useEffect } from "react";
 
-const NAV_ITEMS = ["主页", "散热曲线", "系统", "设置"];
-const NAV_TABS = { "主页": "dashboard", "散热曲线": "fancurve", "系统": "system", "设置": "settings" };
+const NAV_ITEMS = ["主页", "散热曲线", "游戏", "系统", "设置"];
+const NAV_TABS = { "主页": "dashboard", "散热曲线": "fancurve", "游戏": "games", "系统": "system", "设置": "settings" };
 const MODE_ITEMS = [
   { id: "silent", label: "安静模式" },
   { id: "office", label: "均衡模式" },
@@ -153,12 +155,7 @@ export default function App() {
           >
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               {MODE_ITEMS.map((mode) => (
-                <button key={mode.id} onClick={async () => {
-                  // 切换模式前先停曲线，避免曲线定时器与新模式参数冲突
-                  if (fanCurveActive) {
-                    await stopFanCurve().catch(() => {});
-                    setFanCurveActive(false);
-                  }
+                <button key={mode.id} onClick={() => {
                   setSettings(prev => ({ ...prev, mode: mode.id }));
                   toast?.(`已切换至${mode.label}`, "success");
                 }}
@@ -169,6 +166,7 @@ export default function App() {
             </div>
           </Card>
           )}
+          {activeTab === "dashboard" && <AutoSwitchStatus />}
           {activeTab === "dashboard" && (
           <SortableDashboard
             telemetry={telemetry} setTelemetry={setTelemetry}
@@ -189,6 +187,7 @@ export default function App() {
               showBackground={true} showHotkey={true} bg={bg} updateBg={updateBg} />
           )}
           {activeTab === "fancurve" && <FanCurvePanel telemetry={telemetry} overrides={overrides} settings={settings} />}
+          {activeTab === "games" && <GameProfilesPanel />}
         </main>
 
         {/* 版本更新弹窗 */}

@@ -128,7 +128,7 @@ export function useControlState() {
     [settings.mode, uxtuParams]
   );
 
-  // ── WebSocket 遥测 ──
+  // ── WebSocket 遥测 + 自动切换 ──
   const [backendOnline, setBackendOnline] = useState(false);
   useEffect(() => {
     let disposed = false;
@@ -139,6 +139,15 @@ export function useControlState() {
       ws = createTelemetrySocket(
         (data) => {
           setBackendOnline(true);
+
+          // 处理自动切换消息
+          if (data.type === "auto_switch" && data.mode) {
+            console.log("[AutoSwitch] 收到自动切换请求:", data.mode);
+            setSettings(prev => prev.mode === data.mode ? prev : { ...prev, mode: data.mode });
+            return; // auto_switch 消息不包含遥测数据
+          }
+
+          // 处理遥测数据
           setTelemetry(prev => ({ ...prev, ...data }));
           // 自动同步 dGpuDirect 与实际 GPU mode（mode 1=独显→true，0/2→false）
           if (data.gpuMode != null) {

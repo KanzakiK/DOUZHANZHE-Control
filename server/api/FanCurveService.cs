@@ -22,7 +22,7 @@ public sealed class FanCurveService : IDisposable
     private readonly WmiInterface _wmi;
     private readonly ILogger<FanCurveService> _log;
 
-    private Timer? _timer;
+    private System.Threading.Timer? _timer;
     private bool _active;
     private int _intervalMs = 5000;   // BellatorFanControl 默认 5s
     private int _hysteresisC = 3;     // 回差 3°C
@@ -176,7 +176,7 @@ public sealed class FanCurveService : IDisposable
         var (lr, sr) = LookupTarget(hotspot > 0 ? hotspot : 40);
         _itsmCurveMode = RouteMode(lr / 100, sr / 100);
 
-        _timer = new Timer(Tick, null, 0, _intervalMs);
+        _timer = new System.Threading.Timer(Tick, null, 0, _intervalMs);
 
         // 启动时写一次 ITSM，让 EC 接受曲线对应的模式区间
         _hal.WriteEcPort(0xE4, _itsmCurveMode);
@@ -477,7 +477,7 @@ public sealed class FanCurveService : IDisposable
         if (_active && intervalMs.HasValue)
         {
             _timer?.Dispose();
-            _timer = new Timer(Tick, null, 0, _intervalMs);
+            _timer = new System.Threading.Timer(Tick, null, 0, _intervalMs);
         }
     }
 
