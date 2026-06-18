@@ -1977,6 +1977,50 @@ app.MapGet("/api/game-profiles/file-pick", () =>
     return Results.Ok(new { selected = true, path = result, name = fileName });
 });
 
+// 扫描已安装游戏（Steam + Epic）
+app.MapGet("/api/game-profiles/scan", (GameProfileService profiles) =>
+{
+    var results = GameScannerService.Scan(profiles);
+    return Results.Json(results);
+});
+
+// 批量添加游戏
+app.MapPost("/api/game-profiles/batch", async (HttpRequest req, GameProfileService profiles) =>
+{
+    var body = await req.ReadFromJsonAsync<JsonElement>();
+    if (!body.TryGetProperty("games", out var games) || games.ValueKind != JsonValueKind.Array)
+        return Results.BadRequest(new { error = "games array required" });
+
+    int added = 0;
+    foreach (var g in games.EnumerateArray())
+    {
+        var name = g.TryGetProperty("name", out var n) ? n.GetString() : null;
+        var exePath = g.TryGetProperty("exePath", out var ep) ? ep.GetString() : null;
+        var targetMode = g.TryGetProperty("targetMode", out var tm) ? tm.GetString() : "gaming";
+        var source = g.TryGetProperty("source", out var src) ? src.GetString() : "scan";
+
+        if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(exePath)) continue;
+
+        var exeName = Path.GetFileName(exePath);
+        try
+        {
+            profiles.Add(new GameProfile
+            {
+                Name = name,
+                ExeName = exeName,
+                ExePath = exePath,
+                TargetMode = targetMode,
+                Source = source,
+                Enabled = true
+            });
+            added++;
+        }
+        catch { }
+    }
+
+    return Results.Ok(new { added });
+});
+
 // ---- Start server ----
 try
 {

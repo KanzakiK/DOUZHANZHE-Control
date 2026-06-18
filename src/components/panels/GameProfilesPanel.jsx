@@ -16,6 +16,13 @@ export default function GameProfilesPanel() {
   const [editForm, setEditForm] = useState({ name: "", exePath: "", exeName: "", targetMode: "gaming", enabled: true });
   const [showAddForm, setShowAddForm] = useState(false);
   const [addForm, setAddForm] = useState({ name: "", exePath: "", targetMode: "gaming" });
+  
+  // 扫描相关状态
+  const [scanning, setScanning] = useState(false);
+  const [showScanModal, setShowScanModal] = useState(false);
+  const [scanResults, setScanResults] = useState([]);
+  const [selectedGames, setSelectedGames] = useState(new Set());
+  const [batchTargetMode, setBatchTargetMode] = useState("gaming");
 
   // 加载数据
   const fetchData = async () => {
@@ -119,6 +126,79 @@ export default function GameProfilesPanel() {
       }
     } catch (err) {
       console.error("Failed to pick file:", err);
+    }
+  };
+
+  // 扫描游戏
+  const scanGames = async () => {
+    setScanning(true);
+    try {
+      const res = await fetch("/api/game-profiles/scan");
+      const data = await res.json();
+      setScanResults(data);
+      setSelectedGames(new Set());
+      setBatchTargetMode(config.defaultMode);
+      setShowScanModal(true);
+    } catch (err) {
+      console.error("Failed to scan games:", err);
+      alert("扫描失败，请稍后重试");
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  // 切换游戏选择
+  const toggleGameSelection = (index) => {
+    setSelectedGames(prev => {
+      const next = new Set(prev);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      return next;
+    });
+  };
+
+  // 全选/取消全选
+  const toggleSelectAll = () => {
+    const available = scanResults.filter((_, i) => !scanResults[i].alreadyAdded);
+    if (selectedGames.size === available.length) {
+      setSelectedGames(new Set());
+    } else {
+      setSelectedGames(new Set(available.map((_, i) => scanResults.indexOf(available[i]))));
+    }
+  };
+
+  // 批量添加
+  const batchAddGames = async () => {
+    const games = [...selectedGames].map(i => ({
+      name: scanResults[i].name,
+      exePath: scanResults[i].exePath,
+      targetMode: batchTargetMode,
+      source: scanResults[i].source,
+    }));
+
+    if (games.length === 0) {
+      setShowScanModal(false);
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/game-profiles/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ games }),
+      });
+      const data = await res.json();
+      setShowScanModal(false);
+      setSelectedGames(new Set());
+      setScanResults([]);
+      fetchData();
+      alert(`成功添加 ${data.added} 个游戏`);
+    } catch (err) {
+      console.error("Failed to batch add:", err);
+      alert("批量添加失败");
     }
   };
 
@@ -248,10 +328,11 @@ export default function GameProfilesPanel() {
               style={{ background: "var(--primary-2)", color: "#fff" }}
             >+ 手动添加</button>
             <button
-              onClick={() => alert("游戏扫描功能将在后续版本中实现")}
-              className="text-sm px-4 py-2 rounded-lg"
+              onClick={scanGames}
+              disabled={scanning}
+              className="text-sm px-4 py-2 rounded-lg disabled:opacity-50"
               style={{ background: "var(--card-2)", color: "var(--text)", border: "1px solid var(--border)" }}
-            >扫描游戏 (即将推出)</button>
+            >{scanning ? "扫描中..." : "扫描游戏"}</button>
           </div>
         </div>
       </Card>
@@ -318,6 +399,92 @@ export default function GameProfilesPanel() {
               <button onClick={addProfile} className="flex-1 text-sm px-4 py-2 rounded-lg" style={{ background: "var(--primary-2)", color: "#fff" }}>添加</button>
               <button onClick={() => setShowAddForm(false)} className="flex-1 text-sm px-4 py-2 rounded-lg" style={{ background: "var(--card-2)", color: "var(--text)", border: "1px solid var(--border)" }}>取消</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 扫描结果弹窗 */}
+      {showScanModal && (
+        <div className="fixed inset-0 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.5)", zIndex: 1000 }}>
+          <div className="rounded-2xl p-5 w-full max-w-lg max-h-[80vh] flex flex-col" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+            <h3 className="text-sm font-medium mb-3">扫描结果</h3>
+            
+            {/* 游戏列表 */}
+            <div className="flex-1 overflow-y-auto space-y-1 min-h-0">
+              {scanResults.length === 0 ? (
+                <p className="text-sm text-center py-8" style={{ color: "var(--muted)" }}>未发现新游戏</p>
+              ) : (
+                scanResults.map((game, index) => (
+                  <label
+                    key={index}
+                    className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer ${game.alreadyAdded ? "opacity-50" : ""}`}
+                    style={{ background: selectedGames.has(index) ? "var(--primary-2)" : "var(--card-2)", border: "1px solid var(--border)" }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedGames.has(index)}
+                      onChange={() => !game.alreadyAdded && toggleGameSelection(index)}
+                      disabled={game.alreadyAdded}
+                      className="w-4 h-4 rounded"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium truncate">{game.name}</span>
+                        <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: game.source === "steam" ? "#1b2838" : "#2a2a2a", color: "#fff" }}>
+                          {game.source === "steam" ? "Steam" : "Epic"}
+                        </span>
+                        {game.alreadyAdded && (
+                          <span className="text-xs" style={{ color: "var(--muted)" }}>已添加</span>
+                        )}
+                      </div>
+                      <p className="text-xs truncate" style={{ color: "var(--muted)" }}>{game.exePath}</p>
+                    </div>
+                  </label>
+                ))
+              )}
+            </div>
+
+            {/* 底部操作区 */}
+            {scanResults.length > 0 && (
+              <div className="mt-4 pt-4" style={{ borderTop: "1px solid var(--border)" }}>
+                <div className="flex items-center justify-between mb-3">
+                  <button
+                    onClick={toggleSelectAll}
+                    className="text-xs px-3 py-1.5 rounded-lg"
+                    style={{ background: "var(--card-2)", color: "var(--text)", border: "1px solid var(--border)" }}
+                  >
+                    {selectedGames.size === scanResults.filter(g => !g.alreadyAdded).length ? "取消全选" : "全选"}
+                  </button>
+                  <span className="text-xs" style={{ color: "var(--muted)" }}>
+                    已选 {selectedGames.size} 个
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-xs" style={{ color: "var(--muted)" }}>目标模式：</span>
+                  <select
+                    value={batchTargetMode}
+                    onChange={(e) => setBatchTargetMode(e.target.value)}
+                    className="text-xs rounded-lg px-2 py-1"
+                    style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)" }}
+                  >
+                    {MODES.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+                  </select>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={batchAddGames}
+                    disabled={selectedGames.size === 0}
+                    className="flex-1 text-sm px-4 py-2 rounded-lg disabled:opacity-50"
+                    style={{ background: "var(--primary-2)", color: "#fff" }}
+                  >添加选中</button>
+                  <button
+                    onClick={() => { setShowScanModal(false); setSelectedGames(new Set()); setScanResults([]); }}
+                    className="flex-1 text-sm px-4 py-2 rounded-lg"
+                    style={{ background: "var(--card-2)", color: "var(--text)", border: "1px solid var(--border)" }}
+                  >取消</button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
