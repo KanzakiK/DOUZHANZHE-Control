@@ -301,6 +301,70 @@ export async function syncOverrides(mode, overrides) {
   }).catch(e => console.warn("[syncOverrides]", e));
 }
 
+// ── localStorage → 后端一次性迁移 ──
+export async function importOverrides(mode, overrides) {
+  const res = await fetch("/api/overrides/import", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mode, overrides }),
+  });
+  if (!res.ok) throw new Error(`importOverrides failed for ${mode}`);
+}
+
+export async function migrateLocalStorageOverrides() {
+  const modes = ["silent", "office", "beast", "gaming"];
+  let migrated = 0;
+  for (const mode of modes) {
+    const key = `douzhanzhe_overrides_${mode}`;
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const data = JSON.parse(raw);
+      // 旧格式: cpuTempLimitC / cpuVoltageOffset / cpuLongPptW / cpuShortPptW / cpuFreqLimitEnabled / cpuFreqLimitMhz / cpuCoreLimit / fanLargeRpmTarget / fanSmallRpmTarget / gpuCoreFreqMhz / gpuFreqLocked / gpuMemFreqLevel / ocCoreOffsetMhz / ocMemOffsetMhz / nvapiPowerLimitW / nvapiThermalLimitC
+      // 新格式需要映射到后端 PerformanceOverrides 结构
+      const mapped = {
+        cpu: {
+          freqLimitMhz: data.cpuFreqLimitMhz ?? null,
+          turboEnabled: data.cpuTurboDisabled === true ? false : null,
+          coreLimitPercent: data.cpuCoreLimit ?? null,
+        },
+        gpu: {
+          coreFreqMhz: data.gpuCoreFreqMhz ?? null,
+          freqLocked: data.gpuFreqLocked ?? null,
+          memFreqLevel: data.gpuMemFreqLevel ?? null,
+        },
+        nvapi: {
+          ocCoreOffsetMhz: data.ocCoreOffsetMhz ?? null,
+          ocMemOffsetMhz: data.ocMemOffsetMhz ?? null,
+          powerLimitW: data.nvapiPowerLimitW ?? null,
+          thermalLimitC: data.nvapiThermalLimitC ?? null,
+        },
+        smu: {
+          stapmLimitW: data.cpuLongPptW ?? null,
+          shortPowerLimitW: data.cpuShortPptW ?? null,
+          tempLimitC: data.cpuTempLimitC ?? null,
+          coAll: data.cpuVoltageOffset ?? null,
+        },
+        fan: {
+          largeRpm: data.fanLargeRpmTarget ?? null,
+          smallRpm: data.fanSmallRpmTarget ?? null,
+        },
+        powerPlan: data.powerPlan ?? null,
+      };
+      await importOverrides(mode, mapped);
+      localStorage.removeItem(key);
+      migrated++;
+      log("Migration", `✓ migrated ${mode} overrides from localStorage`);
+    } catch (e) {
+      log("Migration", `✗ failed to migrate ${mode}: ${e.message}`);
+    }
+  }
+  if (migrated > 0) {
+    log("Migration", `Completed: ${migrated} mode(s) migrated from localStorage`);
+  }
+  return migrated;
+}
+
 // ── 恢复官方默认 ──
 // 清空 overrides + 重发 thermal_mode (EC 恢复出厂值) + CPU/GPU/NVAPI 重置
 export async function resetToFactoryDefaults(mode) {

@@ -3,6 +3,7 @@ import { mockTelemetry } from "../data/mockTelemetry";
 import {
   createTelemetrySocket, FULL_PARAMS, MODE_FAN_DEFAULTS,
   fetchOverrides, switchMode, syncOverrides, reapplyOverrides, log,
+  migrateLocalStorageOverrides,
 } from "../services/uxtuAdapter";
 
 const LS_THEME = "douzhanzhe_theme";
@@ -62,16 +63,25 @@ export function useControlState() {
   // ── Overrides 状态（暴露给组件，用于灰色/高亮显示）──
   const [overrides, setOverrides] = useState({});
 
-  // 启动时从后端拉取 overrides
+  // 启动时：先迁移 localStorage 旧数据到后端，再拉取 overrides
   useEffect(() => {
-    fetchOverrides().then(({ mode, overrides: ov }) => {
-      setSettings(prev => ({ ...prev, mode }));
-      const fanDefaults = MODE_FAN_DEFAULTS[mode] || {};
-      setUxtuParams({ ...FULL_PARAMS, ...fanDefaults, ...ov });
-      setOverrides(ov);
-    }).catch(() => {
-      // 后端不可用时回退到 FULL_PARAMS 默认
-    });
+    (async () => {
+      try {
+        const count = await migrateLocalStorageOverrides();
+        if (count > 0) log("Startup", `migrated ${count} mode(s) from localStorage`);
+      } catch (e) {
+        log("Startup", `localStorage migration error: ${e.message}`);
+      }
+      try {
+        const { mode, overrides: ov } = await fetchOverrides();
+        setSettings(prev => ({ ...prev, mode }));
+        const fanDefaults = MODE_FAN_DEFAULTS[mode] || {};
+        setUxtuParams({ ...FULL_PARAMS, ...fanDefaults, ...ov });
+        setOverrides(ov);
+      } catch {
+        // 后端不可用时回退到 FULL_PARAMS 默认
+      }
+    })();
   }, []);
 
   // ── 重置参数到官方默认 ──

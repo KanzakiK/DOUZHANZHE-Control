@@ -1372,6 +1372,15 @@ app.MapPost("/api/overrides/sync", (SyncOverridesRequest req) =>
     return Results.Ok();
 });
 
+app.MapPost("/api/overrides/import", (SyncOverridesRequest req) =>
+{
+    if (req.Overrides == null) return Results.BadRequest("overrides required");
+    var file = $"overrides-{req.Mode}.json";
+    lock (_perfLock) JsonWrite(file, req.Overrides);
+    Log($"[overrides/import] ← mode={req.Mode}, imported from localStorage migration");
+    return Results.Ok();
+});
+
 app.MapPost("/api/log", (FrontendLogRequest req) =>
 {
     AppLog.Write("UI", $"[{req.Tag}] {req.Msg}");
