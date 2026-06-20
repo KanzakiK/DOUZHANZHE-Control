@@ -312,6 +312,9 @@ export async function importOverrides(mode, overrides) {
 }
 
 export async function migrateLocalStorageOverrides() {
+  // 标记位防重复执行，保留旧 key 不删除（方便用户回退旧版时恢复配置）
+  if (localStorage.getItem("douzhanzhe_overrides_migrated")) return 0;
+
   const modes = ["silent", "office", "beast", "gaming"];
   let migrated = 0;
   for (const mode of modes) {
@@ -358,7 +361,6 @@ export async function migrateLocalStorageOverrides() {
         powerPlan: data.cpuPowerPlan ?? null,
       };
       await importOverrides(mode, mapped);
-      localStorage.removeItem(key);
       migrated++;
       log("Migration", `✓ migrated ${mode} overrides from localStorage`);
     } catch (e) {
@@ -368,6 +370,7 @@ export async function migrateLocalStorageOverrides() {
   if (migrated > 0) {
     log("Migration", `Completed: ${migrated} mode(s) migrated from localStorage`);
   }
+  localStorage.setItem("douzhanzhe_overrides_migrated", "1");
   return migrated;
 }
 
