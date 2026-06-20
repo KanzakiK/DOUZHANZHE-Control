@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { mockTelemetry } from "../data/mockTelemetry";
 import {
   createTelemetrySocket, FULL_PARAMS, MODE_FAN_DEFAULTS,
-  fetchOverrides, switchMode, syncOverrides, reapplyOverrides, log,
+  fetchOverrides, switchMode, syncOverrides, log,
   migrateLocalStorageOverrides, flattenBackendOverrides,
 } from "../services/uxtuAdapter";
 
@@ -105,8 +105,9 @@ export function useControlState() {
   useEffect(() => { saveToLS(LS_THEME, theme); }, [theme]);
   useEffect(() => { saveToLS(LS_SETTINGS, settings); }, [settings]);
 
-  // ── 模式切换: switchMode 后端切换 + reapplyOverrides 硬件下发 ──
+  // ── 模式切换: switchMode 后端切换（后端原子化应用硬件 + 持久化）──
   const prevModeRef = useRef(settings.mode);
+  const switchGenRef = useRef(0);
 
   useEffect(() => {
     // 首次加载由 startup useEffect 处理，这里跳过
@@ -117,14 +118,20 @@ export function useControlState() {
     prevModeRef.current = currentMode;
     if (prevMode === currentMode) return;
 
-    // switchMode 端点内部已完成 thermal_mode + last-mode.json + ProcessMonitor 同步
+    const gen = ++switchGenRef.current;
+
+    // 后端 /api/overrides/switch 内部已完成:
+    // thermal_mode + last-mode.json + GPU/NVAPI/CPU 重置 + RestoreAllPerfSettings
+    // 不再需要前端 reapplyOverrides（消除并发 setter 写错文件的竞争条件）
     switchMode(currentMode).then(({ overrides: rawOv }) => {
+      // 如果在等待期间又切换了模式，丢弃过期响应
+      if (gen !== switchGenRef.current) return;
       const ov = flattenBackendOverrides(rawOv);
       const fanDefaults = MODE_FAN_DEFAULTS[currentMode] || {};
       setUxtuParams({ ...FULL_PARAMS, ...fanDefaults, ...ov });
       setOverrides(ov);
-      reapplyOverrides(currentMode, ov); // 只发硬件命令，不写文件
     }).catch(() => {
+      if (gen !== switchGenRef.current) return;
       const fanDefaults = MODE_FAN_DEFAULTS[currentMode] || {};
       setUxtuParams({ ...FULL_PARAMS, ...fanDefaults });
       setOverrides({});

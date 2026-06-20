@@ -376,7 +376,7 @@ export async function importOverrides(mode, overrides) {
 export async function migrateLocalStorageOverrides() {
   // 版本号控制：递增 MIGRATION_VERSION 可强制重新迁移（修复脏数据等场景）
   // 保留旧 key 不删除（方便用户回退旧版时恢复配置）
-  const MIGRATION_VERSION = 2;
+  const MIGRATION_VERSION = 3;
   const currentVersion = parseInt(localStorage.getItem("douzhanzhe_overrides_migrated") || "0", 10);
   if (currentVersion >= MIGRATION_VERSION) return 0;
 
