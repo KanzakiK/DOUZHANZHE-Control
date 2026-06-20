@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { mockTelemetry } from "../data/mockTelemetry";
 import {
-  createTelemetrySocket, FULL_PARAMS, MODE_FAN_DEFAULTS, dispatchFullMode,
+  createTelemetrySocket, FULL_PARAMS, MODE_FAN_DEFAULTS,
+  fetchOverrides, switchMode, syncOverrides, reapplyOverrides,
 } from "../services/uxtuAdapter";
 
 const LS_THEME = "douzhanzhe_theme";
 const LS_SETTINGS = "douzhanzhe_settings";
-const LS_OVERRIDES_PREFIX = "douzhanzhe_overrides_"; // 稀疏存储
 
 function loadFromLS(key, defaultValue) {
   try {
@@ -21,22 +21,6 @@ function saveToLS(key, value) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch { /* quota exceeded etc */ }
-}
-
-// ── Overrides 稀疏存储 API ──
-
-function loadOverrides(mode) {
-  return loadFromLS(LS_OVERRIDES_PREFIX + mode, {});
-}
-
-function saveOverride(mode, key, value) {
-  const overrides = loadOverrides(mode);
-  overrides[key] = value;
-  saveToLS(LS_OVERRIDES_PREFIX + mode, overrides);
-}
-
-function clearOverrides(mode) {
-  saveToLS(LS_OVERRIDES_PREFIX + mode, {});
 }
 
 export function useControlState() {
@@ -71,38 +55,38 @@ export function useControlState() {
 
   // ── uxtuParams: 唯一全量参数状态 (FULL_PARAMS 兆底 + overrides 覆盖) ──
   const [uxtuParams, setUxtuParams] = useState(() => {
-    const mode = loadFromLS(LS_SETTINGS, { mode: "office" }).mode;
-    
-    // 加载 overrides
-    const overrides = loadOverrides(mode);
-    const fanDefaults = MODE_FAN_DEFAULTS[mode] || {};
-    return { ...FULL_PARAMS, ...fanDefaults, ...overrides };
+    const fanDefaults = MODE_FAN_DEFAULTS["office"] || {};
+    return { ...FULL_PARAMS, ...fanDefaults };
   });
 
   // ── Overrides 状态（暴露给组件，用于灰色/高亮显示）──
-  const [overrides, setOverrides] = useState(() => {
-    const mode = loadFromLS(LS_SETTINGS, { mode: "office" }).mode;
-    return loadOverrides(mode);
-  });
+  const [overrides, setOverrides] = useState({});
+
+  // 启动时从后端拉取 overrides
+  useEffect(() => {
+    fetchOverrides().then(({ mode, overrides: ov }) => {
+      setSettings(prev => ({ ...prev, mode }));
+      const fanDefaults = MODE_FAN_DEFAULTS[mode] || {};
+      setUxtuParams({ ...FULL_PARAMS, ...fanDefaults, ...ov });
+      setOverrides(ov);
+    }).catch(() => {
+      // 后端不可用时回退到 FULL_PARAMS 默认
+    });
+  }, []);
 
   // ── 重置参数到官方默认 ──
-  const resetParams = useCallback((mode) => {
-    // 1. 清空 overrides (localStorage + UI 状态)
-    clearOverrides(mode);
+  const resetParams = useCallback(async (mode) => {
+    await syncOverrides(mode, {});
     setOverrides({});
-    
-    // 2. UI 参数回到 FULL_PARAMS + 该模式的风扇默认转速
     const fanDefaults = MODE_FAN_DEFAULTS[mode] || {};
     setUxtuParams({ ...FULL_PARAMS, ...fanDefaults });
-    
-    console.log("[resetParams] mode:", mode, "fanDefaults:", fanDefaults);
   }, []);
 
   // 持久化 theme + settings
   useEffect(() => { saveToLS(LS_THEME, theme); }, [theme]);
   useEffect(() => { saveToLS(LS_SETTINGS, settings); }, [settings]);
 
-  // ── 模式切换: 加载新 overrides → dispatchFullMode 条件下发 ──
+  // ── 模式切换: switchMode 后端切换 + reapplyOverrides 硬件下发 ──
   const prevModeRef = useRef(settings.mode);
 
   useEffect(() => {
@@ -111,22 +95,18 @@ export function useControlState() {
     prevModeRef.current = currentMode;
     if (prevMode === currentMode) return;
 
-    // 加载新模式的 overrides
-    const fanDefaults = MODE_FAN_DEFAULTS[currentMode] || {};
-    const newOverrides = loadOverrides(currentMode);
-    const newParams = { ...FULL_PARAMS, ...fanDefaults, ...newOverrides };
-    setUxtuParams(newParams);
-    setOverrides(newOverrides);
-
-    // 条件下发硬件命令（overrides 为空时只发 thermal_mode）
-    dispatchFullMode(currentMode, newOverrides);
+    // switchMode 端点内部已完成 thermal_mode + last-mode.json + ProcessMonitor 同步
+    switchMode(currentMode).then(({ overrides: ov }) => {
+      const fanDefaults = MODE_FAN_DEFAULTS[currentMode] || {};
+      setUxtuParams({ ...FULL_PARAMS, ...fanDefaults, ...ov });
+      setOverrides(ov);
+      reapplyOverrides(currentMode, ov); // 只发硬件命令，不写文件
+    }).catch(() => {
+      const fanDefaults = MODE_FAN_DEFAULTS[currentMode] || {};
+      setUxtuParams({ ...FULL_PARAMS, ...fanDefaults });
+      setOverrides({});
+    });
   }, [settings.mode]);
-
-  // ── uxtuPayload (用于手动下发按钮) ──
-  const uxtuPayload = useMemo(
-    () => ({ chipset: "Ryzen 9 8940HX", profile: settings.mode, params: uxtuParams }),
-    [settings.mode, uxtuParams]
-  );
 
   // ── WebSocket 遥测 + 自动切换 ──
   const [backendOnline, setBackendOnline] = useState(false);
@@ -211,15 +191,9 @@ export function useControlState() {
     return () => clearInterval(timer);
   }, [settings.mode, uxtuParams, backendOnline]);
 
-  // ── Overrides 稀疏存储操作（暴露给组件） ──
+  // ── Overrides 稀疏存储操作（仅更新 React state，持久化由各独立端点完成） ──
   const saveOverrideFn = useCallback((mode, key, value) => {
-    saveOverride(mode, key, value);
     setOverrides(prev => ({ ...prev, [key]: value }));
-  }, []);
-
-  const clearOverridesFn = useCallback((mode) => {
-    clearOverrides(mode);
-    setOverrides({});
   }, []);
 
   return {
@@ -227,11 +201,9 @@ export function useControlState() {
     telemetry, setTelemetry,
     uxtuParams, setUxtuParams,
     settings, setSettings,
-    uxtuPayload,
     history,
     overrides, setOverrides,
     saveOverride: saveOverrideFn,
-    clearOverrides: clearOverridesFn,
     resetParams,
   };
 }

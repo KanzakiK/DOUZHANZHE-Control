@@ -262,11 +262,37 @@ export async function resetCpuPower() {
   return res.json();
 }
 
+// ── Overrides API (后端持久化) ──
+
+export async function fetchOverrides() {
+  const res = await fetch("/api/overrides");
+  if (!res.ok) throw new Error("overrides fetch failed");
+  return res.json(); // { mode, overrides }
+}
+
+export async function switchMode(mode) {
+  const res = await fetch("/api/overrides/switch", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mode }),
+  });
+  if (!res.ok) throw new Error("mode switch failed");
+  return res.json(); // { overrides }
+}
+
+export async function syncOverrides(mode, overrides) {
+  await fetch("/api/overrides/sync", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mode, overrides }),
+  }).catch(e => console.warn("[syncOverrides]", e));
+}
+
 // ── 恢复官方默认 ──
 // 清空 overrides + 重发 thermal_mode (EC 恢复出厂值) + CPU/GPU/NVAPI 重置
 export async function resetToFactoryDefaults(mode) {
-  // 1. 清空 overrides (localStorage + UI 状态)
-  localStorage.setItem("douzhanzhe_overrides_" + mode, "{}");
+  // 1. 清空后端 overrides 文件
+  await syncOverrides(mode, {});
   
   // 2. 重发 thermal_mode (EC 重新加载出厂值，包括 CPU PPT/温度/风扇预设)
   const tv = thermalModeMap[mode];
@@ -424,19 +450,6 @@ export async function reapplyOverrides(mode, overrides) {
     }, 1500);
     _smuResendTimers = [t1, t2];
   }
-}
-
-export async function dispatchFullMode(mode, overrides) {
-  const tv = thermalModeMap[mode];
-
-  // ① thermal_mode 永远执行（切模式的基础）— 必须 await，等 EC 完成模式切换
-  if (tv !== null && tv !== undefined) {
-    await applyHardwareControl("thermal_mode", tv).catch(e => console.warn("[EC] thermal_mode:", e));
-    await new Promise(r => setTimeout(r, 500));
-  }
-
-  // ②-⑦ 重发稀疏 overrides
-  await reapplyOverrides(mode, overrides);
 }
 
 // ── 关闭显示器 ──
