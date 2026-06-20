@@ -400,17 +400,28 @@ export async function migrateLocalStorageOverrides() {
       // gpuCoreFreqMhz (LS) → gpu.coreFreqMhz
       // gpuMemFreqMhz (LS, index 0-3) → gpu.memFreqLevel
       // gpuTempLimitC (LS) → nvapi.thermalLimitC
+      // GPU — 条件构建：仅包含 localStorage 中实际存在的字段
+      // import 端点是全量替换，null 会覆盖配置文件中的正确值
+      const gpu = {};
+      if (data.gpuFreqLimitEnabled && data.gpuFreqLimitMhz != null) {
+        gpu.coreFreqMhz = data.gpuFreqLimitMhz;
+      }
+      if (data.gpuFreqLimitEnabled != null) {
+        gpu.freqLocked = data.gpuFreqLimitEnabled;
+      } else if (data.gpuFreqLocked != null) {
+        gpu.freqLocked = data.gpuFreqLocked;
+      }
+      if (data.gpuMemFreqMhz != null) {
+        gpu.memFreqLevel = data.gpuMemFreqMhz;
+      }
+
       const mapped = {
         cpu: {
           freqLimitMhz: data.cpuFreqLimitEnabled ? (data.cpuFreqLimitMhz ?? null) : null,
           turboEnabled: data.cpuTurboDisabled != null ? !data.cpuTurboDisabled : null,
           coreLimitPercent: data.cpuCoreLimit > 0 ? Math.round(data.cpuCoreLimit / 16 * 100) : null,
         },
-        gpu: {
-          coreFreqMhz: data.gpuFreqLimitEnabled ? (data.gpuFreqLimitMhz ?? null) : null,
-          freqLocked: data.gpuFreqLimitEnabled != null ? data.gpuFreqLimitEnabled : (data.gpuFreqLocked ?? null),
-          memFreqLevel: data.gpuMemFreqMhz ?? null,
-        },
+        gpu,
         nvapi: {
           ocCoreOffsetMhz: data.ocCoreOffsetMhz ?? null,
           ocMemOffsetMhz: data.ocMemOffsetMhz ?? null,
