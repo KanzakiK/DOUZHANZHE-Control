@@ -37,6 +37,8 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
     p.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader()));
 var app = builder.Build();
 var osdService = app.Services.GetRequiredService<OsdService>();
+var hal = app.Services.GetRequiredService<HardwareAbstractionLayer>();
+var wmi = app.Services.GetRequiredService<WmiInterface>();
 app.UseCors();
 app.UseWebSockets();
 app.UseDefaultFiles();
@@ -73,14 +75,49 @@ void Log(string msg)
 }
 Log($"API starting, BaseDir={AppContext.BaseDirectory}, ConfigDir={configDir}");
 
-// ---- 性能设置持久化 ----
+// ---- 性能设置持久化 (按模式存储) ----
 var _perfLock = new object();
-var _perfFile = "performance-overrides.json";
+var _lastModeFile = "last-mode.json";
 bool _pgSuppress = false; // ParameterGuard 睡眠期间暂停标志
-PerformanceOverrides LoadPerfOverrides() => JsonRead(_perfFile, new PerformanceOverrides());
+
+string CurrentMode()
+{
+    var d = JsonRead<Dictionary<string, string>>(_lastModeFile, new());
+    return d.TryGetValue("mode", out var m) ? m : "office";
+}
+
+void SetCurrentMode(string mode)
+{
+    JsonWrite(_lastModeFile, new Dictionary<string, string> { ["mode"] = mode });
+}
+
+// 前端模式 ID → EC thermal_mode 数值
+var _modeToThermal = new Dictionary<string, byte> { ["silent"] = 2, ["office"] = 0, ["beast"] = 1, ["gaming"] = 3 };
+
+void ApplyThermalMode(string mode)
+{
+    if (!_modeToThermal.TryGetValue(mode, out var thermalVal)) return;
+    Log($"[thermal_mode] ← mode={mode} (value={thermalVal})");
+    if (wmi.Available)
+        wmi.SetThermalMode(thermalVal);
+    else
+        hal.ThermalMode = thermalVal;
+    osdService.Show(mode);
+    app.Services.GetRequiredService<ProcessMonitorService>().UpdateCurrentMode(mode);
+}
+
+PerformanceOverrides LoadPerfOverrides()
+    => JsonRead($"overrides-{CurrentMode()}.json", new PerformanceOverrides());
+
 void SavePerfOverrides(Action<PerformanceOverrides> mutate)
 {
-    lock (_perfLock) { var o = LoadPerfOverrides(); mutate(o); JsonWrite(_perfFile, o); }
+    lock (_perfLock)
+    {
+        var file = $"overrides-{CurrentMode()}.json";
+        var o = JsonRead(file, new PerformanceOverrides());
+        mutate(o);
+        JsonWrite(file, o);
+    }
 }
 
 // ---- 睡眠/休眠恢复：重置底层驱动并重新初始化 ----
@@ -418,6 +455,23 @@ _ = System.Threading.Tasks.Task.Run(() =>
 _ = System.Threading.Tasks.Task.Run(async () =>
 {
     await System.Threading.Tasks.Task.Delay(3000);
+    // 一次性迁移：旧 performance-overrides.json → overrides-{mode}.json
+    {
+        var lastModePath = Path.Combine(configDir, "last-mode.json");
+        var oldPerfPath = Path.Combine(configDir, "performance-overrides.json");
+        if (!File.Exists(lastModePath) && File.Exists(oldPerfPath))
+        {
+            try
+            {
+                var oldData = JsonRead("performance-overrides.json", new PerformanceOverrides());
+                JsonWrite("overrides-office.json", oldData);
+                SetCurrentMode("office");
+                File.Delete(oldPerfPath);
+                Log("[Startup] Migrated performance-overrides.json → overrides-office.json");
+            }
+            catch (Exception ex) { Log($"[Startup] Migration failed: {ex.Message}"); }
+        }
+    }
     await RestoreAllPerfSettings("Startup");
 });
 app.Map("/ws", async (HttpContext ctx) =>
@@ -584,21 +638,14 @@ app.MapPost("/api/control", (ControlRequest req, HardwareAbstractionLayer hal, W
                 SavePerfOverrides(o => o.PowerPlan = req.Value);
                 break;
             case "thermal_mode":
-                // 优先走 WMI Method 8 (SystemPerMode) — 固件完整加载模式预设
-                // WMI 不可用时降级到 EC 直写
-                var clampedMode = (byte)int.Clamp(req.Value, 0, 3);
-                Log($"[control/thermal_mode] ← mode={clampedMode} (raw={req.Value})");
-                if (wmi.Available)
-                    wmi.SetThermalMode(clampedMode);
-                else
-                    hal.ThermalMode = clampedMode;
-                // OSD 提示（模式切换时自动触发）
-                var modeNames = new[] { "office", "beast", "silent", "gaming" };
-                if (clampedMode < modeNames.Length)
                 {
-                    osdService.Show(modeNames[clampedMode]);
-                    // 通知 ProcessMonitorService 更新当前模式
-                    app.Services.GetRequiredService<ProcessMonitorService>().UpdateCurrentMode(modeNames[clampedMode]);
+                    var modeNames = new[] { "office", "beast", "silent", "gaming" };
+                    var clampedMode = (byte)int.Clamp(req.Value, 0, 3);
+                    if (clampedMode < modeNames.Length)
+                    {
+                        SetCurrentMode(modeNames[clampedMode]);
+                        ApplyThermalMode(modeNames[clampedMode]);
+                    }
                 }
                 break;
             case "igpu_only":
@@ -1296,6 +1343,33 @@ app.MapPost("/api/uxtu/apply", async (HttpContext ctx, SmuController smu) =>
     }
     catch (Exception ex) { Log($"[uxtu/apply] ✗ {ex.Message}"); return Results.Json(new { ok = false, error = ex.Message }); }
 });
+
+// ---- Overrides API (前端启动/模式切换/恢复默认) ----
+app.MapGet("/api/overrides", () =>
+{
+    var mode = CurrentMode();
+    var overrides = LoadPerfOverrides();
+    return Results.Json(new { mode, overrides });
+});
+
+app.MapPost("/api/overrides/switch", async (SwitchModeRequest req) =>
+{
+    Log($"[overrides/switch] ← mode={req.Mode}");
+    SetCurrentMode(req.Mode);
+    ApplyThermalMode(req.Mode);
+    await System.Threading.Tasks.Task.Delay(500); // 等 EC 完成模式预设加载
+    var overrides = LoadPerfOverrides();
+    return Results.Json(new { overrides });
+});
+
+app.MapPost("/api/overrides/sync", (SyncOverridesRequest req) =>
+{
+    Log($"[overrides/sync] ← mode={req.Mode}, clearing overrides");
+    var file = $"overrides-{req.Mode}.json";
+    lock (_perfLock) JsonWrite(file, new PerformanceOverrides());
+    return Results.Ok();
+});
+
 app.MapGet("/api/ryzenadj/info", (SmuController smu) =>
 {
     try
@@ -2087,6 +2161,8 @@ public class NvapiOverrides { public int? OcCoreOffsetMhz; public int? OcMemOffs
 public class SmuOverrides { public int? StapmLimitW; public int? ShortPowerLimitW; public int? TempLimitC; public int? CoAll; }
 public class FanOverrides { public int? LargeRpm; public int? SmallRpm; }
 public class PerformanceOverrides { public CpuOverrides Cpu = new(); public GpuOverrides Gpu = new(); public NvapiOverrides Nvapi = new(); public SmuOverrides Smu = new(); public FanOverrides Fan = new(); public int? PowerPlan; }
+public record SwitchModeRequest([property: JsonPropertyName("mode")] string Mode);
+public record SyncOverridesRequest([property: JsonPropertyName("mode")] string Mode, [property: JsonPropertyName("overrides")] PerformanceOverrides? Overrides);
 
 // ---- 快捷键请求模型 ----
 public record HotkeyConfigRequest(
