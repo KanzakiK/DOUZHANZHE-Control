@@ -108,6 +108,7 @@ export function useControlState() {
   // ── 模式切换: switchMode 后端切换（后端原子化应用硬件 + 持久化）──
   const prevModeRef = useRef(settings.mode);
   const switchGenRef = useRef(0);
+  const switchTimerRef = useRef(null);
 
   useEffect(() => {
     // 首次加载由 startup useEffect 处理，这里跳过
@@ -118,24 +119,29 @@ export function useControlState() {
     prevModeRef.current = currentMode;
     if (prevMode === currentMode) return;
 
+    // 防抖: 取消上一个未执行的切换，等 400ms 后再发送
+    // 快速连切时只有最后一次会真正调用后端
+    if (switchTimerRef.current) clearTimeout(switchTimerRef.current);
     const gen = ++switchGenRef.current;
 
-    // 后端 /api/overrides/switch 内部已完成:
-    // thermal_mode + last-mode.json + GPU/NVAPI/CPU 重置 + RestoreAllPerfSettings
-    // 不再需要前端 reapplyOverrides（消除并发 setter 写错文件的竞争条件）
-    switchMode(currentMode).then(({ overrides: rawOv }) => {
-      // 如果在等待期间又切换了模式，丢弃过期响应
-      if (gen !== switchGenRef.current) return;
-      const ov = flattenBackendOverrides(rawOv);
-      const fanDefaults = MODE_FAN_DEFAULTS[currentMode] || {};
-      setUxtuParams({ ...FULL_PARAMS, ...fanDefaults, ...ov });
-      setOverrides(ov);
-    }).catch(() => {
-      if (gen !== switchGenRef.current) return;
-      const fanDefaults = MODE_FAN_DEFAULTS[currentMode] || {};
-      setUxtuParams({ ...FULL_PARAMS, ...fanDefaults });
-      setOverrides({});
-    });
+    switchTimerRef.current = setTimeout(() => {
+      switchTimerRef.current = null;
+
+      // 后端 /api/overrides/switch 内部已完成:
+      // thermal_mode + last-mode.json + GPU/NVAPI/CPU 重置 + RestoreAllPerfSettings
+      switchMode(currentMode).then(({ overrides: rawOv }) => {
+        if (gen !== switchGenRef.current) return; // 丢弃过期响应
+        const ov = flattenBackendOverrides(rawOv);
+        const fanDefaults = MODE_FAN_DEFAULTS[currentMode] || {};
+        setUxtuParams({ ...FULL_PARAMS, ...fanDefaults, ...ov });
+        setOverrides(ov);
+      }).catch(() => {
+        if (gen !== switchGenRef.current) return;
+        const fanDefaults = MODE_FAN_DEFAULTS[currentMode] || {};
+        setUxtuParams({ ...FULL_PARAMS, ...fanDefaults });
+        setOverrides({});
+      });
+    }, 400);
   }, [settings.mode]);
 
   // ── WebSocket 遥测 + 自动切换 ──

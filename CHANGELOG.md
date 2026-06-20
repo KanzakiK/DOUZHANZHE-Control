@@ -5,7 +5,7 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
-## [1.6.6] — 2026-06-18
+## [1.6.7] — 2026-06-18
 
 修复 CPU 温度 EC 回退寄存器地址错误
 
