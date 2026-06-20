@@ -3,7 +3,7 @@ import { mockTelemetry } from "../data/mockTelemetry";
 import {
   createTelemetrySocket, FULL_PARAMS, MODE_FAN_DEFAULTS,
   fetchOverrides, switchMode, syncOverrides, reapplyOverrides, log,
-  migrateLocalStorageOverrides,
+  migrateLocalStorageOverrides, flattenBackendOverrides,
 } from "../services/uxtuAdapter";
 
 const LS_THEME = "douzhanzhe_theme";
@@ -63,6 +63,9 @@ export function useControlState() {
   // ── Overrides 状态（暴露给组件，用于灰色/高亮显示）──
   const [overrides, setOverrides] = useState({});
 
+  // 标记首次加载，防止 fetchOverrides 设置 mode 时触发 switchMode 副作用
+  const initialLoadRef = useRef(true);
+
   // 启动时：先迁移 localStorage 旧数据到后端，再拉取 overrides
   useEffect(() => {
     (async () => {
@@ -73,13 +76,19 @@ export function useControlState() {
         log("Startup", `localStorage migration error: ${e.message}`);
       }
       try {
-        const { mode, overrides: ov } = await fetchOverrides();
-        setSettings(prev => ({ ...prev, mode }));
+        const { mode, overrides: rawOv } = await fetchOverrides();
+        const ov = flattenBackendOverrides(rawOv);
+        setSettings(prev => {
+          prevModeRef.current = mode; // 同步 prevModeRef，防止触发 switchMode
+          return { ...prev, mode };
+        });
         const fanDefaults = MODE_FAN_DEFAULTS[mode] || {};
         setUxtuParams({ ...FULL_PARAMS, ...fanDefaults, ...ov });
         setOverrides(ov);
+        initialLoadRef.current = false;
       } catch {
         // 后端不可用时回退到 FULL_PARAMS 默认
+        initialLoadRef.current = false;
       }
     })();
   }, []);
@@ -100,13 +109,17 @@ export function useControlState() {
   const prevModeRef = useRef(settings.mode);
 
   useEffect(() => {
+    // 首次加载由 startup useEffect 处理，这里跳过
+    if (initialLoadRef.current) return;
+
     const prevMode = prevModeRef.current;
     const currentMode = settings.mode;
     prevModeRef.current = currentMode;
     if (prevMode === currentMode) return;
 
     // switchMode 端点内部已完成 thermal_mode + last-mode.json + ProcessMonitor 同步
-    switchMode(currentMode).then(({ overrides: ov }) => {
+    switchMode(currentMode).then(({ overrides: rawOv }) => {
+      const ov = flattenBackendOverrides(rawOv);
       const fanDefaults = MODE_FAN_DEFAULTS[currentMode] || {};
       setUxtuParams({ ...FULL_PARAMS, ...fanDefaults, ...ov });
       setOverrides(ov);

@@ -301,6 +301,68 @@ export async function syncOverrides(mode, overrides) {
   }).catch(e => console.warn("[syncOverrides]", e));
 }
 
+// ── 后端嵌套格式 → 前端扁平格式 ──
+// 后端 PerformanceOverrides 类使用嵌套结构 (cpu.freqLimitMhz)，
+// 但前端 reapplyOverrides 和 UI 使用扁平格式 (cpuFreqLimitMhz)。
+export function flattenBackendOverrides(nested) {
+  if (!nested) return {};
+  const flat = {};
+
+  // CPU
+  if (nested.cpu) {
+    if (nested.cpu.freqLimitMhz != null) {
+      flat.cpuFreqLimitEnabled = nested.cpu.freqLimitMhz > 0;
+      flat.cpuFreqLimitMhz = nested.cpu.freqLimitMhz;
+    }
+    if (nested.cpu.turboEnabled != null) {
+      flat.cpuTurboDisabled = !nested.cpu.turboEnabled;
+    }
+    if (nested.cpu.coreLimitPercent != null && nested.cpu.coreLimitPercent > 0) {
+      // 百分比 → 核心数 (假设 16 核)
+      flat.cpuCoreLimit = Math.round(nested.cpu.coreLimitPercent * 16 / 100);
+    } else {
+      flat.cpuCoreLimit = 0;
+    }
+  }
+
+  // GPU
+  if (nested.gpu) {
+    if (nested.gpu.coreFreqMhz != null) flat.gpuCoreFreqMhz = nested.gpu.coreFreqMhz;
+    if (nested.gpu.freqLocked != null) {
+      flat.gpuFreqLocked = nested.gpu.freqLocked;
+      flat.gpuFreqLimitEnabled = nested.gpu.freqLocked;
+    }
+    if (nested.gpu.memFreqLevel != null) flat.gpuMemFreqMhz = nested.gpu.memFreqLevel;
+  }
+
+  // NVAPI
+  if (nested.nvapi) {
+    if (nested.nvapi.ocCoreOffsetMhz != null) flat.ocCoreOffsetMhz = nested.nvapi.ocCoreOffsetMhz;
+    if (nested.nvapi.ocMemOffsetMhz != null) flat.ocMemOffsetMhz = nested.nvapi.ocMemOffsetMhz;
+    if (nested.nvapi.powerLimitW != null) flat.nvapiPowerLimitW = nested.nvapi.powerLimitW;
+    if (nested.nvapi.thermalLimitC != null) flat.gpuTempLimitC = nested.nvapi.thermalLimitC;
+  }
+
+  // SMU
+  if (nested.smu) {
+    if (nested.smu.stapmLimitW != null) flat.cpuLongPptW = nested.smu.stapmLimitW;
+    if (nested.smu.shortPowerLimitW != null) flat.cpuShortPptW = nested.smu.shortPowerLimitW;
+    if (nested.smu.tempLimitC != null) flat.cpuTempLimitC = nested.smu.tempLimitC;
+    if (nested.smu.coAll != null) flat.cpuVoltageOffset = nested.smu.coAll;
+  }
+
+  // Fan
+  if (nested.fan) {
+    if (nested.fan.largeRpm != null) flat.fanLargeRpmTarget = nested.fan.largeRpm;
+    if (nested.fan.smallRpm != null) flat.fanSmallRpmTarget = nested.fan.smallRpm;
+  }
+
+  // Power Plan
+  if (nested.powerPlan != null) flat.cpuPowerPlan = nested.powerPlan;
+
+  return flat;
+}
+
 // ── localStorage → 后端一次性迁移 ──
 export async function importOverrides(mode, overrides) {
   const res = await fetch("/api/overrides/import", {
@@ -312,8 +374,11 @@ export async function importOverrides(mode, overrides) {
 }
 
 export async function migrateLocalStorageOverrides() {
-  // 标记位防重复执行，保留旧 key 不删除（方便用户回退旧版时恢复配置）
-  if (localStorage.getItem("douzhanzhe_overrides_migrated")) return 0;
+  // 版本号控制：递增 MIGRATION_VERSION 可强制重新迁移（修复脏数据等场景）
+  // 保留旧 key 不删除（方便用户回退旧版时恢复配置）
+  const MIGRATION_VERSION = 2;
+  const currentVersion = parseInt(localStorage.getItem("douzhanzhe_overrides_migrated") || "0", 10);
+  if (currentVersion >= MIGRATION_VERSION) return 0;
 
   const modes = ["silent", "office", "beast", "gaming"];
   let migrated = 0;
@@ -338,8 +403,8 @@ export async function migrateLocalStorageOverrides() {
           coreLimitPercent: data.cpuCoreLimit > 0 ? Math.round(data.cpuCoreLimit / 16 * 100) : null,
         },
         gpu: {
-          coreFreqMhz: data.gpuCoreFreqMhz ?? null,
-          freqLocked: data.gpuFreqLocked ?? null,
+          coreFreqMhz: data.gpuFreqLimitEnabled ? (data.gpuFreqLimitMhz ?? null) : null,
+          freqLocked: data.gpuFreqLimitEnabled != null ? data.gpuFreqLimitEnabled : (data.gpuFreqLocked ?? null),
           memFreqLevel: data.gpuMemFreqMhz ?? null,
         },
         nvapi: {
@@ -370,7 +435,7 @@ export async function migrateLocalStorageOverrides() {
   if (migrated > 0) {
     log("Migration", `Completed: ${migrated} mode(s) migrated from localStorage`);
   }
-  localStorage.setItem("douzhanzhe_overrides_migrated", "1");
+  localStorage.setItem("douzhanzhe_overrides_migrated", String(MIGRATION_VERSION));
   return migrated;
 }
 
