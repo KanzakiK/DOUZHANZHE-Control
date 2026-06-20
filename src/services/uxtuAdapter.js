@@ -331,6 +331,10 @@ export function flattenBackendOverrides(nested) {
     if (nested.gpu.freqLocked != null) {
       flat.gpuFreqLocked = nested.gpu.freqLocked;
       flat.gpuFreqLimitEnabled = nested.gpu.freqLocked;
+      // freqLocked=true 时，coreFreqMhz 就是用户设定的频率限制值
+      if (nested.gpu.freqLocked && nested.gpu.coreFreqMhz != null) {
+        flat.gpuFreqLimitMhz = nested.gpu.coreFreqMhz;
+      }
     }
     if (nested.gpu.memFreqLevel != null) flat.gpuMemFreqMhz = nested.gpu.memFreqLevel;
   }
