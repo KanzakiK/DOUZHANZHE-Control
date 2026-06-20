@@ -1,4 +1,4 @@
-﻿# build-installer.ps1 - 一键构建 + 打包安装程序
+# build-installer.ps1 - 一键构建 + 打包安装程序
 # 用法: .\build-installer.ps1 [-Version "1.3.0"]
 #
 # 前置要求:
@@ -14,8 +14,8 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$Root = "d:\DOUZHANZHE-Control"
-$PSScriptRoot_Fallback = "d:\DOUZHANZHE-Control\installer"
+$Root = (Resolve-Path "$PSScriptRoot\..").Path
+$PSScriptRoot_Fallback = $PSScriptRoot
 
 # ── 版本号自动检测: 未显式指定时从 package.json 读取 ──
 if (-not $Version) {
@@ -39,7 +39,7 @@ $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 
 if ($Version) {
     Write-Host "[0/6] 同步版本号: $Version ..." -ForegroundColor Cyan
-    $AbsRoot = "d:\DOUZHANZHE-Control"
+    $AbsRoot = $Root
 
     # CHANGELOG.md — 仅替换第一个版本标题（最新条目），不动历史版本
     $Changelog = Join-Path $AbsRoot "CHANGELOG.md"

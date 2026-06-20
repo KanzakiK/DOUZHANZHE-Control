@@ -32,19 +32,10 @@ jobs:
         run: |
           choco install innosetup -y
 
-      - name: 适配脚本路径并运行 (自适应路径编译)
+      - name: 适配配置并运行打包构建
         shell: pwsh
         run: |
-          # 1. 自动将 build-installer.ps1 里的硬编码 D 盘路径，替换为当前的 GitHub 运行工作目录
-          $installerScript = "installer/build-installer.ps1"
-          if (Test-Path $installerScript) {
-              $content = Get-Content $installerScript -Raw
-              $content = $content -replace '\$Root = "d:\\DOUZHANZHE-Control"', ('$Root = "' + $pwd.Path.Replace('\', '\\') + '"')
-              $content = $content -replace '\$PSScriptRoot_Fallback = "d:\\DOUZHANZHE-Control\\installer"', ('$PSScriptRoot_Fallback = "' + (Join-Path $pwd.Path "installer").Replace('\', '\\') + '"')
-              [System.IO.File]::WriteAllText((Resolve-Path $installerScript).Path, $content, (New-Object System.Text.UTF8Encoding($false)))
-          }
-
-          # 2. 自动修正 Inno Setup 配置文件 (.iss) 里的硬编码 Root 路径
+          # 1. 自动修正 Inno Setup 配置文件 (.iss) 里的硬编码 Root 路径，指代为虚拟机当前工作路径
           $issFile = "installer/douzhanzhe-setup.iss"
           if (Test-Path $issFile) {
               $issContent = Get-Content $issFile -Raw
@@ -52,15 +43,15 @@ jobs:
               [System.IO.File]::WriteAllText((Resolve-Path $issFile).Path, $issContent, (New-Object System.Text.UTF8Encoding($false)))
           }
 
+          # 2. 提前在源目录及运行目录中创建 wwwroot 文件夹，确保 deploy.ps1 复制成功且 dotnet publish 能顺利打包前端资源
+          New-Item -ItemType Directory -Force -Path "server/api/wwwroot"
+          New-Item -ItemType Directory -Force -Path "server/api/bin/build/wwwroot"
+
           # 3. 安装依赖并启动编译
           npm install
           
-          # 创建编译所需 wwwroot 空白目录，防 deploy 自动跳过
-          New-Item -ItemType Directory -Force -Path "server/api/bin/build/wwwroot"
-          
-          # 调用项目的打包安装脚本 (跳过前端重复构建，因为在脚本内已跑 npm run deploy)
+          # 4. 调用项目的打包安装脚本
           cd installer
-          # 默认打包器 ISCC.exe 路径在 GitHub Windows Runner 上位于 C:\Program Files (x86)\Inno Setup 6\ISCC.exe
           $ISCC_Path = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
           .\build-installer.ps1 -ISCC $ISCC_Path
 
