@@ -1371,6 +1371,12 @@ app.MapPost("/api/overrides/sync", (SyncOverridesRequest req) =>
     return Results.Ok();
 });
 
+app.MapPost("/api/log", (FrontendLogRequest req) =>
+{
+    AppLog.Write("UI", $"[{req.Tag}] {req.Msg}");
+    return Results.Ok();
+});
+
 app.MapGet("/api/ryzenadj/info", (SmuController smu) =>
 {
     try
@@ -2164,6 +2170,7 @@ public class FanOverrides { public int? LargeRpm; public int? SmallRpm; }
 public class PerformanceOverrides { public CpuOverrides Cpu = new(); public GpuOverrides Gpu = new(); public NvapiOverrides Nvapi = new(); public SmuOverrides Smu = new(); public FanOverrides Fan = new(); public int? PowerPlan; }
 public record SwitchModeRequest([property: JsonPropertyName("mode")] string Mode);
 public record SyncOverridesRequest([property: JsonPropertyName("mode")] string Mode, [property: JsonPropertyName("overrides")] PerformanceOverrides? Overrides);
+public record FrontendLogRequest([property: JsonPropertyName("tag")] string Tag, [property: JsonPropertyName("msg")] string Msg);
 
 // ---- 快捷键请求模型 ----
 public record HotkeyConfigRequest(

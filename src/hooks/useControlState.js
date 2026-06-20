@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { mockTelemetry } from "../data/mockTelemetry";
 import {
   createTelemetrySocket, FULL_PARAMS, MODE_FAN_DEFAULTS,
-  fetchOverrides, switchMode, syncOverrides, reapplyOverrides,
+  fetchOverrides, switchMode, syncOverrides, reapplyOverrides, log,
 } from "../services/uxtuAdapter";
 
 const LS_THEME = "douzhanzhe_theme";
@@ -122,7 +122,7 @@ export function useControlState() {
 
           // 处理自动切换消息
           if (data.type === "auto_switch" && data.mode) {
-            console.log("[AutoSwitch] 收到自动切换请求:", data.mode);
+            log("AutoSwitch", `收到自动切换请求: ${data.mode}`);
             setSettings(prev => prev.mode === data.mode ? prev : { ...prev, mode: data.mode });
             return; // auto_switch 消息不包含遥测数据
           }

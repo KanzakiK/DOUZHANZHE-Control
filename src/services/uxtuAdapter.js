@@ -1,5 +1,15 @@
 const BACKEND = "";
 
+// 统一日志: 同时写入后端 AppLog (tag=UI) 和浏览器 console
+export function log(tag, msg) {
+  console.log(`[${tag}]`, msg);
+  fetch(`${BACKEND}/api/log`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tag, msg }),
+  }).catch(() => {});
+}
+
 // ── SMU 重发取消机制 ──
 // 快速切模式时，新 dispatch 必须取消上一轮 dispatch 遗留的 setTimeout，
 // 否则旧闭包里的 mode/overrides 会覆盖新模式的 SMU 值
@@ -271,7 +281,7 @@ export async function fetchOverrides() {
 }
 
 export async function switchMode(mode) {
-  console.log("[switchMode] →", mode);
+  log("switchMode", `→ ${mode}`);
   const res = await fetch("/api/overrides/switch", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -279,7 +289,7 @@ export async function switchMode(mode) {
   });
   if (!res.ok) throw new Error("mode switch failed");
   const data = await res.json();
-  console.log("[switchMode] ✓ overrides:", Object.keys(data.overrides || {}).length, "keys");
+  log("switchMode", `✓ ${Object.keys(data.overrides || {}).length} keys`);
   return data;
 }
 
@@ -329,7 +339,7 @@ export async function reapplyOverrides(mode, overrides) {
 
   // overrides 为空时，发 GPU/NVAPI/CPU 全通道重置（清理上一个模式可能残留的锁）
   if (isEmpty) {
-    console.log("[reapply] overrides 为空，发送全通道重置");
+    log("reapply", "overrides 为空，发送全通道重置");
     // GPU: 解除上一个模式可能残留的核心/显存频率锁
     await Promise.all([
       applyGpuControl("reset-clocks").catch(e => console.warn("[GPU] reset-clocks:", e)),
@@ -435,20 +445,20 @@ export async function reapplyOverrides(mode, overrides) {
   if (hasSmu) {
     const t1 = setTimeout(() => {
       if (myGen !== _smuDispatchGen) {
-        console.log("[SMU] re-send skipped (superseded by gen", _smuDispatchGen, ")");
+        log("SMU", `re-send skipped (gen ${_smuDispatchGen})`);
         return;
       }
       applyUxtuLimits({ chipset: "Ryzen 9 8940HX", profile: mode, params: overrides })
-        .then(r => console.log("[SMU] re-send OK:", r))
+        .then(r => log("SMU", `re-send OK: ${JSON.stringify(r)}`))
         .catch(e => console.warn("[SMU] re-send failed:", e));
     }, 500);
     const t2 = setTimeout(() => {
       if (myGen !== _smuDispatchGen) {
-        console.log("[SMU] re-send2 skipped (superseded by gen", _smuDispatchGen, ")");
+        log("SMU", `re-send2 skipped (gen ${_smuDispatchGen})`);
         return;
       }
       applyUxtuLimits({ chipset: "Ryzen 9 8940HX", profile: mode, params: overrides })
-        .then(r => console.log("[SMU] re-send2 OK:", r))
+        .then(r => log("SMU", `re-send2 OK: ${JSON.stringify(r)}`))
         .catch(e => console.warn("[SMU] re-send2 failed:", e));
     }, 1500);
     _smuResendTimers = [t1, t2];
