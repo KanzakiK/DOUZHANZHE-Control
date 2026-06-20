@@ -67,7 +67,6 @@ public sealed class HardwareAbstractionLayer : IDisposable
     private const uint OFF_FNHK   = 0x20;  // bit3: Fn 锁
     private const uint OFF_CALK   = 0x25;  // bit1: CapsLock
     private const uint OFF_NULK   = 0x25;  // bit2: NumLock
-    private const uint OFF_FNRC   = 0x25;  // bit3: Fn 状态 (只读?)
     private const uint OFF_ITSM   = 0xE4;  // 智能散热模式 (0-3)
     private const uint OFF_GPUT   = 0xE0;  // GPU 温度
     private const uint OFF_CPUT   = 0xE1;  // CPU 温度
@@ -75,12 +74,6 @@ public sealed class HardwareAbstractionLayer : IDisposable
     private const uint OFF_F1LO   = 0x9C;  // CPU 风扇转速低字节
     private const uint OFF_F3HI   = 0x96;  // GPU 风扇转速高字节
     private const uint OFF_F3LO   = 0x97;  // GPU 风扇转速低字节
-    private const uint OFF_KBTY   = 0x99;  // 键盘类型
-
-    private const uint OFF_SMPR   = 0x28;  // SMU command
-    private const uint OFF_SMST   = 0x29;  // SMU status
-    private const uint OFF_SMAD   = 0x2A;  // SMU address
-    private const uint OFF_SDAT   = 0x2C;  // SMU data (16-bit)
 
     private const int BIT_FNHK    = 3;     // 0x20 bit3
     private const int BIT_CALK    = 1;     // 0x25 bit1
@@ -294,43 +287,6 @@ public sealed class HardwareAbstractionLayer : IDisposable
     //       0xB2/0xB3 是 GPU 区域温度传感器，非风扇寄存器。
     // ================================================================
 
-    /// <summary>大扇(CPU)目标转速状态 (RPM) — EC 0x5E (只读, value = RPM / 100)</summary>
-    [Obsolete("EC 直写无效，请使用 WMI Method 20/21 (WmiInterface.SetFanSpeed)")]
-    public ushort CpuFanControl
-    {
-        get
-        {
-            var raw = _io.ReadEc(0x5E);
-            return (ushort)(raw * 100);
-        }
-        set
-        {
-            // 警告: EC IO 写入会被固件覆写，实际无效。保留供参考。
-            var raw = (byte)(Math.Clamp(value / 100, 0, 255));
-            _io.WriteEc(0x5E, raw);
-        }
-    }
-
-    /// <summary>小扇(GPU/SYS)目标转速状态 (RPM) — EC 0x5A (只读, value = RPM / 100)</summary>
-    [Obsolete("EC 直写无效，请使用 WMI Method 20/21 (WmiInterface.SetFanSpeed)")]
-    public ushort GpuFanControl
-    {
-        get
-        {
-            var raw = _io.ReadEc(0x5A);
-            return (ushort)(raw * 100);
-        }
-        set
-        {
-            // 警告: EC IO 写入会被固件覆写，实际无效。保留供参考。
-            var raw = (byte)(Math.Clamp(value / 100, 0, 255));
-            _io.WriteEc(0x5A, raw);
-        }
-    }
-
-    /// <summary>键盘类型</summary>
-    public byte KeyboardType => _io.ReadEc(0x99);
-
     // ================================================================
     // 系统开关 — 读写控制 (通过 EC IO 端口)
     // ================================================================
@@ -403,30 +359,6 @@ public sealed class HardwareAbstractionLayer : IDisposable
         set => _io.WritePhys(DriverBridge.EC_BASE + OFF_ITSM, value);
     }
 
-    // ================================================================
-    // ECF3 区域 (SystemMemory 0xFE800B00)
-    // DSDT: OperationRegion (ECF3, SystemMemory, 0xFE800B00, 0xFF)
-    // 包含 TFLG (风扇表刷新触发器) 等控制寄存器
-    // ================================================================
-
-    private const uint ECF3_BASE = 0xFE800B00;
-    private const uint OFF_TFLG  = 0x02;   // 风扇表刷新标志 (0x55 = 触发)
-
-    /// <summary>
-    /// [已废弃] 原设计假设 TFLG=0x55 可触发 EC 风扇表刷新，实测无效。
-    /// EC 固件的模式切换必须通过 WMI SetThermalMode 触发完整 ACPI CHMD 链。
-    /// 保留方法供诊断使用，生产代码不应调用。
-    /// </summary>
-    [Obsolete("TFLG 触发器实测无效，模式切换请使用 WMI SetThermalMode")]
-    public void TriggerFanTableReload()
-    {
-        _io.WritePhys(ECF3_BASE + OFF_TFLG, 0x55);
-    }
-
-    // ================================================================
-    // SMU 通信 (预留)
-    // ================================================================
-
     private const string TP_INSTANCE = "ACPI\\BLTP7853\\1";
 
     public bool TouchpadLocked
@@ -464,16 +396,6 @@ public sealed class HardwareAbstractionLayer : IDisposable
         }
     }
 
-    /// <summary>SMU 命令寄存器</summary>
-    public byte SmuCommand
-    {
-        get => _io.ReadEc((byte)OFF_SMPR);
-        set => _io.WriteEc((byte)OFF_SMPR, value);
-    }
-
-    /// <summary>SMU 状态寄存器</summary>
-    public byte SmuStatus => _io.ReadEc((byte)OFF_SMST);
-
     // ================================================================
     // dGPU 控制 via DSAD method
     // DSDT: DSAD(Arg0=功能码, Arg1=状态)
@@ -507,19 +429,6 @@ public sealed class HardwareAbstractionLayer : IDisposable
             }
             catch { }
         }
-    }
-
-    // ================================================================
-    // SMI 触发 (GSMI)
-    // ================================================================
-
-    /// <summary>通过 SMI 写入 APM 端口</summary>
-    public void SendSmi(byte value)
-    {
-        // GSMI: APMD = arg, APMC = 0xE4, Sleep(2ms)
-        _io.WriteIo(0x72, value);  // APMD
-        _io.WriteIo(0x73, 0xE4);   // APMC
-        Thread.Sleep(2);
     }
 
     // ================================================================

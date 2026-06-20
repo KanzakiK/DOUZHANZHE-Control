@@ -114,12 +114,6 @@ public sealed class SmuController
         return r == 0 || r == 1 || r == SMU_OK_CRASH ? 0 : r;
     }
 
-    
-
-    public int SetVrmCurrent(uint mA) => throw new System.NotSupportedException("VRM current not supported on this hardware");
-
-    public uint SendRawSmuCommand(uint cmd, uint arg0) => throw new System.NotSupportedException("Raw SMU command not supported, use POST /api/smu/set instead");
-
     public bool Probe()
     {
         try
@@ -157,5 +151,4 @@ public sealed class SmuController
         };
     }
 
-    public uint ReadSmnRegister(uint addr) => throw new System.NotSupportedException("SMN register read not supported on this hardware");
 }

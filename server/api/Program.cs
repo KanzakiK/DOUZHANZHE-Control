@@ -604,8 +604,6 @@ app.MapPost("/api/control", (ControlRequest req, HardwareAbstractionLayer hal, W
             case "igpu_only":
                 hal.IgpuOnly = req.Value != 0;
                 break;
-            case "ec_write":
-                break;
             case "gpu_mode":
                 {
                     var gpuVal = (byte)int.Clamp(req.Value, 0, 2);
@@ -774,18 +772,6 @@ app.MapPost("/api/smu/set", (SmuController smu, SmuSetRequest req) =>
         return Results.Json(new { ok = false, error = ex.Message });
     }
 });
-app.MapPost("/api/smu/raw", (SmuController smu, SmuRawRequest req) =>
-{
-    try
-    {
-        var resp = smu.SendRawSmuCommand(req.Cmd, req.Arg0);
-        return Results.Json(new { ok = true, cmd = req.Cmd, arg0 = req.Arg0, response = resp });
-    }
-    catch (Exception ex)
-    {
-        return Results.Json(new { ok = false, error = ex.Message });
-    }
-});
 app.MapGet("/api/smu/probe", (SmuController smu) =>
 {
     try
@@ -825,23 +811,6 @@ app.MapGet("/api/smu/status", (SmuController smu) =>
     catch (Exception ex)
     {
         return Results.Json(new { ok = false, error = ex.Message, source = "ryzenadj" });
-    }
-});
-app.MapGet("/api/smu/read-reg", (SmuController smu, HttpContext ctx) =>
-{
-    try
-    {
-        var addrStr = ctx.Request.Query["addr"].FirstOrDefault() ?? "0";
-        addrStr = addrStr.Trim();
-        if (addrStr.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
-            addrStr = addrStr.Substring(2);
-        uint addr = Convert.ToUInt32(addrStr, 16);
-        var value = smu.ReadSmnRegister(addr);
-        return Results.Json(new { ok = true, addr = $"0x{addr:X}", value });
-    }
-    catch (Exception ex)
-    {
-        return Results.Json(new { ok = false, error = ex.Message });
     }
 });
 app.MapPost("/api/fan/set-target", (FanSetRequest req, WmiInterface wmi) =>
@@ -1351,21 +1320,6 @@ app.MapPost("/api/wmi/cmd", (WmiInterface wmi, WmiCmdRequest req) =>
         return Results.Json(new { ok = false, error = ex.Message });
     }
 });
-app.MapPost("/api/system/settings", async (HttpContext ctx) =>
-{
-    try
-    {
-        using var reader = new StreamReader(ctx.Request.Body);
-        var body = JsonSerializer.Deserialize<SystemSettingsRequest>(await reader.ReadToEndAsync());
-        AppLog.Write("API", $"[system] {body?.Key}={body?.Value} — Node.js 已废弃，此端点仅做兼容");
-        return Results.Json(new { ok = false, error = "此端点已废弃，请使用 /api/control" });
-    }
-    catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }); }
-});
-app.MapPost("/api/fan/full-speed", () =>
-{
-    return Results.Json(new { ok = false, error = "此端点已废弃，请使用 /api/fan/set-target 手动控制风扇" });
-});
 // ---- 日志导出（供用户反馈问题时使用）----
 app.MapGet("/api/logs/export", () =>
 {
@@ -1778,7 +1732,6 @@ app.MapGet("/api/update/check", async () =>
     }
 });
 
-app.MapGet("/debug", () => Results.File("wwwroot/debug.html", "text/html"));
 // ---- 预启动 inpoutx64 内核驱动 ----
 // 必须在任何 inpoutx64.dll 的 DllImport 调用之前执行！
 // 原因：inpoutx64.dll 的 DllMain 在首次加载时会尝试打开 \\.\InpOut64 设备，
@@ -2045,7 +1998,6 @@ record ControlRequest(
     [property: JsonPropertyName("value")] int Value
 );
 record OsdShowRequest([property: JsonPropertyName("text")] string Text);
-public record SmuRawRequest(uint Cmd, uint Arg0);
 record SmuSetRequest(string Parameter, int ValueM);
 public record FanSetRequest(
     [property: System.Text.Json.Serialization.JsonPropertyName("largeRpm")] int? LargeRpm,
@@ -2086,7 +2038,6 @@ public record UxtuParams(
     [property: JsonPropertyName("cpuLongPptW")] int? CpuLongPptW,
     [property: JsonPropertyName("cpuShortPptW")] int? CpuShortPptW,
     [property: JsonPropertyName("cpuTempLimitC")] int? CpuTempLimitC,
-    [property: JsonPropertyName("gpuPptLimitW")] int? GpuPptLimitW,
     [property: JsonPropertyName("cpuVoltageOffset")] int? CpuVoltageOffset,
     [property: JsonPropertyName("cpuFreqLimitEnabled")] bool? CpuFreqLimitEnabled,
     [property: JsonPropertyName("cpuFreqLimitMhz")] int? CpuFreqLimitMhz,
@@ -2094,17 +2045,12 @@ public record UxtuParams(
     [property: JsonPropertyName("cpuCoreLimit")] int? CpuCoreLimit
 );
 public record UxtuLimits(
-    [property: JsonPropertyName("cpu")] UxtuCpuLimits? Cpu,
-    [property: JsonPropertyName("gpu")] UxtuGpuLimits? Gpu
+    [property: JsonPropertyName("cpu")] UxtuCpuLimits? Cpu
 );
 public record UxtuCpuLimits(
     [property: JsonPropertyName("pptLimitW")] int? PptLimitW,
     [property: JsonPropertyName("tempLimitC")] int? TempLimitC
 );
-public record UxtuGpuLimits(
-    [property: JsonPropertyName("pptLimitW")] int? PptLimitW
-);
-public record SystemSettingsRequest(string? Key, int? Value);
 public record UiState(string[]? CardOrder, string[]? HiddenCards)
 {
     public UiState() : this(null, null) { }

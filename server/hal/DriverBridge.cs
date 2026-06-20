@@ -163,13 +163,6 @@ public sealed class DriverBridge : IDisposable
         }
         throw new InvalidOperationException("读失败");
     }
-    public uint ReadPhys32(ulong a)
-    {
-        Ensure();
-        if (!_driverOk) return 0;
-        if (a <= 0xFFFFFFFF && GetPhysLongNative(out var v, a)) return v;
-        throw new InvalidOperationException("读32失败");
-    }
     public void WritePhys(ulong a, byte v)
     {
         Ensure();
@@ -180,18 +173,8 @@ public sealed class DriverBridge : IDisposable
         if (MapPhysToLinNative(a, 1, out var l)) { unsafe { *(byte*)l = v; } return; }
         throw new InvalidOperationException("写失败");
     }
-    public void WritePhys32(ulong a, uint v)
-    {
-        Ensure();
-        if (!_driverOk) return;
-        if (a <= 0xFFFFFFFF) { SetPhysLongNative(a, v); return; }
-        throw new InvalidOperationException("写32失败");
-    }
-    /// <summary>通过 EC IO 协议写单个字节（端口 0x62/0x66）</summary>
-    public void WritePhysByte(ulong a, byte v) => WritePhys(a, v);
     public void WriteBit(ulong a, int b, bool s)
     { lock (_lock) { var x = ReadPhys(a); if(s) x|=(byte)(1<<b); else x&=unchecked((byte)~(1<<b)); WritePhys(a,x); } }
-    public ushort ReadWord(ulong a) { return (ushort)((ReadPhys(a+1)<<8)|ReadPhys(a)); }
 
     public byte ReadIo(short p)
     {

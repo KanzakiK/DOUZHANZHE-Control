@@ -89,11 +89,6 @@ public static class CpuAffinityManager
         catch { }
     }
 
-    public static int GetActiveCoreCount()
-    {
-        return (int)GetActiveProcessorCount(ALL_GROUPS);
-    }
-
     private const uint ALL_GROUPS = 0xFFFF;
     [DllImport("kernel32.dll")]
     private static extern uint GetActiveProcessorCount(uint groupNumber);

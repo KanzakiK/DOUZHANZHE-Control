@@ -12,14 +12,6 @@ namespace Douzhanzhe.HAL;
 
 #region ── 原生结构体 (Blackwell 校准版) ──
 
-[StructLayout(LayoutKind.Sequential)]
-internal struct NV_DELTA_ENTRY
-{
-    public int value;
-    public int value_min;
-    public int value_max;
-}
-
 /// <summary>
 /// NV_GPU_PERF_PSTATES20 — Blackwell V1 layout (7316 bytes)
 /// 实测: state_count=5, clock_count=2, voltage_count=0
@@ -274,20 +266,6 @@ public sealed class NvapiGpuController : IDisposable
             }
         }
         return false;
-    }
-
-    private bool TestKaronOCOverclock()
-    {
-        if (_karonSet == null) return false;
-        try { return _karonSet(0, 0) == OK; }
-        catch { return false; }
-    }
-
-    private unsafe bool TestNvapiOverclock()
-    {
-        var ps = new NV_GPU_PSTATES20 { version = NV_GPU_PSTATES20.MakeVersion() };
-        if (_getPs!(_gpu, &ps) != OK) return false;
-        return _setPs!(_gpu, &ps) == OK;
     }
 
     // ── P-State 偏移 (超频/降频) ──
