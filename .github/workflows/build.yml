@@ -1,0 +1,90 @@
+name: 编译与打包发布 (Build & Release)
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch: # 支持在 GitHub 页面手动点击运行
+
+permissions:
+  contents: write # 赋予 Actions 写入和发布 Release 的权限
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: 检出代码 (Checkout)
+        uses: actions/checkout@v4
+
+      - name: 配置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: 配置 .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: 安装 Inno Setup 打包器 (Choco)
+        run: |
+          choco install innosetup -y
+
+      - name: 适配脚本路径并运行 (自适应路径编译)
+        shell: pwsh
+        run: |
+          # 1. 自动将 build-installer.ps1 里的硬编码 D 盘路径，替换为当前的 GitHub 运行工作目录
+          $installerScript = "installer/build-installer.ps1"
+          if (Test-Path $installerScript) {
+              $content = Get-Content $installerScript -Raw
+              $content = $content -replace '\$Root = "d:\\DOUZHANZHE-Control"', ('$Root = "' + $pwd.Path.Replace('\', '\\') + '"')
+              $content = $content -replace '\$PSScriptRoot_Fallback = "d:\\DOUZHANZHE-Control\\installer"', ('$PSScriptRoot_Fallback = "' + (Join-Path $pwd.Path "installer").Replace('\', '\\') + '"')
+              [System.IO.File]::WriteAllText((Resolve-Path $installerScript).Path, $content, (New-Object System.Text.UTF8Encoding($false)))
+          }
+
+          # 2. 自动修正 Inno Setup 配置文件 (.iss) 里的硬编码 Root 路径
+          $issFile = "installer/douzhanzhe-setup.iss"
+          if (Test-Path $issFile) {
+              $issContent = Get-Content $issFile -Raw
+              $issContent = $issContent -replace 'd:\\DOUZHANZHE-Control', $pwd.Path
+              [System.IO.File]::WriteAllText((Resolve-Path $issFile).Path, $issContent, (New-Object System.Text.UTF8Encoding($false)))
+          }
+
+          # 3. 安装依赖并启动编译
+          npm install
+          
+          # 创建编译所需 wwwroot 空白目录，防 deploy 自动跳过
+          New-Item -ItemType Directory -Force -Path "server/api/bin/build/wwwroot"
+          
+          # 调用项目的打包安装脚本 (跳过前端重复构建，因为在脚本内已跑 npm run deploy)
+          cd installer
+          # 默认打包器 ISCC.exe 路径在 GitHub Windows Runner 上位于 C:\Program Files (x86)\Inno Setup 6\ISCC.exe
+          $ISCC_Path = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          .\build-installer.ps1 -ISCC $ISCC_Path
+
+      - name: 创建免安装绿色版 ZIP 压缩包 (Portable Zip)
+        shell: pwsh
+        run: |
+          # 将编译好的完整绿色二进制文件夹打包压缩
+          Compress-Archive -Path "dist/publish/api/*" -DestinationPath "dist/installer/Douzhanzhe-Console-Portable.zip" -Force
+
+      - name: 上传构建产物至 Actions (Artifacts)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Douzhanzhe-Console-Builds
+          path: |
+            dist/installer/*.exe
+            dist/installer/*.zip
+
+      - name: 自动发布到 GitHub Release (仅在推送 v* Tag 时触发)
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            dist/installer/*.exe
+            dist/installer/*.zip
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
