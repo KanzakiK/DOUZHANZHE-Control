@@ -117,6 +117,7 @@ void SavePerfOverrides(Action<PerformanceOverrides> mutate)
         var o = JsonRead(file, new PerformanceOverrides());
         mutate(o);
         JsonWrite(file, o);
+        Log($"[overrides] ✓ saved → {file}");
     }
 }
 

@@ -271,13 +271,16 @@ export async function fetchOverrides() {
 }
 
 export async function switchMode(mode) {
+  console.log("[switchMode] →", mode);
   const res = await fetch("/api/overrides/switch", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ mode }),
   });
   if (!res.ok) throw new Error("mode switch failed");
-  return res.json(); // { overrides }
+  const data = await res.json();
+  console.log("[switchMode] ✓ overrides:", Object.keys(data.overrides || {}).length, "keys");
+  return data;
 }
 
 export async function syncOverrides(mode, overrides) {
