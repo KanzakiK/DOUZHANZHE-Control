@@ -458,17 +458,18 @@ _ = System.Threading.Tasks.Task.Run(async () =>
     await System.Threading.Tasks.Task.Delay(3000);
     // 一次性迁移：旧 performance-overrides.json → overrides-{mode}.json
     {
-        var lastModePath = Path.Combine(configDir, "last-mode.json");
         var oldPerfPath = Path.Combine(configDir, "performance-overrides.json");
-        if (!File.Exists(lastModePath) && File.Exists(oldPerfPath))
+        if (File.Exists(oldPerfPath))
         {
             try
             {
                 var oldData = JsonRead("performance-overrides.json", new PerformanceOverrides());
-                JsonWrite("overrides-office.json", oldData);
-                SetCurrentMode("office");
+                // 旧版是全局配置，迁移到所有模式文件以确保升级后各模式均有数据
+                foreach (var mode in new[] { "silent", "office", "beast", "gaming" })
+                    JsonWrite($"overrides-{mode}.json", oldData);
+                SetCurrentMode(CurrentMode());  // 确保 last-mode.json 存在
                 File.Delete(oldPerfPath);
-                Log("[Startup] Migrated performance-overrides.json → overrides-office.json");
+                Log("[Startup] Migrated performance-overrides.json → all overrides-*.json");
             }
             catch (Exception ex) { Log($"[Startup] Migration failed: {ex.Message}"); }
         }
