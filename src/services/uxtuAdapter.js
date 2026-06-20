@@ -320,24 +320,30 @@ export async function migrateLocalStorageOverrides() {
       const raw = localStorage.getItem(key);
       if (!raw) continue;
       const data = JSON.parse(raw);
-      // 旧格式: cpuTempLimitC / cpuVoltageOffset / cpuLongPptW / cpuShortPptW / cpuFreqLimitEnabled / cpuFreqLimitMhz / cpuCoreLimit / fanLargeRpmTarget / fanSmallRpmTarget / gpuCoreFreqMhz / gpuFreqLocked / gpuMemFreqLevel / ocCoreOffsetMhz / ocMemOffsetMhz / nvapiPowerLimitW / nvapiThermalLimitC
-      // 新格式需要映射到后端 PerformanceOverrides 结构
+      // 旧 localStorage 格式 → 后端 PerformanceOverrides 结构
+      // cpuCoreLimit 是核心数(如8)，后端 coreLimitPercent 是百分比(如50)
+      // cpuTurboDisabled → turboEnabled (取反)
+      // cpuFreqLimitMhz 仅在 cpuFreqLimitEnabled=true 时生效
+      // gpuFreqLocked (LS) → gpu.freqLocked
+      // gpuCoreFreqMhz (LS) → gpu.coreFreqMhz
+      // gpuMemFreqMhz (LS, index 0-3) → gpu.memFreqLevel
+      // gpuTempLimitC (LS) → nvapi.thermalLimitC
       const mapped = {
         cpu: {
-          freqLimitMhz: data.cpuFreqLimitMhz ?? null,
-          turboEnabled: data.cpuTurboDisabled === true ? false : null,
-          coreLimitPercent: data.cpuCoreLimit ?? null,
+          freqLimitMhz: data.cpuFreqLimitEnabled ? (data.cpuFreqLimitMhz ?? null) : null,
+          turboEnabled: data.cpuTurboDisabled != null ? !data.cpuTurboDisabled : null,
+          coreLimitPercent: data.cpuCoreLimit > 0 ? Math.round(data.cpuCoreLimit / 16 * 100) : null,
         },
         gpu: {
           coreFreqMhz: data.gpuCoreFreqMhz ?? null,
           freqLocked: data.gpuFreqLocked ?? null,
-          memFreqLevel: data.gpuMemFreqLevel ?? null,
+          memFreqLevel: data.gpuMemFreqMhz ?? null,
         },
         nvapi: {
           ocCoreOffsetMhz: data.ocCoreOffsetMhz ?? null,
           ocMemOffsetMhz: data.ocMemOffsetMhz ?? null,
           powerLimitW: data.nvapiPowerLimitW ?? null,
-          thermalLimitC: data.nvapiThermalLimitC ?? null,
+          thermalLimitC: data.gpuTempLimitC ?? null,
         },
         smu: {
           stapmLimitW: data.cpuLongPptW ?? null,
@@ -349,7 +355,7 @@ export async function migrateLocalStorageOverrides() {
           largeRpm: data.fanLargeRpmTarget ?? null,
           smallRpm: data.fanSmallRpmTarget ?? null,
         },
-        powerPlan: data.powerPlan ?? null,
+        powerPlan: data.cpuPowerPlan ?? null,
       };
       await importOverrides(mode, mapped);
       localStorage.removeItem(key);

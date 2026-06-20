@@ -35,6 +35,8 @@ builder.Services.AddSingleton<ProcessMonitorService>();
 builder.Services.AddHostedService<TelemetryBackgroundService>();
 builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
     p.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader()));
+builder.Services.ConfigureHttpJsonOptions(o =>
+    o.SerializerOptions.IncludeFields = true);
 var app = builder.Build();
 var osdService = app.Services.GetRequiredService<OsdService>();
 var hal = app.Services.GetRequiredService<HardwareAbstractionLayer>();
@@ -456,22 +458,13 @@ _ = System.Threading.Tasks.Task.Run(() =>
 _ = System.Threading.Tasks.Task.Run(async () =>
 {
     await System.Threading.Tasks.Task.Delay(3000);
-    // 一次性迁移：旧 performance-overrides.json → overrides-{mode}.json
+    // 清理旧版遗留文件（前端 localStorage 迁移是 overrides 的权威数据源）
     {
         var oldPerfPath = Path.Combine(configDir, "performance-overrides.json");
         if (File.Exists(oldPerfPath))
         {
-            try
-            {
-                var oldData = JsonRead("performance-overrides.json", new PerformanceOverrides());
-                // 旧版是全局配置，迁移到所有模式文件以确保升级后各模式均有数据
-                foreach (var mode in new[] { "silent", "office", "beast", "gaming" })
-                    JsonWrite($"overrides-{mode}.json", oldData);
-                SetCurrentMode(CurrentMode());  // 确保 last-mode.json 存在
-                File.Delete(oldPerfPath);
-                Log("[Startup] Migrated performance-overrides.json → all overrides-*.json");
-            }
-            catch (Exception ex) { Log($"[Startup] Migration failed: {ex.Message}"); }
+            File.Delete(oldPerfPath);
+            Log("[Startup] Cleaned up legacy performance-overrides.json");
         }
     }
     await RestoreAllPerfSettings("Startup");
