@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import {
   applyUxtuLimits, applySmuSet, applyHardwareControl,
   powerPlanHALMap, applyGpuControl, applyNvapiOverclock, applyNvapiThermalLimit,
-  fetchNvapiStatus, fetchCpuPowerStatus, setCpuFreqLimit, setCpuTurbo,
-  setCpuCoreLimitPercent, resetCpuPower, GPU_BASE_CLOCK,
+  setCpuFreqLimit, setCpuTurbo,
+  setCpuCoreLimitPercent,
 } from "../../services/uxtuAdapter";
 import Card from "../ui/Card";
 import SliderRow from "../ui/SliderRow";
@@ -18,14 +18,13 @@ const POWER_PLANS = [
 
 export default function PerformancePanel({
   settings, setSettings, uxtuParams, setUxtuParams,
-  uxtuPayload, onApplied, showCpu = true, showGpu = true,
-  showPower = true, telemetry, editMode = false,
+  showCpu = true, showGpu = true,
+  showPower = true, editMode = false,
   overrides, saveOverride, customLabel,
 }) {
   const toast = useToast();
   const [isApplying, setIsApplying] = useState(false);
   const [applyMessage, setApplyMessage] = useState("");
-  const [cpuPowerStatus, setCpuPowerStatus] = useState(null);
 
   // GPU 频率锁定状态 (useState 以驱动 UI 更新，持久化到 localStorage)
   const [gpuFreqLocked, setGpuFreqLocked] = useState(() => {
@@ -34,21 +33,6 @@ export default function PerformancePanel({
   const gpuFreqLockedRef = useRef(gpuFreqLocked);
   const latestParamsRef = useRef(uxtuParams);
   latestParamsRef.current = uxtuParams;
-
-  // GPU 锁频状态持久化: 变更时写入 localStorage，同步 ref
-  useEffect(() => {
-    gpuFreqLockedRef.current = gpuFreqLocked;
-    try { localStorage.setItem("dz_gpu_freq_locked", String(gpuFreqLocked)); } catch {}
-  }, [gpuFreqLocked]);
-
-  // GPU 锁频状态与模式参数同步: 切换模式时 uxtuParams 被替换，按钮状态自动跟随
-  useEffect(() => {
-    const shouldBeLocked = !!uxtuParams.gpuFreqLimitEnabled;
-    if (gpuFreqLocked !== shouldBeLocked) {
-      setGpuFreqLocked(shouldBeLocked);
-      gpuFreqLockedRef.current = shouldBeLocked;
-    }
-  }, [uxtuParams.gpuFreqLimitEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 所有去抖 timer refs
   const smuTimer = useRef(null);
@@ -202,38 +186,10 @@ export default function PerformancePanel({
 
   const paramsLocked = false;
 
-  // 加载 CPU 电源控制状态 (仅读取显示，不覆盖 uxtuParams — 信任 localStorage)
-  useEffect(() => {
-    fetchCpuPowerStatus()
-      .then(s => { if (s.ok) setCpuPowerStatus(s); })
-      .catch(err => console.warn("CPU power status load failed:", err));
-  }, []);
-
-  // 加载 NVAPI 状态 (仅读取显示，不覆盖 uxtuParams)
-  useEffect(() => {
-    fetchNvapiStatus()
-      .then(s => { if (s.ok) setCpuPowerStatus(prev => prev ? { ...prev, nvapi: s } : { nvapi: s }); })
-      .catch(err => console.warn("NVAPI status load failed:", err));
-  }, []);
-
   const update = useCallback((key) => (value) => {
     setUxtuParams(p => ({ ...p, [key]: value }));
     saveOverride?.(settings.mode, key, value);
   }, [setUxtuParams, saveOverride, settings.mode]);
-
-  async function handleApply() {
-    setIsApplying(true); setApplyMessage("");
-    try {
-      const result = await applyUxtuLimits(uxtuPayload);
-      setApplyMessage(result.message || "参数已下发");
-      toast?.(result.message || "参数已下发", "success");
-      onApplied?.(uxtuPayload);
-    } catch (error) {
-      const msg = `下发失败: ${error.message}`;
-      setApplyMessage(msg);
-      toast?.(msg, "error");
-    } finally { setIsApplying(false); }
-  }
 
   const isC = useCallback((key) => (overrides ? key in overrides : undefined), [overrides]);
 

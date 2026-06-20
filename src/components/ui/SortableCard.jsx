@@ -1,6 +1,6 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useRef, useLayoutEffect, useState, useEffect } from "react";
+import { useRef, useLayoutEffect, useState } from "react";
 
 export default function SortableCard({ id, children, editMode, onHide }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });

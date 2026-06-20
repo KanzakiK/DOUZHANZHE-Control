@@ -12,7 +12,7 @@ function cancelSmuResendTimers() {
 }
 
 // C# HAL thermal_mode value mapping
-export const thermalModeMap = {
+const thermalModeMap = {
   silent: 2,
   office: 0,
   gaming: 3,
@@ -36,12 +36,6 @@ export async function applyUxtuLimits(payload) {
   return res.json();
 }
 
-export async function fetchTelemetry() {
-  const res = await fetch(`${BACKEND}/api/telemetry`);
-  if (!res.ok) throw new Error(`后端返回 ${res.status}`);
-  return res.json();
-}
-
 // C# HAL 硬件控制 (kb_light, fn_lock, num_lock, caps_lock, thermal_mode)
 export async function applyHardwareControl(target, value) {
   const res = await fetch(`/api/control`, {
@@ -50,18 +44,6 @@ export async function applyHardwareControl(target, value) {
     body: JSON.stringify({ target, value }),
   });
   if (!res.ok) throw new Error(`HAL 返回 ${res.status}`);
-  return res.json();
-}
-
-export async function fetchSmuInfo() {
-  const res = await fetch(`/api/ryzenadj/info`);
-  if (!res.ok) throw new Error(`后端返回 ${res.status}`);
-  return res.json();
-}
-
-export async function discoverWmi() {
-  const res = await fetch(`${BACKEND}/api/discover`);
-  if (!res.ok) throw new Error(`后端返回 ${res.status}`);
   return res.json();
 }
 
@@ -78,9 +60,7 @@ export function createTelemetrySocket(onData, onError) {
   return ws;
 }
 
-export const CPU_BASE_CLOCK = 2400; // Ryzen 9 8940HX 基础频率 (WMI MaxClockSpeed ≈ 2401 MHz)
-export const GPU_BASE_CLOCK = 2750; // RTX 5060 典型 boost 频率 (nvidia-smi 无法读取，用户提供)
-export const GPU_MEM_BASE_CLOCK = 12001; // 显存最大频率 (limit-memory 作为上限使用) // 显存基准频率
+const GPU_BASE_CLOCK = 2750; // RTX 5060 典型 boost 频率 (nvidia-smi 无法读取，用户提供)
 
 // GPU 控制: action = "limit-max" | "lock-exact" | "reset-clocks" | "reset-memory-clocks"
 export async function applyGpuControl(action, value, min, max) {
@@ -93,13 +73,6 @@ export async function applyGpuControl(action, value, min, max) {
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`GPU 控制返回 ${res.status}`);
-  return res.json();
-}
-
-// 读取 GPU 状态 (当前频率/基准/最大)
-export async function fetchGpuStatus() {
-  const res = await fetch(`/api/gpu/status`);
-  if (!res.ok) throw new Error(`GPU 状态返回 ${res.status}`);
   return res.json();
 }
 
@@ -170,7 +143,7 @@ export const MODE_FAN_DEFAULTS = {
 };
 
 // 参数合法范围 — 用于写入硬件前钳位
-export const PARAM_RANGES = {
+const PARAM_RANGES = {
   cpuTempLimitC: { min: 60, max: 100 },
   cpuLongPptW: { min: 15, max: 120 },
   cpuShortPptW: { min: 15, max: 140 },
@@ -225,7 +198,7 @@ export async function fetchRouteInfo() {
   return res.json();
 }
 
-export function clampParam(key, value) {
+function clampParam(key, value) {
   const r = PARAM_RANGES[key];
   if (!r) return value;
   return Math.max(r.min, Math.min(r.max, value));

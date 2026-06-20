@@ -51,31 +51,6 @@ function buildPath(pts, rpmKey) {
   return sorted.map((p, i) => `${i === 0 ? "M" : "L"}${tX(p.temp).toFixed(1)},${rY(p[rpmKey]).toFixed(1)}`).join(" ");
 }
 
-// ── 首尾延伸（虚线段）──
-// 用首/尾两点的斜率向两侧延展到 T_MIN / T_MAX
-function buildExtendPaths(pts, rpmKey, maxRpm) {
-  const sorted = [...pts].sort((a, b) => a.temp - b.temp);
-  if (sorted.length < 2) return { head: "", tail: "" };
-  const first = sorted[0], second = sorted[1];
-  const last = sorted[sorted.length - 1], prev = sorted[sorted.length - 2];
-
-  // 向下延伸: first → T_MIN
-  const slopeHead = (first[rpmKey] - second[rpmKey]) / (first.temp - second.temp || 1);
-  const headRpm = clamp(Math.round(first[rpmKey] + slopeHead * (T_MIN - first.temp)), 0, maxRpm);
-  const head = first.temp > T_MIN
-    ? `M${tX(T_MIN).toFixed(1)},${rY(headRpm).toFixed(1)} L${tX(first.temp).toFixed(1)},${rY(first[rpmKey]).toFixed(1)}`
-    : "";
-
-  // 向上延伸: last → T_MAX
-  const slopeTail = (last[rpmKey] - prev[rpmKey]) / (last.temp - prev.temp || 1);
-  const tailRpm = clamp(Math.round(last[rpmKey] + slopeTail * (T_MAX - last.temp)), 0, maxRpm);
-  const tail = last.temp < T_MAX
-    ? `M${tX(last.temp).toFixed(1)},${rY(last[rpmKey]).toFixed(1)} L${tX(T_MAX).toFixed(1)},${rY(tailRpm).toFixed(1)}`
-    : "";
-
-  return { head, tail };
-}
-
 export default function FanCurvePanel({ telemetry, overrides, settings }) {
   const toast = useToast();
 

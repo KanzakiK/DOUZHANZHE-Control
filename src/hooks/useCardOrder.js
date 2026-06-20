@@ -47,14 +47,13 @@ function loadOrder() {
 export function useCardOrder(onSyncResult) {
   const [order, setOrder] = useState(loadOrder);
   const [hiddenCards, setHiddenCards] = useState(loadHidden);
-  const [loadedFromServer, setLoadedFromServer] = useState(false);
   const onSyncRef = useRef(onSyncResult);
   onSyncRef.current = onSyncResult;
 
   // 启动时：仅当 localStorage 为空时才从服务端加载排序（localStorage 始终是最新的）
   useEffect(() => {
     const hasLocalOrder = !!localStorage.getItem(LS_KEY);
-    if (hasLocalOrder) { setLoadedFromServer(true); return; }
+    if (hasLocalOrder) { return; }
     fetch(API_UI_STATE)
       .then((r) => r.json())
       .then((data) => {
@@ -65,8 +64,7 @@ export function useCardOrder(onSyncResult) {
           setHiddenCards(new Set(data.hiddenCards || []));
         }
       })
-      .catch(() => {})
-      .finally(() => setLoadedFromServer(true));
+      .catch(() => {});
   }, []);
 
   // 持久化到 localStorage

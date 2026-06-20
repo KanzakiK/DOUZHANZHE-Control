@@ -5,7 +5,7 @@ import SwitchRow from "../ui/SwitchRow";
 import { useToast } from "../ui/Toast";
 import { useState, useEffect, useRef, useCallback } from "react";
 
-export default function SettingsPanel({ settings, setSettings, uxtuPayload, showSwitches = true, showKeyboard = true, showSummary = true, showSmu = true, showAbout = true, showAutoStart = false, showBackground = false, showHotkey = false, bg, updateBg }) {
+export default function SettingsPanel({ settings, setSettings, showSwitches = true, showKeyboard = true, showAbout = true, showAutoStart = false, showBackground = false, showHotkey = false, bg, updateBg }) {
   const toast = useToast();
   const [autoStart, setAutoStart] = useState(() => localStorage.getItem("dz_autostart") === "1");
   const [autoStartMinimized, setAutoStartMinimized] = useState(() => localStorage.getItem("dz_autostart_min") === "1");

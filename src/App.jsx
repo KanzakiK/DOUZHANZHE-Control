@@ -7,7 +7,7 @@ import AutoSwitchStatus from "./components/ui/AutoSwitchStatus";
 import Card from "./components/ui/Card";
 import SortableDashboard from "./components/SortableDashboard";
 import UpdateDialog from "./components/ui/UpdateDialog";
-import { ToastProvider, useToast } from "./components/ui/Toast";
+import { useToast } from "./components/ui/Toast";
 import { useControlState } from "./hooks/useControlState";
 import { fetchFanCurveStatus, stopFanCurve, resetToFactoryDefaults } from "./services/uxtuAdapter";
 import { useCallback, useState, useEffect } from "react";
@@ -23,7 +23,7 @@ const MODE_ITEMS = [
 
 export default function App() {
   const toast = useToast();
-  const { theme, setTheme, telemetry, setTelemetry, uxtuParams, setUxtuParams, settings, setSettings, uxtuPayload, history, overrides, saveOverride, clearOverrides, resetParams } =
+  const { theme, setTheme, telemetry, uxtuParams, setUxtuParams, settings, setSettings, history, overrides, saveOverride, resetParams } =
     useControlState();
   const [activeTab, setActiveTab] = useState(() => {
     try { return localStorage.getItem("douzhanzhe_active_tab") || "dashboard"; }
@@ -169,21 +169,19 @@ export default function App() {
           {activeTab === "dashboard" && <AutoSwitchStatus />}
           {activeTab === "dashboard" && (
           <SortableDashboard
-            telemetry={telemetry} setTelemetry={setTelemetry}
+            telemetry={telemetry}
             settings={settings} setSettings={setSettings}
-            uxtuPayload={uxtuPayload}
             uxtuParams={uxtuParams} setUxtuParams={setUxtuParams}
             history={history}
-            overrides={overrides} saveOverride={saveOverride} clearOverrides={clearOverrides}
-            editMode={editMode} setEditMode={setEditMode}
+            overrides={overrides} saveOverride={saveOverride}
+            editMode={editMode}
             fanCurveActive={fanCurveActive}
-            onFanCurveStop={() => setFanCurveActive(false)}
-            onSwitchTab={setActiveTab} />
+            onFanCurveStop={() => setFanCurveActive(false)} />
           )}
           {activeTab === "system" && <SystemInfoPanel />}
           {activeTab === "settings" && (
-            <SettingsPanel settings={settings} setSettings={setSettings} uxtuPayload={uxtuPayload}
-              showSwitches={true} showKeyboard={true} showSummary={true} showCredits={true} showAutoStart={true}
+            <SettingsPanel settings={settings} setSettings={setSettings}
+              showSwitches={true} showKeyboard={true} showSummary={true} showAutoStart={true}
               showBackground={true} showHotkey={true} bg={bg} updateBg={updateBg} />
           )}
           {activeTab === "fancurve" && <FanCurvePanel telemetry={telemetry} overrides={overrides} settings={settings} />}

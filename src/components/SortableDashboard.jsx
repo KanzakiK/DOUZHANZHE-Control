@@ -37,11 +37,11 @@ const CARD_MAP = {
 };
 
 export default function SortableDashboard({
-  telemetry, setTelemetry, settings, setSettings,
-  uxtuPayload, uxtuParams, setUxtuParams,
-  history, editMode, setEditMode,
-  fanCurveActive, onFanCurveStop, onSwitchTab,
-  overrides, saveOverride, clearOverrides,
+  telemetry, settings, setSettings,
+  uxtuParams, setUxtuParams,
+  history, editMode,
+  fanCurveActive, onFanCurveStop,
+  overrides, saveOverride,
 }) {
   const toast = useToast();
 
@@ -252,15 +252,15 @@ export default function SortableDashboard({
           </Card>
         );
       case "cpu-adjust":
-        return <PerformancePanel showCpu={true} showGpu={false} showPower={false} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} uxtuPayload={uxtuPayload} overrides={overrides} saveOverride={saveOverride} editMode={editMode} customLabel={customLabel(cpuFreqKeys)}/>;
+        return <PerformancePanel showCpu={true} showGpu={false} showPower={false} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} overrides={overrides} saveOverride={saveOverride} editMode={editMode} customLabel={customLabel(cpuFreqKeys)}/>;
       case "cpu-power":
-        return <PerformancePanel showCpu={false} showGpu={false} showPower={true} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} uxtuPayload={uxtuPayload} overrides={overrides} saveOverride={saveOverride} editMode={editMode} customLabel={customLabel(cpuPowerKeys)}/>;
+        return <PerformancePanel showCpu={false} showGpu={false} showPower={true} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} overrides={overrides} saveOverride={saveOverride} editMode={editMode} customLabel={customLabel(cpuPowerKeys)}/>;
       case "gpu-adjust":
-        return <PerformancePanel showCpu={false} showPower={false} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} uxtuPayload={uxtuPayload} overrides={overrides} saveOverride={saveOverride} editMode={editMode} customLabel={customLabel(gpuKeys)}/>;
+        return <PerformancePanel showCpu={false} showPower={false} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} overrides={overrides} saveOverride={saveOverride} editMode={editMode} customLabel={customLabel(gpuKeys)}/>;
       case "keyboard-light":
-        return <SettingsPanel settings={settings} setSettings={setSettings} uxtuPayload={uxtuPayload} showSwitches={false} showKeyboard={true} showSummary={false} showSmu={false} showAbout={false}/>;
+        return <SettingsPanel settings={settings} setSettings={setSettings} showSwitches={false} showKeyboard={true} showAbout={false}/>;
       case "system-switches":
-        return <SettingsPanel settings={settings} setSettings={setSettings} uxtuPayload={uxtuPayload} showSwitches={true} showKeyboard={false} showSummary={false} showSmu={false} showAbout={false}/>;
+        return <SettingsPanel settings={settings} setSettings={setSettings} showSwitches={true} showKeyboard={false} showAbout={false}/>;
       case "gpu-mode": {
         const gpuModes = [
           { id: 0, label: "混合模式" },
@@ -289,7 +289,7 @@ export default function SortableDashboard({
         );
       }
       case "about":
-        return <SettingsPanel settings={settings} setSettings={setSettings} uxtuPayload={uxtuPayload} showSwitches={false} showKeyboard={false} showSummary={false} showSmu={false} showAbout={true}/>;
+        return <SettingsPanel settings={settings} setSettings={setSettings} showSwitches={false} showKeyboard={false} showAbout={true}/>;
       default:
         return null;
     }
