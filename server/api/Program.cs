@@ -1073,6 +1073,7 @@ app.MapPost("/api/gpu/set", (GpuController gpu, GpuSetRequest req, string? mode 
 {
     try
     {
+        Log($"[gpu/set] ← action={req.Action}, value={req.Value ?? req.Max}, min={req.Min}");
         switch (req.Action)
         {
             // 上限限制: --lock-gpu-clocks=0,value (仅传 value 时自动补 min=0)
@@ -1204,6 +1205,7 @@ app.MapGet("/api/nvapi/dump-pstates", (NvapiGpuController nv) =>
 
 app.MapPost("/api/nvapi/overclock", (NvapiGpuController nv, NvapiOverclockRequest req, string? mode = null) =>
 {
+    Log($"[nvapi/overclock] ← core={req.CoreOffsetMhz}, mem={req.MemOffsetMhz}");
     if (!nv.IsAvailable) return Results.Json(new { ok = false, error = "NVAPI not available" });
     var rc = nv.SetP0Offset(req.CoreOffsetMhz, req.MemOffsetMhz);
     SavePerfOverrides(o => { o.Nvapi.OcCoreOffsetMhz = req.CoreOffsetMhz; o.Nvapi.OcMemOffsetMhz = req.MemOffsetMhz; }, mode);
@@ -1220,6 +1222,7 @@ app.MapPost("/api/nvapi/power-limit", (NvapiGpuController nv, NvapiPowerLimitReq
 
 app.MapPost("/api/nvapi/thermal-limit", (NvapiGpuController nv, NvapiThermalLimitRequest req, string? mode = null) =>
 {
+    Log($"[nvapi/thermal-limit] ← temp={req.TempC}°C");
     if (!nv.IsAvailable) return Results.Json(new { ok = false, error = "NVAPI not available" });
     var rc = nv.SetThermalLimit(req.TempC);
     SavePerfOverrides(o => o.Nvapi.ThermalLimitC = req.TempC, mode);
