@@ -175,7 +175,12 @@ export default function SortableDashboard({
                     // 等 500ms 让固件完成模式切换，再重发用户自定义参数
                     const hasOverrides = overrides && Object.keys(overrides).length > 0;
                     if (hasOverrides) {
+                      const modeAtStop = settings.mode;
                       setTimeout(() => {
+                        if (settings.mode !== modeAtStop) {
+                          console.warn("[Fan] mode changed during delay, skipping reapplyOverrides");
+                          return;
+                        }
                         reapplyOverrides(settings.mode, overrides).catch(e => console.warn("[Fan] reapplyOverrides:", e));
                       }, 500);
                       toast?.("已停止曲线，正在恢复用户自定义参数…", "success");
