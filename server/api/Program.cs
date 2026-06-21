@@ -1169,6 +1169,22 @@ var nvapi = app.Services.GetRequiredService<NvapiGpuController>();
 if (!nvapi.Init())
     Log("[NVAPI] 未初始化，超频/功率/温度控制不可用");
 
+// ---- 启动诊断信息 ----
+try
+{
+    var gpuCtrl = app.Services.GetRequiredService<GpuController>();
+    var gpuName = nvapi.GpuName;
+    var ocEngine = nvapi.OcEngine;
+    var driverVer = "";
+    try { driverVer = gpuCtrl.GetDriverVersion(); } catch { }
+    var gpuMode = wmi.Available ? wmi.GetGpuMode().ToString() : "N/A";
+    Log($"[Startup] GPU: {gpuName} | Driver: {driverVer} | Mode: {gpuMode} | OC: {ocEngine}");
+}
+catch (Exception ex)
+{
+    Log($"[Startup] Diagnostic log failed: {ex.Message}");
+}
+
 app.MapGet("/api/nvapi/status", (NvapiGpuController nv) =>
 {
     var s = nv.GetStatus();
@@ -1760,6 +1776,7 @@ try
     }
 }
 catch { /* 读取失败时使用默认值 */ }
+Log($"Version: {_appVersion}");
 
 app.MapGet("/api/update/check", async () =>
 {

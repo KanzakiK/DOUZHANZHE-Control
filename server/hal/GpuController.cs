@@ -85,6 +85,13 @@ public sealed class GpuController
         return info;
     }
 
+    /// <summary>NVIDIA 驱动版本</summary>
+    public string GetDriverVersion()
+    {
+        var output = RunNvidiaSmi("--query-gpu=driver_version --format=csv,noheader");
+        return output.Trim();
+    }
+
     /// <summary>GPU 基准频率 (supported-clocks 第1行 = 固件默认最大频率)</summary>
     public int GetBaseClock()
     {
