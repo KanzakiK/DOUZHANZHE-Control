@@ -7,29 +7,29 @@
 
 ## [1.6.7] — 2026-06-21
 
-配置文件跨模式污染修复 + 模式切换体验优化 + 风扇手动 RPM 守护 + Shell 后端守护
+配置稳定性修复 + 混合模式外接显示器修复 + 风扇守护 + Shell 崩溃自动恢复
 
 ### 修复
 
-- **配置文件跨模式污染（根因修复）**: `reapplyOverrides` 和用户滑块操作在异步执行期间，如果用户快速切换模式，setter 端点的 `SavePerfOverrides` 会写入错误模式的 JSON 文件（如 gaming 的值写入 beast.json）。后端 setter 端点新增 `?mode=xxx` 查询参数钉死目标文件，前端所有 setter 调用（包括 UI 滑块的 debounce wrapper）捕获 `settings.mode` 闭包传递给后端
-- **`?? 默认值` 污染**: `reapplyOverrides` 对没有覆盖项的字段使用 `?? 0` 默认值，导致 silent 等模式被写入 `ocCoreOffsetMhz=0`、`turboEnabled=true` 等不必要的值。改为条件化 setter：只在 overrides 有对应字段时才调用
-- **`uxtu/apply` 端点反序列化失败**: 该端点频繁报"无效的参数"，触发 10+ 个 fallback setter 调用。已删除该端点及相关死代码，`reapplyOverrides` 改用 4 个独立的 `/api/smu/set` 调用
-- **手动风扇转速无法达到目标值**: WMI 写入被 EC 固件 PID 循环覆盖。与 FanCurveService 对齐，增加 EC 寄存器直写（`WriteEcPort 0x5E/0x5A`），应用于 `/api/fan/set-target`、`RestoreAllPerfSettings`、`ParameterGuard`
-- **Shell 后端进程无守护**: 后端崩溃后 Shell 不检测不恢复，WebView2 显示 `ERR_CONNECTION_REFUSED`。新增健康守护定时器（8 秒间隔，连续 2 次失败触发重启 + 自动 reload）
+- **模式配置互相污染**: 快速切换模式或调节参数后切模式，会导致一个模式的设置（如功耗、频率）被错误写入另一个模式的配置文件。现在所有参数写入都会钉死到正确的模式文件
+- **混合模式下外接显示器卡顿**: 混合模式（Optimus）下，程序每 60 秒下发 GPU 锁频命令干扰了显卡电源管理。现在混合模式下自动跳过 GPU 时钟锁定，NVAPI 超频偏移和温度墙不受影响
+- **手动风扇转速达不到设定值**: 风扇转速设好后很快被 EC 固件拉回默认值。现在增加 EC 寄存器直写 + ParameterGuard 每 60 秒守护，与自定义风扇曲线使用相同的写入方式
+- **后端崩溃后界面无法访问**: 后端进程异常退出后，界面卡在 `ERR_CONNECTION_REFUSED` 不会自动恢复。现在 Shell 每 8 秒检测后端健康状态，崩溃后自动重启并刷新界面
+- **部分参数被意外重置**: 参数守护（ParameterGuard）在某些场景下会用默认值覆盖用户自定义设置（如超频偏移被重置为 0、睿频被意外开启）。现在只在配置文件中有对应值时才下发
 
 ### 改进
 
-- **模式切换体验**: 去掉 400ms 防抖延迟，改为立即发送后端请求 + `SwitchingOverlay` 半透明遮罩拦截切换期间的 UI 操作，5 秒超时兜底解锁
-- **ParameterGuard 风扇守护**: 当自定义风扇曲线未运行时，每 60 秒重写手动风扇转速（WMI + EC 寄存器），防止 EC 漂移
-- **smu/set 端点日志**: 新增 `[smu/set]` 请求日志，便于排查 SMU 参数下发问题
+- **模式切换即时响应**: 去掉了 400ms 的切换延迟，点击模式按钮立即生效，切换期间界面会短暂锁定防止误操作
+- **GPU 面板智能禁用**: 混合模式下自动禁用核心频率/显存频率调节（这些在混合模式下无效），集显模式下禁用所有 GPU 控件
+- **风扇曲线停止后自动恢复参数**: 关闭自定义风扇曲线后，之前被曲线覆盖的功耗、频率等参数会自动恢复
 
-### 技术细节
+## [1.6.3] — 2026-06-18
 
-- `SavePerfOverrides` 新增可选 `string? mode` 参数，不传走 `CurrentMode()`，传则钉死目标文件
-- 11 个 setter 端点均接受 `?mode=xxx` 查询参数
-- PerformancePanel 8 个 debounce wrapper 函数在调用时捕获 `const mode = settings.mode`，闭包传递给 setter
-- 风扇曲线停止时增加 mode guard：捕获 `modeAtStop`，500ms 后检查模式是否变化，变了则跳过 `reapplyOverrides`
-- `reapplyOverrides` SMU 延迟重发改用独立 `smu/set`，保留 `_smuDispatchGen` 取消机制
+修复部分用户 CPU 温度始终为 0 的问题（回退寄存器修正）
+
+### 修复
+
+- **CPU 温度 EC 回退寄存器修正**: 1.6.1 引入的 EC 回退使用了错误的寄存器地址 `0xE1`，在部分机器上仍然读不到温度。修正为 v1.4.8 验证过的 `0x1C`（IO 端口协议），并增加 `<128` 上界校验防止读到异常数据
 
 ## [1.6.2] — 2026-06-18
 
