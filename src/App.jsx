@@ -7,6 +7,7 @@ import AutoSwitchStatus from "./components/ui/AutoSwitchStatus";
 import Card from "./components/ui/Card";
 import SortableDashboard from "./components/SortableDashboard";
 import UpdateDialog from "./components/ui/UpdateDialog";
+import SwitchingOverlay from "./components/ui/SwitchingOverlay";
 import { useToast } from "./components/ui/Toast";
 import { useControlState } from "./hooks/useControlState";
 import { fetchFanCurveStatus, stopFanCurve, resetToFactoryDefaults } from "./services/uxtuAdapter";
@@ -23,7 +24,7 @@ const MODE_ITEMS = [
 
 export default function App() {
   const toast = useToast();
-  const { theme, setTheme, telemetry, uxtuParams, setUxtuParams, settings, setSettings, history, overrides, saveOverride, resetParams } =
+  const { theme, setTheme, telemetry, uxtuParams, setUxtuParams, settings, setSettings, history, overrides, saveOverride, resetParams, switching } =
     useControlState();
   const [activeTab, setActiveTab] = useState(() => {
     try { return localStorage.getItem("douzhanzhe_active_tab") || "dashboard"; }
@@ -190,6 +191,9 @@ export default function App() {
 
         {/* 版本更新弹窗 */}
         <UpdateDialog />
+
+        {/* 模式切换遮罩：切换期间拦截点击，防止 setter 写入错误模式文件 */}
+        <SwitchingOverlay active={switching} />
       </div>
     </div>
   );
