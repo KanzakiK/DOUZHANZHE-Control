@@ -33,6 +33,22 @@ public class TelemetryBackgroundService : BackgroundService
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
     };
 
+    // 读取保存的目标 GPU 模式 (gpu-mode.json)，回退到 EC 固件值
+    private int? GetSavedGpuMode()
+    {
+        try
+        {
+            var path = Path.Combine(AppContext.BaseDirectory, "config", "gpu-mode.json");
+            if (!File.Exists(path)) return null;
+            var json = File.ReadAllText(path);
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty("gpuMode", out var val))
+                return val.GetInt32();
+        }
+        catch { }
+        return null;
+    }
+
     // ── HealthWatchdog: 零值连续计数器 ──
     private int _cpuTempZeroCount;       // CPU 温度连续为 0 的次数
     private int _fanZeroCount;           // 风扇 RPM 连续为 0 的次数（大扇+小扇都为零时递增）
@@ -143,6 +159,7 @@ public class TelemetryBackgroundService : BackgroundService
                     touchpadLock = _wmi.Available ? _wmi.GetTouchpadLock() == 1 : _hal.TouchpadLocked,
                     igpuOnly = _hal.IgpuOnly,
                     gpuMode = _wmi.Available ? _wmi.GetGpuMode().ToString() : null,
+                    savedGpuMode = GetSavedGpuMode(),
                     timestamp = DateTime.Now.ToString("HH:mm:ss"),
                 }, _jsonOpt);
 

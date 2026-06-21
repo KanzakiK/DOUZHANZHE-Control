@@ -269,35 +269,65 @@ async System.Threading.Tasks.Task RestoreComputeSettings(string tag)
             }
         }
 
+        // --- GPU mode 检测: 优先读保存的目标模式(gpu-mode.json)，回退到 EC 当前值 ---
+        byte gpuMode = 1; // 默认独显
+        try
+        {
+            var gpuModeFile = JsonRead<Dictionary<string, int>>("gpu-mode.json", new Dictionary<string, int>());
+            if (gpuModeFile.TryGetValue("gpuMode", out int savedMode) && savedMode >= 0 && savedMode <= 2)
+                gpuMode = (byte)savedMode;
+            else
+                gpuMode = app.Services.GetRequiredService<WmiInterface>().GetGpuMode();
+        }
+        catch { }
+
         // --- GPU (nvidia-smi) ---
+        // 混合模式(0): 跳过时钟锁定，避免干扰 Optimus P-state 管理
+        // 集显模式(2): 跳过所有 GPU 命令（独显不可用）
         var gpu = app.Services.GetRequiredService<GpuController>();
-        if (o.Gpu.CoreFreqMhz.HasValue && o.Gpu.CoreFreqMhz.Value > 0)
+        if (gpuMode != 2 && o.Gpu.CoreFreqMhz.HasValue && o.Gpu.CoreFreqMhz.Value > 0)
         {
             try
             {
-                gpu.SetMaxGpuClock(o.Gpu.CoreFreqMhz.Value);
-                if (o.Gpu.FreqLocked == true) gpu.SetExactGpuClock(o.Gpu.CoreFreqMhz.Value);
-                restored++;
-                Log($"[{tag}] GPU core → {o.Gpu.CoreFreqMhz.Value} MHz (locked={o.Gpu.FreqLocked})");
+                if (gpuMode == 0)
+                {
+                    Log($"[{tag}] GPU core skipped (hybrid mode, gpuMode=0)");
+                }
+                else
+                {
+                    gpu.SetMaxGpuClock(o.Gpu.CoreFreqMhz.Value);
+                    if (o.Gpu.FreqLocked == true) gpu.SetExactGpuClock(o.Gpu.CoreFreqMhz.Value);
+                    restored++;
+                    Log($"[{tag}] GPU core → {o.Gpu.CoreFreqMhz.Value} MHz (locked={o.Gpu.FreqLocked})");
+                }
             }
             catch (Exception ex) { Log($"[{tag}] GPU core failed: {ex.Message}"); }
         }
-        if (o.Gpu.MemFreqLevel.HasValue && o.Gpu.MemFreqLevel.Value > 0)
+        if (gpuMode != 2 && o.Gpu.MemFreqLevel.HasValue && o.Gpu.MemFreqLevel.Value > 0)
         {
             try
             {
-                var memMap = new int[] { 0, 9001, 11001, 12001 };
-                var idx = Math.Clamp(o.Gpu.MemFreqLevel.Value, 0, 3);
-                if (idx > 0) gpu.SetMaxMemoryClock(memMap[idx]);
-                restored++;
-                Log($"[{tag}] GPU mem level → {idx} ({memMap[idx]} MHz)");
+                if (gpuMode == 0)
+                {
+                    Log($"[{tag}] GPU mem skipped (hybrid mode, gpuMode=0)");
+                }
+                else
+                {
+                    var memMap = new int[] { 0, 9001, 11001, 12001 };
+                    var idx = Math.Clamp(o.Gpu.MemFreqLevel.Value, 0, 3);
+                    if (idx > 0) gpu.SetMaxMemoryClock(memMap[idx]);
+                    restored++;
+                    Log($"[{tag}] GPU mem level → {idx} ({memMap[idx]} MHz)");
+                }
             }
             catch (Exception ex) { Log($"[{tag}] GPU mem failed: {ex.Message}"); }
         }
 
         // --- NVAPI ---
+        // 集显模式(2): 跳过所有 NVAPI（独显不可用）
+        // 混合模式(0): NVAPI 偏移/温度正常下发（不干扰 Optimus）
         var nv = app.Services.GetRequiredService<NvapiGpuController>();
-        if (o.Nvapi.OcCoreOffsetMhz.HasValue || o.Nvapi.OcMemOffsetMhz.HasValue)
+        if (gpuMode != 2 && (o.Nvapi.OcCoreOffsetMhz.HasValue || o.Nvapi.OcMemOffsetMhz.HasValue))
         {
             try
             {
@@ -307,12 +337,12 @@ async System.Threading.Tasks.Task RestoreComputeSettings(string tag)
             }
             catch (Exception ex) { Log($"[{tag}] NVAPI OC failed: {ex.Message}"); }
         }
-        if (o.Nvapi.PowerLimitW.HasValue)
+        if (gpuMode != 2 && o.Nvapi.PowerLimitW.HasValue)
         {
             try { nv.SetPowerLimit((uint)(o.Nvapi.PowerLimitW.Value * 1000)); restored++; Log($"[{tag}] NVAPI power → {o.Nvapi.PowerLimitW.Value}W"); }
             catch (Exception ex) { Log($"[{tag}] NVAPI power failed: {ex.Message}"); }
         }
-        if (o.Nvapi.ThermalLimitC.HasValue)
+        if (gpuMode != 2 && o.Nvapi.ThermalLimitC.HasValue)
         {
             try { nv.SetThermalLimit(o.Nvapi.ThermalLimitC.Value); restored++; Log($"[{tag}] NVAPI thermal → {o.Nvapi.ThermalLimitC.Value}°C"); }
             catch (Exception ex) { Log($"[{tag}] NVAPI thermal failed: {ex.Message}"); }
@@ -838,34 +868,6 @@ app.MapPost("/api/smu/set", (SmuController smu, SmuSetRequest req, string? mode 
                 return Results.Json(new { ok = false, error = "unknown parameter: " + req.Parameter });
         }
         return Results.Json(new { ok = rc == 0, rc });
-    }
-    catch (Exception ex)
-    {
-        return Results.Json(new { ok = false, error = ex.Message });
-    }
-});
-app.MapGet("/api/smu/probe", (SmuController smu) =>
-{
-    try
-    {
-        var ok = smu.Probe();
-        return Results.Json(new { ok, source = "ryzenadj" });
-    }
-    catch (Exception ex)
-    {
-        return Results.Json(new { ok = false, error = ex.Message, source = "ryzenadj" });
-    }
-});
-app.MapGet("/api/pci/probe", () =>
-{
-    try
-    {
-        var io = Douzhanzhe.HAL.DriverBridge.Instance;
-        io.WriteIo32((short)0xCF8, unchecked((int)(0x80000000u | 0x00)));
-        var vendorDevice = (uint)io.ReadIo32((short)0xCFC);
-        var vendorId = vendorDevice & 0xFFFF;
-        var deviceId = vendorDevice >> 16;
-        return Results.Json(new { ok = true, vendorId = $"0x{vendorId:X4}", deviceId = $"0x{deviceId:X4}", isAmd = vendorId == 0x1022 });
     }
     catch (Exception ex)
     {
@@ -1403,15 +1405,6 @@ app.MapPost("/api/log", (FrontendLogRequest req) =>
     return Results.Ok();
 });
 
-app.MapGet("/api/ryzenadj/info", (SmuController smu) =>
-{
-    try
-    {
-        var probeOk = smu.Probe();
-        return Results.Json(new { ok = probeOk, data = new { probeResult = probeOk, type = "subprocess", source = "ryzenadj" } });
-    }
-    catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }); }
-});
 app.MapPost("/api/wmi/cmd", (WmiInterface wmi, WmiCmdRequest req) =>
 {
     try
@@ -1437,10 +1430,7 @@ app.MapGet("/api/logs/export", () =>
     var ts = DateTime.Now.ToString("yyyyMMdd-HHmmss");
     return Results.File(bytes, "text/plain; charset=utf-8", $"douzhanzhe-log-{ts}.log");
 });
-app.MapGet("/api/smu/api-type", () =>
-{
-    return Results.Json(new { ok = true, type = "subprocess", source = "smucontroller->ryzenadj" });
-});
+
 app.MapGet("/api/ui-state", () =>
 {
     return Results.Json(JsonRead<UiState>("ui-state.json", new UiState()));

@@ -21,8 +21,13 @@ export default function PerformancePanel({
   showCpu = true, showGpu = true,
   showPower = true, editMode = false,
   overrides, saveOverride, customLabel,
+  gpuMode, // 0=hybrid, 1=dGPU, 2=iGPU (from telemetry)
 }) {
   const toast = useToast();
+
+  // GPU 控件禁用逻辑: 混合模式跳时钟, 集显模式跳全部
+  const gpuClockDisabled = gpuMode === 0 || gpuMode === 2; // 混合/集显: 禁用核心+显存频率
+  const gpuAllDisabled = gpuMode === 2; // 集显: 禁用所有 GPU/NVAPI 控件
 
   const latestParamsRef = useRef(uxtuParams);
   latestParamsRef.current = uxtuParams;
@@ -259,17 +264,26 @@ export default function PerformancePanel({
         >
 
         <div className="space-y-3">
+          {gpuClockDisabled && (
+            <p className="text-xs" style={{ color: "var(--muted)" }}>
+              {gpuMode === 0 ? "混合模式下 GPU 时钟由系统管理，核心/显存频率设置不生效" : "集显模式下独显不可用，GPU 设置不生效"}
+            </p>
+          )}
           <SliderRow label="核心频率" value={uxtuParams.gpuCoreFreqMhz}
             min={1000} max={3100} step={50} unit="MHz"
             isCustom={isC("gpuCoreFreqMhz")}
+            disabled={gpuClockDisabled || paramsLocked}
             onChange={(v) => { update("gpuCoreFreqMhz")(v); queueGpuCore(v); }}
             action={
               <button onClick={toggleGpuLock}
+                disabled={gpuClockDisabled || paramsLocked}
                 className="text-xs px-2.5 py-1 rounded-lg transition whitespace-nowrap"
                 style={{
                   border: uxtuParams.gpuFreqLimitEnabled ? "1px solid var(--ok)" : "1px solid var(--border)",
                   background: uxtuParams.gpuFreqLimitEnabled ? "var(--ok)" : "var(--card-2)",
                   color: uxtuParams.gpuFreqLimitEnabled ? "#fff" : "var(--text)",
+                  opacity: (gpuClockDisabled || paramsLocked) ? 0.5 : 1,
+                  cursor: (gpuClockDisabled || paramsLocked) ? "not-allowed" : "pointer",
                 }}>
                 {uxtuParams.gpuFreqLimitEnabled ? "已锁定" : "锁定频率"}
               </button>
@@ -279,15 +293,18 @@ export default function PerformancePanel({
             min={-200} max={300} step={25} unit="MHz"
             displayValue={((uxtuParams.ocCoreOffsetMhz ?? 0) >= 0 ? "+" : "") + (uxtuParams.ocCoreOffsetMhz ?? 0)}
             isCustom={isC("ocCoreOffsetMhz")}
+            disabled={gpuAllDisabled || paramsLocked}
             onChange={(v) => { update("ocCoreOffsetMhz")(v); queueOc(); }} />
           <SliderRow label="显存频率" value={uxtuParams.gpuMemFreqMhz}
             min={0} max={3} step={1} unit=" MHz"
             displayValue={["自动", "9001", "11001", "12001"][uxtuParams.gpuMemFreqMhz] || ""}
             isCustom={isC("gpuMemFreqMhz")}
+            disabled={gpuClockDisabled || paramsLocked}
             onChange={(v) => { update("gpuMemFreqMhz")(v); queueGpuMem(v); }} />
           <SliderRow label="温度限制" value={uxtuParams.gpuTempLimitC ?? 87}
             min={60} max={100} step={1} unit="°C"
             isCustom={isC("gpuTempLimitC")}
+            disabled={gpuAllDisabled || paramsLocked}
             onChange={(v) => { update("gpuTempLimitC")(v); queueThermal(v); }} />
         </div>
       </Card>}
