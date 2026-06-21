@@ -177,7 +177,8 @@ export default function App() {
             overrides={overrides} saveOverride={saveOverride}
             editMode={editMode}
             fanCurveActive={fanCurveActive}
-            onFanCurveStop={() => setFanCurveActive(false)} />
+            onFanCurveStop={() => setFanCurveActive(false)}
+            switching={switching} />
           )}
           {activeTab === "system" && <SystemInfoPanel />}
           {activeTab === "settings" && (

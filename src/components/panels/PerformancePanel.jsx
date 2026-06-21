@@ -22,6 +22,7 @@ export default function PerformancePanel({
   showPower = true, editMode = false,
   overrides, saveOverride, customLabel,
   gpuMode, // 0=hybrid, 1=dGPU, 2=iGPU (from telemetry)
+  switching, // true during mode switch (from useControlState)
 }) {
   const toast = useToast();
 
@@ -31,6 +32,10 @@ export default function PerformancePanel({
 
   const latestParamsRef = useRef(uxtuParams);
   latestParamsRef.current = uxtuParams;
+
+  // 跟踪最新 mode，防止去抖回调中使用过期的 mode 闭包
+  const latestModeRef = useRef(settings.mode);
+  latestModeRef.current = settings.mode;
 
   // 所有去抖 timer refs
   const smuTimer = useRef(null);
@@ -56,10 +61,9 @@ export default function PerformancePanel({
 
   // ── 带重试的 GPU 命令 ──
   async function gpuCmd(action, value, retries = 2) {
-    const mode = settings.mode;
     for (let i = 0; i <= retries; i++) {
       try {
-        const r = await applyGpuControl(action, value, undefined, undefined, mode);
+        const r = await applyGpuControl(action, value, undefined, undefined, latestModeRef.current);
         if (r?.ok) return r;
       } catch (err) {
         if (i === retries) throw err;
@@ -103,31 +107,28 @@ export default function PerformancePanel({
   }
 
   function queueCpuFreq(mhz) {
-    const mode = settings.mode;
     clearTimeout(cpuFreqTimer.current);
     cpuFreqTimer.current = setTimeout(async () => {
-      try { await setCpuFreqLimit(mhz, mode); }
+      try { await setCpuFreqLimit(mhz, latestModeRef.current); }
       catch (err) { console.error("CPU freq-limit failed:", err); }
     }, 600);
   }
 
   // SMU 单参数去抖 (600ms)
   function queueSmu(parameter, valueM) {
-    const mode = settings.mode;
     clearTimeout(smuTimer.current);
     smuTimer.current = setTimeout(async () => {
-      try { await applySmuSet(parameter, valueM, mode); }
+      try { await applySmuSet(parameter, valueM, latestModeRef.current); }
       catch (err) { console.error("SMU set failed:", err); }
     }, 600);
   }
 
   // CPU 睿频开关: 去抖 600ms + 失败回滚
   function queueTurbo(disabled) {
-    const mode = settings.mode;
     clearTimeout(turboTimer.current);
     turboTimer.current = setTimeout(async () => {
       try {
-        await setCpuTurbo(!disabled, mode);
+        await setCpuTurbo(!disabled, latestModeRef.current);
       } catch (err) {
         console.error("CPU turbo toggle failed:", err);
         // 回滚 UI 和 override
@@ -137,24 +138,22 @@ export default function PerformancePanel({
   }
 
   function queueCoreLimit(coreCount) {
-    const mode = settings.mode;
     clearTimeout(coreTimer.current);
     coreTimer.current = setTimeout(async () => {
       try {
         const percent = coreCount > 0 ? Math.round(coreCount / 16 * 100) : 100;
-        await setCpuCoreLimitPercent(percent, mode);
+        await setCpuCoreLimitPercent(percent, latestModeRef.current);
       } catch (err) { console.error("Core limit failed:", err); }
     }, 600);
   }
 
   // 统一 NVAPI OC 去抖: 读取最新 core + mem 偏移一起下发
   function queueOc() {
-    const mode = settings.mode;
     clearTimeout(ocTimer.current);
     ocTimer.current = setTimeout(async () => {
       try {
         const p = latestParamsRef.current;
-        await applyNvapiOverclock(p.ocCoreOffsetMhz ?? 0, p.ocMemOffsetMhz ?? 0, mode);
+        await applyNvapiOverclock(p.ocCoreOffsetMhz ?? 0, p.ocMemOffsetMhz ?? 0, latestModeRef.current);
         if (p.gpuFreqLimitEnabled) {
           await gpuCmd("lock-exact", p.gpuCoreFreqMhz).catch(() => {});
         }
@@ -163,17 +162,15 @@ export default function PerformancePanel({
   }
 
   function queueThermal(tempC) {
-    const mode = settings.mode;
     clearTimeout(thermalTimer.current);
     thermalTimer.current = setTimeout(async () => {
-      try { await applyNvapiThermalLimit(tempC, mode); }
+      try { await applyNvapiThermalLimit(tempC, latestModeRef.current); }
       catch (err) { console.error("NVAPI thermal limit failed:", err); }
     }, 600);
   }
 
   // GPU 显存频率: 去抖 400ms，合并快速连点
   function queueGpuMem(v) {
-    const mode = settings.mode;
     clearTimeout(gpuMemTimer.current);
     gpuMemTimer.current = setTimeout(async () => {
       try {
@@ -184,7 +181,8 @@ export default function PerformancePanel({
     }, 400);
   }
 
-  const paramsLocked = false;
+  // 模式切换期间禁用控件
+  const paramsLocked = !!switching;
 
   const update = useCallback((key) => (value) => {
     setUxtuParams(p => ({ ...p, [key]: value }));

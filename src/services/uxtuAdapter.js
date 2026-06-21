@@ -458,22 +458,22 @@ export async function migrateLocalStorageOverrides() {
 export async function resetToFactoryDefaults(mode) {
   // 1. 清空后端 overrides 文件
   await syncOverrides(mode, {});
-  
+
   // 2. 重发 thermal_mode (EC 重新加载出厂值，包括 CPU PPT/温度/风扇预设)
   const tv = thermalModeMap[mode];
   if (tv !== null && tv !== undefined) {
-    await applyHardwareControl("thermal_mode", tv);
+    await applyHardwareControl("thermal_mode", tv, mode);
   }
-  
+
   // 3. CPU 频率/睿频/核心数通过 Windows powercfg 控制
-  await resetCpuPower().catch(e => console.warn("resetCpuPower:", e));
+  await resetCpuPower(mode).catch(e => console.warn("resetCpuPower:", e));
 
   // 4. GPU 频率锁定 + NVAPI 超频/温度限制不受 thermal_mode 管理，需要单独重置
-  await applyGpuControl("reset-clocks").catch(e => console.warn("[GPU] reset:", e));
-  await applyGpuControl("reset-memory-clocks").catch(e => console.warn("[GPU] mem-reset:", e));
+  await applyGpuControl("reset-clocks", undefined, undefined, undefined, mode).catch(e => console.warn("[GPU] reset:", e));
+  await applyGpuControl("reset-memory-clocks", undefined, undefined, undefined, mode).catch(e => console.warn("[GPU] mem-reset:", e));
   await Promise.all([
-    applyNvapiOverclock(0, 0).catch(e => console.warn("[NVAPI] OC-reset:", e)),
-    applyNvapiThermalLimit(87).catch(e => console.warn("[NVAPI] thermal-reset:", e)),
+    applyNvapiOverclock(0, 0, mode).catch(e => console.warn("[NVAPI] OC-reset:", e)),
+    applyNvapiThermalLimit(87, mode).catch(e => console.warn("[NVAPI] thermal-reset:", e)),
   ]);
 }
 

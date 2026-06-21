@@ -33,17 +33,40 @@ public class TelemetryBackgroundService : BackgroundService
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
     };
 
-    // 读取保存的目标 GPU 模式 (gpu-mode.json)，回退到 EC 固件值
+    // 读取保存的目标 GPU 模式 (gpu-mode.json)，带回退路径和文件变更缓存
+    private static string? _gpuModeConfigDir;
+    private static int? _cachedSavedGpuMode;
+    private static DateTime _cachedGpuModeWriteTime = DateTime.MinValue;
+
+    private static string ResolveConfigDir()
+    {
+        if (_gpuModeConfigDir != null) return _gpuModeConfigDir;
+        var dir = Path.Combine(AppContext.BaseDirectory, "config");
+        if (!Directory.Exists(dir))
+        {
+            var devDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "config"));
+            if (Directory.Exists(devDir)) dir = devDir;
+        }
+        _gpuModeConfigDir = dir;
+        return dir;
+    }
+
     private int? GetSavedGpuMode()
     {
         try
         {
-            var path = Path.Combine(AppContext.BaseDirectory, "config", "gpu-mode.json");
+            var path = Path.Combine(ResolveConfigDir(), "gpu-mode.json");
             if (!File.Exists(path)) return null;
+            var writeTime = File.GetLastWriteTimeUtc(path);
+            if (writeTime == _cachedGpuModeWriteTime) return _cachedSavedGpuMode;
             var json = File.ReadAllText(path);
             using var doc = System.Text.Json.JsonDocument.Parse(json);
+            int? mode = null;
             if (doc.RootElement.TryGetProperty("gpuMode", out var val))
-                return val.GetInt32();
+                mode = val.GetInt32();
+            _cachedSavedGpuMode = mode;
+            _cachedGpuModeWriteTime = writeTime;
+            return mode;
         }
         catch { }
         return null;

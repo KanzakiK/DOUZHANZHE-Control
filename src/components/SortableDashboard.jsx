@@ -42,8 +42,13 @@ export default function SortableDashboard({
   history, editMode,
   fanCurveActive, onFanCurveStop,
   overrides, saveOverride,
+  switching,
 }) {
   const toast = useToast();
+
+  // 跟踪最新 mode，防止去抖回调中使用过期的 mode 闭包
+  const latestModeRef = useRef(settings.mode);
+  latestModeRef.current = settings.mode;
 
   // ── 风扇去抖 (400ms，合并大小风扇一次请求) ──
   const fanTimer = useRef(null);
@@ -51,10 +56,10 @@ export default function SortableDashboard({
 
   function queueFan(largeRpm, smallRpm) {
     latestFanRef.current = { large: largeRpm, small: smallRpm };
-    const mode = settings.mode;
     clearTimeout(fanTimer.current);
     fanTimer.current = setTimeout(() => {
       const { large, small } = latestFanRef.current;
+      const mode = latestModeRef.current;
       const url = mode ? `/api/fan/set-target?mode=${mode}` : `/api/fan/set-target`;
       fetch(url, {
         method: "POST",
@@ -259,11 +264,11 @@ export default function SortableDashboard({
           </Card>
         );
       case "cpu-adjust":
-        return <PerformancePanel showCpu={true} showGpu={false} showPower={false} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} overrides={overrides} saveOverride={saveOverride} editMode={editMode} customLabel={customLabel(cpuFreqKeys)}/>;
+        return <PerformancePanel showCpu={true} showGpu={false} showPower={false} switching={switching} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} overrides={overrides} saveOverride={saveOverride} editMode={editMode} customLabel={customLabel(cpuFreqKeys)}/>;
       case "cpu-power":
-        return <PerformancePanel showCpu={false} showGpu={false} showPower={true} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} overrides={overrides} saveOverride={saveOverride} editMode={editMode} customLabel={customLabel(cpuPowerKeys)}/>;
+        return <PerformancePanel showCpu={false} showGpu={false} showPower={true} switching={switching} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} overrides={overrides} saveOverride={saveOverride} editMode={editMode} customLabel={customLabel(cpuPowerKeys)}/>;
       case "gpu-adjust":
-        return <PerformancePanel showCpu={false} showPower={false} gpuMode={telemetry?.savedGpuMode ?? parseInt(telemetry?.gpuMode ?? "1")} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} overrides={overrides} saveOverride={saveOverride} editMode={editMode} customLabel={customLabel(gpuKeys)}/>;
+        return <PerformancePanel showCpu={false} showPower={false} gpuMode={telemetry?.savedGpuMode ?? parseInt(telemetry?.gpuMode ?? "1")} switching={switching} settings={settings} setSettings={setSettings} uxtuParams={uxtuParams} setUxtuParams={setUxtuParams} overrides={overrides} saveOverride={saveOverride} editMode={editMode} customLabel={customLabel(gpuKeys)}/>;
       case "keyboard-light":
         return <SettingsPanel settings={settings} setSettings={setSettings} showSwitches={false} showKeyboard={true} showAbout={false}/>;
       case "system-switches":
