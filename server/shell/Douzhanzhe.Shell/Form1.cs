@@ -37,6 +37,11 @@ public partial class Form1 : Form
     private string? _currentHotkeyKey;
     private DateTime _lastHotkeyConfigWrite = DateTime.MinValue;
 
+    // ---- 后端进程守护 ----
+    private System.Windows.Forms.Timer? _healthTimer;
+    private bool _backendWasDown = false;
+    private int _healthFailCount = 0;
+
     private static readonly string _winStatePath = Path.Combine(AppContext.BaseDirectory, "config", "window-state.json");
 
     private static Icon LoadAppIcon()
@@ -174,17 +179,7 @@ public partial class Form1 : Form
 
         if (!webViewOk)
         {
-            // 写入日志文件
-            try
-            {
-                var logDir = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "Douzhanzhe Console");
-                Directory.CreateDirectory(logDir);
-                File.AppendAllText(Path.Combine(logDir, "api-startup.log"),
-                    $"[{DateTime.Now:HH:mm:ss}] WebView2 init failed: {webViewError}\n");
-            }
-            catch { }
+            AppLog("Shell", $"WebView2 init failed: {webViewError}");
 
             // 用 WinForms Label 显示错误
             _webView.Dispose();
@@ -230,12 +225,14 @@ public partial class Form1 : Form
             var logContent = "";
             try
             {
-                var logDir = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "Douzhanzhe Console");
-                var logPath = Path.Combine(logDir, "api-startup.log");
+                var logPath = _appLogPath;
                 if (File.Exists(logPath))
-                    logContent = System.Net.WebUtility.HtmlEncode(File.ReadAllText(logPath));
+                {
+                    // 只读最后 50 行，避免页面太长
+                    var lines = File.ReadAllLines(logPath);
+                    var tail = lines.Skip(Math.Max(0, lines.Length - 50));
+                    logContent = System.Net.WebUtility.HtmlEncode(string.Join("\n", tail));
+                }
             }
             catch { }
 
@@ -257,6 +254,11 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
         }
 
         _webView.Source = new Uri("http://127.0.0.1:3100/");
+
+        // 启动后端健康守护：每 8 秒检查一次，连续 2 次失败则重启后端
+        _healthTimer = new System.Windows.Forms.Timer { Interval = 8000 };
+        _healthTimer.Tick += HealthTimer_Tick;
+        _healthTimer.Start();
 
         // 异步初始化（WebView2、API 轮询）期间 WinForms 可能隐式重新显示了窗口
         // 在所有初始化完成后再次确保窗口隐藏到托盘
@@ -308,6 +310,8 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
     private void ExitApp()
     {
         _closeToTray = false;
+        _healthTimer?.Stop();
+        _healthTimer?.Dispose();
         _trayIcon.Visible = false;
         _trayIcon.Dispose();
 
@@ -315,6 +319,94 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
         KillProcessOnPort(3100);
 
         Application.Exit();
+    }
+
+    // ---- 统一日志: 写入 logs/app.log，与后端 AppLog 同文件 ----
+    private static readonly string _logDir = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "Douzhanzhe Console", "logs");
+    private static readonly string _appLogPath = Path.Combine(_logDir, "app.log");
+
+    private static void AppLog(string tag, string msg)
+    {
+        try
+        {
+            Directory.CreateDirectory(_logDir);
+            File.AppendAllText(_appLogPath,
+                $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] [{tag}] {msg}\n");
+        }
+        catch { }
+    }
+
+    private void ShellLog(string msg) => AppLog("Shell", msg);
+
+    private async void HealthTimer_Tick(object? sender, EventArgs e)
+    {
+        // 防止重入：上一次检查还没完成时跳过
+        _healthTimer?.Stop();
+
+        bool alive = false;
+        try
+        {
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
+            var resp = await http.GetAsync("http://127.0.0.1:3100/api/health");
+            alive = resp.IsSuccessStatusCode;
+        }
+        catch { }
+
+        if (alive)
+        {
+            _healthFailCount = 0;
+            // 后端从宕机恢复后，刷新 WebView2
+            if (_backendWasDown)
+            {
+                _backendWasDown = false;
+                ShellLog("后端已恢复，刷新 WebView2");
+                try { _webView.Reload(); } catch { }
+            }
+        }
+        else
+        {
+            _healthFailCount++;
+            if (_healthFailCount == 1)
+                ShellLog("健康检查失败 (1/2)，等待下次确认");
+
+            // 连续 2 次失败（约 16 秒）才触发重启，避免网络抖动误判
+            if (_healthFailCount >= 2)
+            {
+                ShellLog("健康检查连续失败 2 次，重启后端");
+                _backendWasDown = true;
+                _healthFailCount = 0;
+                StartApiIfNotRunning();
+
+                // 等待后端恢复（最多 20 秒）
+                using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(2) };
+                bool recovered = false;
+                for (int i = 0; i < 20; i++)
+                {
+                    try
+                    {
+                        var resp = await http.GetAsync("http://127.0.0.1:3100/");
+                        if (resp.IsSuccessStatusCode)
+                        {
+                            ShellLog($"后端重启成功 ({i + 1}s)，刷新 WebView2");
+                            try { _webView.Reload(); } catch { }
+                            _backendWasDown = false;
+                            recovered = true;
+                            break;
+                        }
+                    }
+                    catch { }
+                    await Task.Delay(1000);
+                }
+                if (!recovered)
+                {
+                    ShellLog("后端重启超时 (20s)，WebView2 保持当前状态");
+                }
+            }
+        }
+
+        _healthTimer?.Start();
     }
 
     private void KillProcessOnPort(int port)
@@ -378,30 +470,21 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
 
         var baseDir = AppContext.BaseDirectory;
         var apiExe = Path.Combine(baseDir, "Douzhanzhe.API.exe");
-        var logDir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "Douzhanzhe Console");
-        Directory.CreateDirectory(logDir);
-        var logPath = Path.Combine(logDir, "api-startup.log");
 
-        void AppendLog(string msg) {
-            try { File.AppendAllText(logPath, $"[{DateTime.Now:HH:mm:ss}] {msg}\n"); } catch { }
-        }
-
-        try { File.WriteAllText(logPath, $"[{DateTime.Now:HH:mm:ss}] API startup begin\n[{DateTime.Now:HH:mm:ss}] BaseDir: {baseDir}\n"); } catch { }
+        AppLog("API-Startup", $"begin, BaseDir={baseDir}");
 
         if (!File.Exists(apiExe))
         {
-            AppendLog($"ERROR: Douzhanzhe.API.exe not found at {apiExe}");
+            AppLog("API-Startup", $"ERROR: Douzhanzhe.API.exe not found at {apiExe}");
             // 列出目录内容帮助排查
             try {
                 var files = Directory.GetFiles(baseDir, "*.exe");
-                AppendLog($"EXE files in {baseDir}: {string.Join(", ", files.Select(Path.GetFileName))}");
+                AppLog("API-Startup", $"EXE files in {baseDir}: {string.Join(", ", files.Select(Path.GetFileName))}");
             } catch { }
             return;
         }
 
-        AppendLog($"Starting: {apiExe}");
+        AppLog("API-Startup", $"Starting: {apiExe}");
         try
         {
             var psi = new ProcessStartInfo(apiExe)
@@ -417,33 +500,33 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
             var proc = Process.Start(psi);
             if (proc == null)
             {
-                AppendLog("ERROR: Process.Start returned null");
+                AppLog("API-Startup", "ERROR: Process.Start returned null");
                 return;
             }
-            AppendLog($"PID: {proc.Id}");
+            AppLog("API-Startup", $"PID: {proc.Id}");
 
             // 等 2 秒检查进程是否立即崩溃
             Thread.Sleep(2000);
             if (proc.HasExited)
             {
-                AppendLog($"ERROR: Process exited immediately with code {proc.ExitCode}");
+                AppLog("API-Startup", $"ERROR: Process exited immediately with code {proc.ExitCode}");
                 try {
                     var stderr = proc.StandardError.ReadToEnd();
                     if (!string.IsNullOrEmpty(stderr))
-                        AppendLog($"STDERR: {stderr[..Math.Min(stderr.Length, 2000)]}");
+                        AppLog("API-Startup", $"STDERR: {stderr[..Math.Min(stderr.Length, 2000)]}");
                     var stdout = proc.StandardOutput.ReadToEnd();
                     if (!string.IsNullOrEmpty(stdout))
-                        AppendLog($"STDOUT: {stdout[..Math.Min(stdout.Length, 2000)]}");
+                        AppLog("API-Startup", $"STDOUT: {stdout[..Math.Min(stdout.Length, 2000)]}");
                 } catch { }
             }
             else
             {
-                AppendLog("Process running, waiting for port...");
+                AppLog("API-Startup", "Process running, waiting for port...");
             }
         }
         catch (Exception ex)
         {
-            AppendLog($"ERROR: {ex.GetType().Name}: {ex.Message}");
+            AppLog("API-Startup", $"ERROR: {ex.GetType().Name}: {ex.Message}");
         }
     }
 
@@ -555,6 +638,8 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
         {
             // 清理热键
             UnregisterHotKey(Handle, HOTKEY_ID_MONITOR_OFF);
+            _healthTimer?.Stop();
+            _healthTimer?.Dispose();
             _hotkeyPollTimer?.Dispose();
             _hotkeyWatcher?.Dispose();
             _trayIcon?.Dispose();
