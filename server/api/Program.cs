@@ -351,17 +351,20 @@ async System.Threading.Tasks.Task RestoreAllPerfSettings(string tag)
         if (o.Fan.LargeRpm.HasValue || o.Fan.SmallRpm.HasValue)
         {
             var wmi = app.Services.GetRequiredService<WmiInterface>();
+            var hal = app.Services.GetRequiredService<HardwareAbstractionLayer>();
             if (o.Fan.LargeRpm.HasValue)
             {
                 var speed = (byte)Math.Clamp(o.Fan.LargeRpm.Value / 100, 0, 44);
                 wmi.SetFanManual(0, true);
                 wmi.SetFanSpeed(0, speed);
+                hal.WriteEcPort(0x5E, speed);
             }
             if (o.Fan.SmallRpm.HasValue)
             {
                 var speed = (byte)Math.Clamp(o.Fan.SmallRpm.Value / 100, 0, 82);
                 wmi.SetFanManual(1, true);
                 wmi.SetFanSpeed(1, speed);
+                hal.WriteEcPort(0x5A, speed);
             }
             Log($"[{tag}] Fan target → large={o.Fan.LargeRpm ?? 0} small={o.Fan.SmallRpm ?? 0}");
         }
@@ -395,17 +398,20 @@ _ = System.Threading.Tasks.Task.Run(async () =>
                     if (o.Fan.LargeRpm.HasValue || o.Fan.SmallRpm.HasValue)
                     {
                         var wmi = app.Services.GetRequiredService<WmiInterface>();
+                        var hal = app.Services.GetRequiredService<HardwareAbstractionLayer>();
                         if (o.Fan.LargeRpm.HasValue)
                         {
                             var speed = (byte)Math.Clamp(o.Fan.LargeRpm.Value / 100, 0, 44);
                             wmi.SetFanManual(0, true);
                             wmi.SetFanSpeed(0, speed);
+                            hal.WriteEcPort(0x5E, speed);
                         }
                         if (o.Fan.SmallRpm.HasValue)
                         {
                             var speed = (byte)Math.Clamp(o.Fan.SmallRpm.Value / 100, 0, 82);
                             wmi.SetFanManual(1, true);
                             wmi.SetFanSpeed(1, speed);
+                            hal.WriteEcPort(0x5A, speed);
                         }
                     }
                 }
@@ -879,23 +885,25 @@ app.MapGet("/api/smu/status", (SmuController smu) =>
         return Results.Json(new { ok = false, error = ex.Message, source = "ryzenadj" });
     }
 });
-app.MapPost("/api/fan/set-target", (FanSetRequest req, WmiInterface wmi, string? mode = null) =>
+app.MapPost("/api/fan/set-target", (FanSetRequest req, WmiInterface wmi, HardwareAbstractionLayer hal, string? mode = null) =>
 {
     try
     {
         Log($"[fan/set-target] ← large={req.LargeRpm} small={req.SmallRpm}");
-        // Bellator 协议: 交错式 — Switch(fan) → Speed(fan) 逐扇操作
+        // Bellator 协议: 交错式 — Switch(fan) → Speed(fan) + EC 寄存器直写
         if (req.LargeRpm.HasValue)
         {
             var speed = (byte)Math.Clamp(req.LargeRpm.Value / 100, 0, 44);
             wmi.SetFanManual(0, true);
             wmi.SetFanSpeed(0, speed); // FanType 0 = CPUGPUFan
+            hal.WriteEcPort(0x5E, speed); // EC 寄存器直写，防止 EC 固件覆盖
         }
         if (req.SmallRpm.HasValue)
         {
             var speed = (byte)Math.Clamp(req.SmallRpm.Value / 100, 0, 82);
             wmi.SetFanManual(1, true);
             wmi.SetFanSpeed(1, speed); // FanType 1 = SYSFan
+            hal.WriteEcPort(0x5A, speed); // EC 寄存器直写，防止 EC 固件覆盖
         }
         // 持久化固定风扇转速，供睡眠恢复 + 启动恢复使用
         SavePerfOverrides(o =>
