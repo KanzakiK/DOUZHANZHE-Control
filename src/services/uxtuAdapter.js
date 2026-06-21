@@ -36,19 +36,10 @@ export const powerPlanHALMap = {
   performance: 1,
 };
 
-export async function applyUxtuLimits(payload) {
-  const res = await fetch(`${BACKEND}/api/uxtu/apply`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) throw new Error(`后端返回 ${res.status}`);
-  return res.json();
-}
-
 // C# HAL 硬件控制 (kb_light, fn_lock, num_lock, caps_lock, thermal_mode)
-export async function applyHardwareControl(target, value) {
-  const res = await fetch(`/api/control`, {
+export async function applyHardwareControl(target, value, mode) {
+  const url = mode ? `/api/control?mode=${mode}` : `/api/control`;
+  const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ target, value }),
@@ -73,11 +64,12 @@ export function createTelemetrySocket(onData, onError) {
 const GPU_BASE_CLOCK = 2750; // RTX 5060 典型 boost 频率 (nvidia-smi 无法读取，用户提供)
 
 // GPU 控制: action = "limit-max" | "lock-exact" | "reset-clocks" | "reset-memory-clocks"
-export async function applyGpuControl(action, value, min, max) {
+export async function applyGpuControl(action, value, min, max, mode) {
   const body = value !== undefined
     ? { action, min, max, value }
     : { action };
-  const res = await fetch(`/api/gpu/set`, {
+  const url = mode ? `/api/gpu/set?mode=${mode}` : `/api/gpu/set`;
+  const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -94,8 +86,9 @@ export async function fetchNvapiStatus() {
 }
 
 // NVAPI 超频: coreOffsetMhz / memOffsetMhz 偏移值
-export async function applyNvapiOverclock(coreOffsetMhz, memOffsetMhz) {
-  const res = await fetch(`/api/nvapi/overclock`, {
+export async function applyNvapiOverclock(coreOffsetMhz, memOffsetMhz, mode) {
+  const url = mode ? `/api/nvapi/overclock?mode=${mode}` : `/api/nvapi/overclock`;
+  const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ coreOffsetMhz, memOffsetMhz }),
@@ -105,8 +98,9 @@ export async function applyNvapiOverclock(coreOffsetMhz, memOffsetMhz) {
 }
 
 // NVAPI 温度限制
-export async function applyNvapiThermalLimit(tempC) {
-  const res = await fetch(`/api/nvapi/thermal-limit`, {
+export async function applyNvapiThermalLimit(tempC, mode) {
+  const url = mode ? `/api/nvapi/thermal-limit?mode=${mode}` : `/api/nvapi/thermal-limit`;
+  const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ tempC }),
@@ -218,8 +212,9 @@ export function getFanRange(mode) {
   return FAN_RANGES[mode] || FAN_RANGES.silent;
 }
 
-export async function applySmuSet(parameter, valueM) {
-  const res = await fetch("/api/smu/set", {
+export async function applySmuSet(parameter, valueM, mode) {
+  const url = mode ? `/api/smu/set?mode=${mode}` : `/api/smu/set`;
+  const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ parameter, valueM }),
@@ -236,8 +231,9 @@ export async function fetchCpuPowerStatus() {
   return res.json();
 }
 
-export async function setCpuFreqLimit(mhz) {
-  const res = await fetch("/api/cpu/freq-limit", {
+export async function setCpuFreqLimit(mhz, mode) {
+  const url = mode ? `/api/cpu/freq-limit?mode=${mode}` : `/api/cpu/freq-limit`;
+  const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ mhz }),
@@ -246,8 +242,9 @@ export async function setCpuFreqLimit(mhz) {
   return res.json();
 }
 
-export async function setCpuTurbo(enabled) {
-  const res = await fetch("/api/cpu/turbo", {
+export async function setCpuTurbo(enabled, mode) {
+  const url = mode ? `/api/cpu/turbo?mode=${mode}` : `/api/cpu/turbo`;
+  const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ enabled }),
@@ -256,8 +253,9 @@ export async function setCpuTurbo(enabled) {
   return res.json();
 }
 
-export async function setCpuCoreLimitPercent(percent) {
-  const res = await fetch("/api/cpu/core-limit", {
+export async function setCpuCoreLimitPercent(percent, mode) {
+  const url = mode ? `/api/cpu/core-limit?mode=${mode}` : `/api/cpu/core-limit`;
+  const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ percent }),
@@ -266,8 +264,9 @@ export async function setCpuCoreLimitPercent(percent) {
   return res.json();
 }
 
-export async function resetCpuPower() {
-  const res = await fetch("/api/cpu/reset", { method: "POST" });
+export async function resetCpuPower(mode) {
+  const url = mode ? `/api/cpu/reset?mode=${mode}` : `/api/cpu/reset`;
+  const res = await fetch(url, { method: "POST" });
   if (!res.ok) throw new Error("CPU reset returned " + res.status);
   return res.json();
 }
@@ -495,44 +494,47 @@ export async function reapplyOverrides(mode, overrides) {
     log("reapply", "overrides 为空，发送全通道重置");
     // GPU: 解除上一个模式可能残留的核心/显存频率锁
     await Promise.all([
-      applyGpuControl("reset-clocks").catch(e => console.warn("[GPU] reset-clocks:", e)),
-      applyGpuControl("reset-memory-clocks").catch(e => console.warn("[GPU] reset-mem:", e)),
+      applyGpuControl("reset-clocks", undefined, undefined, undefined, mode).catch(e => console.warn("[GPU] reset-clocks:", e)),
+      applyGpuControl("reset-memory-clocks", undefined, undefined, undefined, mode).catch(e => console.warn("[GPU] reset-mem:", e)),
     ]);
     await Promise.all([
-      applyNvapiOverclock(0, 0).catch(e => console.warn("[NVAPI] OC-reset:", e)),
-      applyNvapiThermalLimit(87).catch(e => console.warn("[NVAPI] thermal-reset:", e)),
+      applyNvapiOverclock(0, 0, mode).catch(e => console.warn("[NVAPI] OC-reset:", e)),
+      applyNvapiThermalLimit(87, mode).catch(e => console.warn("[NVAPI] thermal-reset:", e)),
     ]);
     await Promise.all([
-      setCpuFreqLimit(0).catch(e => console.warn("[CPU] freq-reset:", e)),
-      setCpuTurbo(true).catch(e => console.warn("[CPU] turbo-reset:", e)),
-      setCpuCoreLimitPercent(100).catch(() => {}),
-      applyHardwareControl("power_plan", 0).catch(e => console.warn("[CPU] power-plan-reset:", e)),
+      setCpuFreqLimit(0, mode).catch(e => console.warn("[CPU] freq-reset:", e)),
+      setCpuTurbo(true, mode).catch(e => console.warn("[CPU] turbo-reset:", e)),
+      setCpuCoreLimitPercent(100, mode).catch(() => {}),
+      applyHardwareControl("power_plan", 0, mode).catch(e => console.warn("[CPU] power-plan-reset:", e)),
     ]);
     return;
   }
 
-  // ② SMU 批量写入（仅当 overrides 有 CPU SMU 字段时执行）
+  // ② SMU 逐项写入（绕过 uxtu/apply，避免反序列化失败触发 fallback 链）
   const smuFields = ["cpuLongPptW", "cpuShortPptW", "cpuTempLimitC", "cpuVoltageOffset"];
   const hasSmu = smuFields.some(f => f in overrides);
   if (hasSmu) {
-    await applyUxtuLimits({ chipset: "Ryzen 9 8940HX", profile: mode, params: overrides }).catch(
-      e => console.warn("[SMU] batch:", e)
-    );
+    const smuPromises = [];
+    if ("cpuLongPptW" in overrides) smuPromises.push(applySmuSet("stapm_limit", overrides.cpuLongPptW, mode));
+    if ("cpuShortPptW" in overrides) smuPromises.push(applySmuSet("short_power_limit", overrides.cpuShortPptW, mode));
+    if ("cpuTempLimitC" in overrides) smuPromises.push(applySmuSet("tctl_temp", overrides.cpuTempLimitC, mode));
+    if ("cpuVoltageOffset" in overrides) smuPromises.push(applySmuSet("co_all", overrides.cpuVoltageOffset, mode));
+    await Promise.all(smuPromises.map(p => p.catch(e => console.warn("[SMU] set:", e))));
   }
 
   // ③ GPU 核心频率
   const hasGpuCore = "gpuFreqLimitEnabled" in overrides || "gpuCoreFreqMhz" in overrides;
   if (hasGpuCore) {
     try {
-      await applyGpuControl("reset-clocks");
+      await applyGpuControl("reset-clocks", undefined, undefined, undefined, mode);
       if (overrides.gpuFreqLimitEnabled && overrides.gpuCoreFreqMhz !== GPU_BASE_CLOCK) {
-        await applyGpuControl("limit-max", overrides.gpuCoreFreqMhz);
-        await applyGpuControl("lock-exact", overrides.gpuCoreFreqMhz);
+        await applyGpuControl("limit-max", overrides.gpuCoreFreqMhz, undefined, undefined, mode);
+        await applyGpuControl("lock-exact", overrides.gpuCoreFreqMhz, undefined, undefined, mode);
       }
     } catch (e) { console.warn("[GPU] freq:", e); }
   } else {
     // 新模式未设核心频率 → 清理上一个模式可能残留的核心锁
-    await applyGpuControl("reset-clocks").catch(e => console.warn("[GPU] cleanup reset-clocks:", e));
+    await applyGpuControl("reset-clocks", undefined, undefined, undefined, mode).catch(e => console.warn("[GPU] cleanup reset-clocks:", e));
   }
 
   // GPU 显存频率
@@ -540,79 +542,90 @@ export async function reapplyOverrides(mode, overrides) {
   if (hasGpuMem) {
     try {
       const memMap = [0, 9001, 11001, 12001];
-      await applyGpuControl("reset-memory-clocks");
-      await applyGpuControl("limit-memory", memMap[overrides.gpuMemFreqMhz]);
+      await applyGpuControl("reset-memory-clocks", undefined, undefined, undefined, mode);
+      await applyGpuControl("limit-memory", memMap[overrides.gpuMemFreqMhz], undefined, undefined, mode);
     } catch (e) { console.warn("[GPU] memory:", e); }
   } else {
     // 新模式未设显存频率 → 清理上一个模式可能残留的显存锁
-    await applyGpuControl("reset-memory-clocks").catch(e => console.warn("[GPU] cleanup reset-mem:", e));
+    await applyGpuControl("reset-memory-clocks", undefined, undefined, undefined, mode).catch(e => console.warn("[GPU] cleanup reset-mem:", e));
   }
 
-  // ④ NVAPI: 超频偏移 + 温度限制（并行）
-  const thermalC = clampParam("gpuTempLimitC", overrides.gpuTempLimitC ?? 87);
-  await Promise.all([
-    applyNvapiOverclock(overrides.ocCoreOffsetMhz ?? 0, overrides.ocMemOffsetMhz ?? 0).catch(
-      e => console.warn("[NVAPI] OC:", e)
-    ),
-    applyNvapiThermalLimit(thermalC).catch(
-      e => console.warn("[NVAPI] thermal:", e)
-    ),
-  ]);
+  // ④ NVAPI: 超频偏移 + 温度限制（仅在 overrides 有对应字段时写入，避免默认值污染）
+  const nvapiPromises = [];
+  if ("ocCoreOffsetMhz" in overrides || "ocMemOffsetMhz" in overrides) {
+    nvapiPromises.push(
+      applyNvapiOverclock(overrides.ocCoreOffsetMhz ?? 0, overrides.ocMemOffsetMhz ?? 0, mode).catch(
+        e => console.warn("[NVAPI] OC:", e)
+      )
+    );
+  }
+  if ("gpuTempLimitC" in overrides) {
+    nvapiPromises.push(
+      applyNvapiThermalLimit(clampParam("gpuTempLimitC", overrides.gpuTempLimitC), mode).catch(
+        e => console.warn("[NVAPI] thermal:", e)
+      )
+    );
+  }
+  if (nvapiPromises.length) await Promise.all(nvapiPromises);
 
-  // ⑤ CPU powercfg: 频率限制 / 睿频 / 核心数 / 电源计划
-  setCpuFreqLimit(overrides.cpuFreqLimitEnabled ? overrides.cpuFreqLimitMhz : 0).catch(
-    e => console.warn("[CPU] freq:", e)
-  );
-  setCpuTurbo(!(overrides.cpuTurboDisabled ?? false)).catch(
-    e => console.warn("[CPU] turbo:", e)
-  );
-  if ((overrides.cpuCoreLimit ?? 0) > 0) {
-    setCpuCoreLimitPercent(Math.round(overrides.cpuCoreLimit / 16 * 100)).catch(
+  // ⑤ CPU powercfg: 频率限制 / 睿频 / 核心数 / 电源计划（仅在 overrides 有对应字段时写入）
+  if ("cpuFreqLimitEnabled" in overrides || "cpuFreqLimitMhz" in overrides) {
+    setCpuFreqLimit(overrides.cpuFreqLimitEnabled ? overrides.cpuFreqLimitMhz : 0, mode).catch(
+      e => console.warn("[CPU] freq:", e)
+    );
+  }
+  if ("cpuTurboDisabled" in overrides) {
+    setCpuTurbo(!overrides.cpuTurboDisabled, mode).catch(
+      e => console.warn("[CPU] turbo:", e)
+    );
+  }
+  if ("cpuCoreLimit" in overrides) {
+    const pct = overrides.cpuCoreLimit > 0 ? Math.round(overrides.cpuCoreLimit / 16 * 100) : 100;
+    setCpuCoreLimitPercent(pct, mode).catch(
       e => console.warn("[CPU] core-limit:", e)
     );
-  } else {
-    setCpuCoreLimitPercent(100).catch(() => {});
   }
-  const ppHal = powerPlanHALMap[overrides.cpuPowerPlan ?? "balance"];
-  if (ppHal !== undefined) {
-    applyHardwareControl("power_plan", ppHal).catch(
-      e => console.warn("[CPU] power-plan:", e)
-    );
+  if ("cpuPowerPlan" in overrides) {
+    const ppHal = powerPlanHALMap[overrides.cpuPowerPlan];
+    if (ppHal !== undefined) {
+      applyHardwareControl("power_plan", ppHal, mode).catch(
+        e => console.warn("[CPU] power-plan:", e)
+      );
+    }
   }
 
   // ⑥ 风扇目标转速
   const fanFields = ["fanLargeRpmTarget", "fanSmallRpmTarget"];
   const hasFan = fanFields.some(f => f in overrides);
   if (hasFan) {
-    fetch("/api/fan/set-target", {
+    const fanUrl = mode ? `/api/fan/set-target?mode=${mode}` : `/api/fan/set-target`;
+    fetch(fanUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        largeRpm: overrides.fanLargeRpmTarget ?? 2900,
-        smallRpm: overrides.fanSmallRpmTarget ?? 6400,
+        largeRpm: overrides.fanLargeRpmTarget,
+        smallRpm: overrides.fanSmallRpmTarget,
       }),
     }).catch(e => console.warn("[Fan]:", e));
   }
 
   // ⑦ 延迟重发 SMU（两次），仅当 SMU 实际执行时触发
   if (hasSmu) {
+    const resendSmu = () => {
+      const ps = [];
+      if ("cpuLongPptW" in overrides) ps.push(applySmuSet("stapm_limit", overrides.cpuLongPptW, mode));
+      if ("cpuShortPptW" in overrides) ps.push(applySmuSet("short_power_limit", overrides.cpuShortPptW, mode));
+      if ("cpuTempLimitC" in overrides) ps.push(applySmuSet("tctl_temp", overrides.cpuTempLimitC, mode));
+      if ("cpuVoltageOffset" in overrides) ps.push(applySmuSet("co_all", overrides.cpuVoltageOffset, mode));
+      return Promise.all(ps.map(p => p.catch(() => {})));
+    };
     const t1 = setTimeout(() => {
-      if (myGen !== _smuDispatchGen) {
-        log("SMU", `re-send skipped (gen ${_smuDispatchGen})`);
-        return;
-      }
-      applyUxtuLimits({ chipset: "Ryzen 9 8940HX", profile: mode, params: overrides })
-        .then(r => log("SMU", `re-send OK: ${JSON.stringify(r)}`))
-        .catch(e => console.warn("[SMU] re-send failed:", e));
+      if (myGen !== _smuDispatchGen) { log("SMU", `re-send skipped (gen ${_smuDispatchGen})`); return; }
+      resendSmu().then(() => log("SMU", "re-send OK")).catch(e => console.warn("[SMU] re-send:", e));
     }, 500);
     const t2 = setTimeout(() => {
-      if (myGen !== _smuDispatchGen) {
-        log("SMU", `re-send2 skipped (gen ${_smuDispatchGen})`);
-        return;
-      }
-      applyUxtuLimits({ chipset: "Ryzen 9 8940HX", profile: mode, params: overrides })
-        .then(r => log("SMU", `re-send2 OK: ${JSON.stringify(r)}`))
-        .catch(e => console.warn("[SMU] re-send2 failed:", e));
+      if (myGen !== _smuDispatchGen) { log("SMU", `re-send2 skipped (gen ${_smuDispatchGen})`); return; }
+      resendSmu().then(() => log("SMU", "re-send2 OK")).catch(e => console.warn("[SMU] re-send2:", e));
     }, 1500);
     _smuResendTimers = [t1, t2];
   }

@@ -111,15 +111,15 @@ void ApplyThermalMode(string mode)
 PerformanceOverrides LoadPerfOverrides()
     => JsonRead($"overrides-{CurrentMode()}.json", new PerformanceOverrides());
 
-void SavePerfOverrides(Action<PerformanceOverrides> mutate)
+void SavePerfOverrides(Action<PerformanceOverrides> mutate, string? mode = null)
 {
     lock (_perfLock)
     {
-        var file = $"overrides-{CurrentMode()}.json";
+        var file = $"overrides-{mode ?? CurrentMode()}.json";
         var o = JsonRead(file, new PerformanceOverrides());
         mutate(o);
         JsonWrite(file, o);
-        Log($"[overrides] ✓ saved → {file}");
+        Log($"[overrides] ✓ saved → {file}{(mode != null ? " (pinned)" : "")}");
     }
 }
 
@@ -374,6 +374,7 @@ _ = System.Threading.Tasks.Task.Run(async () =>
 {
     await System.Threading.Tasks.Task.Delay(10_000); // 启动后等 10 秒再开始
     using var timer = new PeriodicTimer(TimeSpan.FromSeconds(60));
+    var fanCurveSvc = app.Services.GetRequiredService<FanCurveService>();
     try
     {
         while (await timer.WaitForNextTickAsync())
@@ -386,6 +387,28 @@ _ = System.Threading.Tasks.Task.Run(async () =>
             try
             {
                 await RestoreComputeSettings("ParameterGuard");
+
+                // 风扇固定转速守护: 仅在自定义曲线未运行时守护手动 RPM，防止 EC 漂移
+                if (!fanCurveSvc.Active)
+                {
+                    var o = LoadPerfOverrides();
+                    if (o.Fan.LargeRpm.HasValue || o.Fan.SmallRpm.HasValue)
+                    {
+                        var wmi = app.Services.GetRequiredService<WmiInterface>();
+                        if (o.Fan.LargeRpm.HasValue)
+                        {
+                            var speed = (byte)Math.Clamp(o.Fan.LargeRpm.Value / 100, 0, 44);
+                            wmi.SetFanManual(0, true);
+                            wmi.SetFanSpeed(0, speed);
+                        }
+                        if (o.Fan.SmallRpm.HasValue)
+                        {
+                            var speed = (byte)Math.Clamp(o.Fan.SmallRpm.Value / 100, 0, 82);
+                            wmi.SetFanManual(1, true);
+                            wmi.SetFanSpeed(1, speed);
+                        }
+                    }
+                }
             }
             catch (Exception ex)
             {
@@ -606,7 +629,7 @@ app.MapGet("/api/health", (HardwareAbstractionLayer hal) =>
         timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
     });
 });
-app.MapPost("/api/control", (ControlRequest req, HardwareAbstractionLayer hal, WmiInterface wmi) =>
+app.MapPost("/api/control", (ControlRequest req, HardwareAbstractionLayer hal, WmiInterface wmi, string? mode = null) =>
 {
     try
     {
@@ -630,7 +653,7 @@ app.MapPost("/api/control", (ControlRequest req, HardwareAbstractionLayer hal, W
                 break;
             case "power_plan":
                 hal.PowerPlan = req.Value;
-                SavePerfOverrides(o => o.PowerPlan = req.Value);
+                SavePerfOverrides(o => o.PowerPlan = req.Value, mode);
                 break;
             case "thermal_mode":
                 {
@@ -776,30 +799,31 @@ app.MapGet("/api/ec-scan", (HttpContext ctx, HardwareAbstractionLayer hal) =>
         return Results.Problem(ex.Message, statusCode: 400);
     }
 });
-app.MapPost("/api/smu/set", (SmuController smu, SmuSetRequest req) =>
+app.MapPost("/api/smu/set", (SmuController smu, SmuSetRequest req, string? mode = null) =>
 {
     try
     {
+        Log($"[smu/set] ← {req.Parameter}={req.ValueM}");
         int rc;
         switch (req.Parameter)
         {
             case "stapm_limit":
             case "power_limit":
                 rc = smu.SetPowerLimit((uint)(req.ValueM * 1000));
-                SavePerfOverrides(o => o.Smu.StapmLimitW = req.ValueM);
+                SavePerfOverrides(o => o.Smu.StapmLimitW = req.ValueM, mode);
                 break;
             case "short_power_limit":
                 rc = smu.SetShortPowerLimit((uint)(req.ValueM * 1000), (uint)(req.ValueM * 1000));
-                SavePerfOverrides(o => o.Smu.ShortPowerLimitW = req.ValueM);
+                SavePerfOverrides(o => o.Smu.ShortPowerLimitW = req.ValueM, mode);
                 break;
             case "tctl_temp":
             case "temp_limit":
                 rc = smu.SetTempLimit((uint)req.ValueM);
-                SavePerfOverrides(o => o.Smu.TempLimitC = req.ValueM);
+                SavePerfOverrides(o => o.Smu.TempLimitC = req.ValueM, mode);
                 break;
             case "co_all":
                 rc = smu.SetCurveOptimizer(req.ValueM);
-                SavePerfOverrides(o => o.Smu.CoAll = req.ValueM);
+                SavePerfOverrides(o => o.Smu.CoAll = req.ValueM, mode);
                 break;
             case "turbo_disable":
                 rc = smu.SetTurboDisabled(req.ValueM != 0);
@@ -855,7 +879,7 @@ app.MapGet("/api/smu/status", (SmuController smu) =>
         return Results.Json(new { ok = false, error = ex.Message, source = "ryzenadj" });
     }
 });
-app.MapPost("/api/fan/set-target", (FanSetRequest req, WmiInterface wmi) =>
+app.MapPost("/api/fan/set-target", (FanSetRequest req, WmiInterface wmi, string? mode = null) =>
 {
     try
     {
@@ -878,7 +902,7 @@ app.MapPost("/api/fan/set-target", (FanSetRequest req, WmiInterface wmi) =>
         {
             if (req.LargeRpm.HasValue) o.Fan.LargeRpm = req.LargeRpm.Value;
             if (req.SmallRpm.HasValue) o.Fan.SmallRpm = req.SmallRpm.Value;
-        });
+        }, mode);
         return Results.Json(new { ok = true });
     }
     catch (Exception ex)
@@ -1056,7 +1080,7 @@ app.MapGet("/api/fan-curve/route-info", (FanCurveService svc) =>
 });
 
 // ---- GPU 控制 (nvidia-smi 子进程) ----
-app.MapPost("/api/gpu/set", (GpuController gpu, GpuSetRequest req) =>
+app.MapPost("/api/gpu/set", (GpuController gpu, GpuSetRequest req, string? mode = null) =>
 {
     try
     {
@@ -1128,7 +1152,7 @@ app.MapPost("/api/gpu/set", (GpuController gpu, GpuSetRequest req) =>
                     o.Gpu.MemFreqLevel = null;
                     break;
             }
-        });
+        }, mode);
         return Results.Json(new { ok = true });
     }
     catch (Exception ex)
@@ -1173,27 +1197,27 @@ app.MapGet("/api/nvapi/status", (NvapiGpuController nv) =>
 app.MapGet("/api/nvapi/dump-pstates", (NvapiGpuController nv) =>
     Results.Text(nv.DumpPStates(), "text/plain"));
 
-app.MapPost("/api/nvapi/overclock", (NvapiGpuController nv, NvapiOverclockRequest req) =>
+app.MapPost("/api/nvapi/overclock", (NvapiGpuController nv, NvapiOverclockRequest req, string? mode = null) =>
 {
     if (!nv.IsAvailable) return Results.Json(new { ok = false, error = "NVAPI not available" });
     var rc = nv.SetP0Offset(req.CoreOffsetMhz, req.MemOffsetMhz);
-    SavePerfOverrides(o => { o.Nvapi.OcCoreOffsetMhz = req.CoreOffsetMhz; o.Nvapi.OcMemOffsetMhz = req.MemOffsetMhz; });
+    SavePerfOverrides(o => { o.Nvapi.OcCoreOffsetMhz = req.CoreOffsetMhz; o.Nvapi.OcMemOffsetMhz = req.MemOffsetMhz; }, mode);
     return Results.Json(new { ok = rc == 0, rc });
 });
 
-app.MapPost("/api/nvapi/power-limit", (NvapiGpuController nv, NvapiPowerLimitRequest req) =>
+app.MapPost("/api/nvapi/power-limit", (NvapiGpuController nv, NvapiPowerLimitRequest req, string? mode = null) =>
 {
     if (!nv.IsAvailable) return Results.Json(new { ok = false, error = "NVAPI not available" });
     var rc = nv.SetPowerLimit((uint)(req.PowerW * 1000)); // W → mW
-    SavePerfOverrides(o => o.Nvapi.PowerLimitW = req.PowerW);
+    SavePerfOverrides(o => o.Nvapi.PowerLimitW = req.PowerW, mode);
     return Results.Json(new { ok = rc == 0, rc });
 });
 
-app.MapPost("/api/nvapi/thermal-limit", (NvapiGpuController nv, NvapiThermalLimitRequest req) =>
+app.MapPost("/api/nvapi/thermal-limit", (NvapiGpuController nv, NvapiThermalLimitRequest req, string? mode = null) =>
 {
     if (!nv.IsAvailable) return Results.Json(new { ok = false, error = "NVAPI not available" });
     var rc = nv.SetThermalLimit(req.TempC);
-    SavePerfOverrides(o => o.Nvapi.ThermalLimitC = req.TempC);
+    SavePerfOverrides(o => o.Nvapi.ThermalLimitC = req.TempC, mode);
     return Results.Json(new { ok = rc == 0, rc });
 });
 
@@ -1216,13 +1240,13 @@ app.MapGet("/api/cpu/status", (CpuPowerController cpu) =>
     }
 });
 
-app.MapPost("/api/cpu/freq-limit", async (CpuPowerController cpu, CpuFreqLimitRequest req) =>
+app.MapPost("/api/cpu/freq-limit", async (CpuPowerController cpu, CpuFreqLimitRequest req, string? mode = null) =>
 {
     try
     {
         Log($"[cpu/freq-limit] ← mhz={req.Mhz}");
         await cpu.SetFreqLimitAsync(req.Mhz);
-        SavePerfOverrides(o => o.Cpu.FreqLimitMhz = req.Mhz);
+        SavePerfOverrides(o => o.Cpu.FreqLimitMhz = req.Mhz, mode);
         return Results.Json(new { ok = true });
     }
     catch (Exception ex)
@@ -1232,13 +1256,13 @@ app.MapPost("/api/cpu/freq-limit", async (CpuPowerController cpu, CpuFreqLimitRe
     }
 });
 
-app.MapPost("/api/cpu/turbo", async (CpuPowerController cpu, CpuTurboRequest req) =>
+app.MapPost("/api/cpu/turbo", async (CpuPowerController cpu, CpuTurboRequest req, string? mode = null) =>
 {
     try
     {
         Log($"[cpu/turbo] ← enabled={req.Enabled}");
         await cpu.SetTurboAsync(req.Enabled);
-        SavePerfOverrides(o => o.Cpu.TurboEnabled = req.Enabled);
+        SavePerfOverrides(o => o.Cpu.TurboEnabled = req.Enabled, mode);
         return Results.Json(new { ok = true });
     }
     catch (Exception ex)
@@ -1248,13 +1272,13 @@ app.MapPost("/api/cpu/turbo", async (CpuPowerController cpu, CpuTurboRequest req
     }
 });
 
-app.MapPost("/api/cpu/core-limit", async (CpuPowerController cpu, CpuCoreLimitRequest req) =>
+app.MapPost("/api/cpu/core-limit", async (CpuPowerController cpu, CpuCoreLimitRequest req, string? mode = null) =>
 {
     try
     {
         Log($"[cpu/core-limit] ← percent={req.Percent}");
         await cpu.SetCoreLimitAsync(req.Percent);
-        SavePerfOverrides(o => o.Cpu.CoreLimitPercent = req.Percent);
+        SavePerfOverrides(o => o.Cpu.CoreLimitPercent = req.Percent, mode);
         return Results.Json(new { ok = true });
     }
     catch (Exception ex)
@@ -1264,79 +1288,18 @@ app.MapPost("/api/cpu/core-limit", async (CpuPowerController cpu, CpuCoreLimitRe
     }
 });
 
-app.MapPost("/api/cpu/reset", async (CpuPowerController cpu) =>
+app.MapPost("/api/cpu/reset", async (CpuPowerController cpu, string? mode = null) =>
 {
     try
     {
         await cpu.ResetAllAsync();
-        SavePerfOverrides(o => { o.Cpu = new CpuOverrides(); });
+        SavePerfOverrides(o => { o.Cpu = new CpuOverrides(); }, mode);
         return Results.Json(new { ok = true });
     }
     catch (Exception ex)
     {
         return Results.Json(new { ok = false, error = ex.Message });
     }
-});
-
-// ---- Node.js 废弃迁移端点 ----
-app.MapPost("/api/uxtu/apply", async (HttpContext ctx, SmuController smu) =>
-{
-    try
-    {
-        using var reader = new StreamReader(ctx.Request.Body);
-        var rawJson = await reader.ReadToEndAsync();
-        Log($"[uxtu/apply] ← {rawJson}");
-        var jsonOpts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-        var body = JsonSerializer.Deserialize<UxtuApplyRequest>(rawJson, jsonOpts);
-        if (body == null) { Log("[uxtu/apply] ✗ invalid body"); return Results.Json(new { ok = false, error = "invalid body" }); }
-        int? cpuPpt = body.Params?.CpuLongPptW ?? body.Limits?.Cpu?.PptLimitW;
-        int? cpuShortPpt = body.Params?.CpuShortPptW;
-        int? cpuTemp = body.Params?.CpuTempLimitC ?? body.Limits?.Cpu?.TempLimitC;
-        int? cpuVoltage = body.Params?.CpuVoltageOffset;
-        bool? cpuTurboOff = body.Params?.CpuTurboDisabled;
-        int? cpuCoreLimit = body.Params?.CpuCoreLimit;
-        // 批量单次 ryzenadj 调用（CPU 频率限制走 /api/cpu/freq-limit powercfg 路径，此处不再处理）
-        uint? stapmMw = cpuPpt.HasValue ? (uint)(cpuPpt.Value * 1000) : null;
-        uint? fastMw = cpuShortPpt.HasValue ? (uint)(cpuShortPpt.Value * 1000) : stapmMw;
-        uint? slowMw = fastMw;
-        uint? tempC = cpuTemp.HasValue ? (uint)cpuTemp.Value : null;
-        int? coAllMv = cpuVoltage;
-        bool? turboOff = cpuTurboOff;
-        // turbo 统一走 powercfg 路径（与独立端点 /api/cpu/turbo 对齐），不通过 ryzenadj
-        var rc = smu.BatchApply(stapmMw, fastMw, slowMw, tempC, coAllMv, null);
-        if (cpuCoreLimit.HasValue) { CpuAffinityManager.SetCoreLimit(cpuCoreLimit.Value); }
-        // CPU 频率限制 (powercfg 路径)
-        if (body.Params?.CpuFreqLimitEnabled == true && body.Params.CpuFreqLimitMhz.HasValue && body.Params.CpuFreqLimitMhz.Value > 0)
-        {
-            try { await app.Services.GetRequiredService<CpuPowerController>().SetFreqLimitAsync(body.Params.CpuFreqLimitMhz.Value); } catch { }
-        }
-        else if (body.Params?.CpuFreqLimitEnabled == false)
-        {
-            try { await app.Services.GetRequiredService<CpuPowerController>().SetFreqLimitAsync(0); } catch { }
-        }
-        // Turbo 开关
-        if (cpuTurboOff.HasValue)
-        {
-            try { await app.Services.GetRequiredService<CpuPowerController>().SetTurboAsync(!cpuTurboOff.Value); } catch { }
-        }
-        // 持久化全部 CPU / SMU 参数（与各独立端点对齐）
-        SavePerfOverrides(o =>
-        {
-            // CPU
-            if (body.Params?.CpuFreqLimitMhz.HasValue == true)
-                o.Cpu.FreqLimitMhz = body.Params.CpuFreqLimitEnabled == true ? body.Params.CpuFreqLimitMhz : 0;
-            if (cpuTurboOff.HasValue) o.Cpu.TurboEnabled = !cpuTurboOff.Value;
-            if (cpuCoreLimit.HasValue) o.Cpu.CoreLimitPercent = cpuCoreLimit.Value > 0 ? (int)Math.Round(cpuCoreLimit.Value / 16.0 * 100) : 100;
-            // SMU
-            if (cpuPpt.HasValue) o.Smu.StapmLimitW = cpuPpt.Value;
-            if (cpuShortPpt.HasValue) o.Smu.ShortPowerLimitW = cpuShortPpt.Value;
-            if (cpuTemp.HasValue) o.Smu.TempLimitC = cpuTemp.Value;
-            if (cpuVoltage.HasValue) o.Smu.CoAll = cpuVoltage.Value;
-        });
-        Log($"[uxtu/apply] ✓ saved ppt={cpuPpt} short={cpuShortPpt} temp={cpuTemp} co={cpuVoltage} freqLim={body.Params?.CpuFreqLimitMhz} turbo={cpuTurboOff} core={cpuCoreLimit} rc={rc}");
-        return Results.Json(new { ok = rc == 0, message = rc == 0 ? "OK" : $"rc={rc}" });
-    }
-    catch (Exception ex) { Log($"[uxtu/apply] ✗ {ex.Message}"); return Results.Json(new { ok = false, error = ex.Message }); }
 });
 
 // ---- Overrides API (前端启动/模式切换/恢复默认) ----
@@ -2164,28 +2127,6 @@ public record CpuTurboRequest(
 );
 public record CpuCoreLimitRequest(
     [property: JsonPropertyName("percent")] int Percent  // 0-100
-);
-// ---- Node.js 迁移端点请求/响应模型 ----
-public record UxtuApplyRequest(
-    UxtuParams? Params,
-    UxtuLimits? Limits
-);
-public record UxtuParams(
-    [property: JsonPropertyName("cpuLongPptW")] int? CpuLongPptW,
-    [property: JsonPropertyName("cpuShortPptW")] int? CpuShortPptW,
-    [property: JsonPropertyName("cpuTempLimitC")] int? CpuTempLimitC,
-    [property: JsonPropertyName("cpuVoltageOffset")] int? CpuVoltageOffset,
-    [property: JsonPropertyName("cpuFreqLimitEnabled")] bool? CpuFreqLimitEnabled,
-    [property: JsonPropertyName("cpuFreqLimitMhz")] int? CpuFreqLimitMhz,
-    [property: JsonPropertyName("cpuTurboDisabled")] bool? CpuTurboDisabled,
-    [property: JsonPropertyName("cpuCoreLimit")] int? CpuCoreLimit
-);
-public record UxtuLimits(
-    [property: JsonPropertyName("cpu")] UxtuCpuLimits? Cpu
-);
-public record UxtuCpuLimits(
-    [property: JsonPropertyName("pptLimitW")] int? PptLimitW,
-    [property: JsonPropertyName("tempLimitC")] int? TempLimitC
 );
 public record UiState(string[]? CardOrder, string[]? HiddenCards)
 {
