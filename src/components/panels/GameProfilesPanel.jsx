@@ -445,7 +445,7 @@ export default function GameProfilesPanel() {
             </div>
 
             {/* 底部操作区 */}
-            {scanResults.length > 0 && (
+            {scanResults.length > 0 ? (
               <div className="mt-4 pt-4" style={{ borderTop: "1px solid var(--border)" }}>
                 <div className="flex items-center justify-between mb-3">
                   <button
@@ -483,6 +483,14 @@ export default function GameProfilesPanel() {
                     style={{ background: "var(--card-2)", color: "var(--text)", border: "1px solid var(--border)" }}
                   >取消</button>
                 </div>
+              </div>
+            ) : (
+              <div className="mt-4 pt-4 flex justify-end" style={{ borderTop: "1px solid var(--border)" }}>
+                <button
+                  onClick={() => { setShowScanModal(false); setSelectedGames(new Set()); setScanResults([]); }}
+                  className="px-6 py-2 text-sm rounded-lg"
+                  style={{ background: "var(--card-2)", color: "var(--text)", border: "1px solid var(--border)" }}
+                >关闭</button>
               </div>
             )}
           </div>
