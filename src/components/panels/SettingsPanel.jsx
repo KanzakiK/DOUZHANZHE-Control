@@ -166,7 +166,7 @@ export default function SettingsPanel({ settings, setSettings, showSwitches = tr
     if (key in halMap) {
       // kb_light 透传数值 0-3，其余开关做 bool→0/1 映射
       const mappedValue = key === "kbBrightnessLevel" ? value : (key === "dGpuDirect" ? (value ? 1 : 0) : (value ? 1 : 0));
-      applyHardwareControl(halMap[key], mappedValue)
+      applyHardwareControl(halMap[key], mappedValue, settings.mode)
         .then(() => {
           if (key === "dGpuDirect") toast?.("GPU 模式切换将在重启后生效，请重启电脑", "info");
         })

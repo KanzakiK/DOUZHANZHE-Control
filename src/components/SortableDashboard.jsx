@@ -51,10 +51,12 @@ export default function SortableDashboard({
 
   function queueFan(largeRpm, smallRpm) {
     latestFanRef.current = { large: largeRpm, small: smallRpm };
+    const mode = settings.mode;
     clearTimeout(fanTimer.current);
     fanTimer.current = setTimeout(() => {
       const { large, small } = latestFanRef.current;
-      fetch("/api/fan/set-target", {
+      const url = mode ? `/api/fan/set-target?mode=${mode}` : `/api/fan/set-target`;
+      fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ largeRpm: large, smallRpm: small }),
@@ -279,7 +281,7 @@ export default function SortableDashboard({
               {gpuModes.map((m) => (
                 <button key={m.id} onClick={() => {
                   if (m.id === 2 && !confirm("切换到集显模式会导致独显断电，笔记本 HDMI/DP 输出口将停止输出信号。\n确定要继续吗？")) return;
-                  applyHardwareControl("gpu_mode", m.id).then(() => {
+                  applyHardwareControl("gpu_mode", m.id, settings.mode).then(() => {
                     toast?.("GPU 模式切换将在重启后生效，请重启电脑", "info");
                   }).catch(() => {
                     toast?.("GPU 模式设置失败", "error");
