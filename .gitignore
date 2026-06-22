@@ -148,5 +148,6 @@ server/tools/start
 server/package.json
 server/package-lock.json
 
-# Duplicate PostCSS config (postcss.config.js is the correct one)
+# Duplicate PostCSS config (vite.config.js 已内联 PostCSS 插件配置)
 postcss.config.cjs
+postcss.config.js
