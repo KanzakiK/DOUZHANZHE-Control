@@ -13,37 +13,54 @@ namespace Douzhanzhe.HAL;
 #region ── 原生结构体 (Blackwell 校准版) ──
 
 /// <summary>
-/// NV_GPU_PERF_PSTATES20 — Blackwell V1 layout (7316 bytes)
+/// NV_GPU_PERF_PSTATES20 — Blackwell layout (7416 bytes)
+/// 用于 GetPStates20 (V3/7416, 含 ov 块)
 /// 实测: state_count=5, clock_count=2, voltage_count=0
-/// per_state = (7316 - 20) / 16 = 456 bytes
-/// clock entry = 44 bytes (NVFC 为 48, Blackwell 实际 44)
+/// per_state = 456 bytes, clock entry = 44 bytes
 /// </summary>
-[StructLayout(LayoutKind.Sequential)]
+[StructLayout(LayoutKind.Sequential, Pack = 8)]
 internal unsafe struct NV_GPU_PSTATES20
 {
-    public const int STRUCT_SIZE = 7316;
-    public const int PER_STATE = 456;  // (7316-20)/16
-    public const int CLK_ENTRY = 44;   // Blackwell clock entry size
-    public const int CLK_DELTA_OFF = 12; // frequency_delta.value offset within clock entry
+    public const int STRUCT_SIZE = 7416;   // V2/V3 统一大小
+    public const int PER_STATE = 456;
+    public const int CLK_ENTRY = 44;
+    public const int CLK_DELTA_OFF = 12;
 
     public uint version;
     public uint flags;
     public uint state_count;
     public uint clock_count;
     public uint voltage_count;
-    public fixed byte data[STRUCT_SIZE - 20]; // rest of struct
+    public fixed byte data[STRUCT_SIZE - 20]; // 7396 bytes
 
-    public static uint MakeVersion() => (1u << 16) | (uint)STRUCT_SIZE;
+    public static uint MakeVersion() => (3u << 16) | (uint)STRUCT_SIZE;    // V3 — Get
+    public static uint MakeVersionSet() => (2u << 16) | (uint)STRUCT_SIZE; // V2 — Set (unused now)
 
-    /// <summary>P-State entry pointer: data + stateIdx * PER_STATE</summary>
-    public static byte* StatePtr(NV_GPU_PSTATES20* p, int idx)
-        => p->data + idx * PER_STATE;
-
-    public static uint StateNum(byte* sp) => *(uint*)sp;
     public static byte* ClockPtr(byte* sp, int clkIdx) => sp + 8 + clkIdx * CLK_ENTRY;
     public static uint ClockDomain(byte* cp) => *(uint*)cp;
     public static int ClockDeltaValue(byte* cp) => *(int*)(cp + CLK_DELTA_OFF);
     public static void SetClockDelta(byte* cp, int kHz) => *(int*)(cp + CLK_DELTA_OFF) = kHz;
+}
+
+/// <summary>
+/// NV_GPU_PERF_PSTATES20 V1 — NvAPIWrapper PerformanceStates20InfoV1 布局 (7316 bytes)
+/// UXTU 超频使用: 从零构造, state_count=1, clock_count=2, 直接 Set (不先 Get)
+/// </summary>
+[StructLayout(LayoutKind.Sequential, Pack = 8)]
+internal unsafe struct NV_GPU_PSTATES20_V1
+{
+    public const int STRUCT_SIZE = 7316;   // V1: 无 ov 块
+    public const int PER_STATE = 456;
+    public const int CLK_ENTRY = 44;
+
+    public uint version;
+    public uint flags;
+    public uint state_count;
+    public uint clock_count;
+    public uint voltage_count;
+    public fixed byte data[STRUCT_SIZE - 20]; // 7296 bytes
+
+    public static uint MakeVersion() => (1u << 16) | (uint)STRUCT_SIZE; // V1/7316
 }
 
 /// <summary>NV_GPU_CLOCK_FREQUENCIES (264 bytes, V2)</summary>
@@ -149,7 +166,7 @@ public sealed class NvapiGpuController : IDisposable
     [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate int NvApiVoid();
     [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate int NvApiEnumGPUs(IntPtr[] h, ref int c);
     [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate int NvApiName(IntPtr g, byte[] n);
-    [UnmanagedFunctionPointer(CallingConvention.Winapi)] private unsafe delegate int NvApiPStates(IntPtr g, NV_GPU_PSTATES20* p);
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate int NvApiPStates(IntPtr g, IntPtr p);
     [UnmanagedFunctionPointer(CallingConvention.Winapi)] private unsafe delegate int NvApiClkFreq(IntPtr g, NV_GPU_CLOCK_FREQUENCIES* f);
     [UnmanagedFunctionPointer(CallingConvention.Winapi)] private unsafe delegate int NvApiPwrInfo(IntPtr g, NV_GPU_POWER_INFO* i);
     [UnmanagedFunctionPointer(CallingConvention.Winapi)] private unsafe delegate int NvApiPwrSt(IntPtr g, NV_GPU_POWER_STATUS* s);
@@ -157,32 +174,18 @@ public sealed class NvapiGpuController : IDisposable
     [UnmanagedFunctionPointer(CallingConvention.Winapi)] private unsafe delegate int NvApiThrSt(IntPtr g, NV_GPU_THERMAL_STATUS* s);
     [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate IntPtr NvApiQI(uint id);
 
-    // KaronOC.dll 委托 (蛟龙控制台超频引擎)
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] private delegate int KaronChangePStates(int coreOffsetMhz, int memOffsetMhz);
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] private delegate int KaronGetPStates(IntPtr gpuHandle, IntPtr outputBuf);
-
     private NvApiQI? _qi;
     private NvApiVoid? _init; private NvApiEnumGPUs? _enum; private NvApiName? _name;
     private NvApiPStates? _getPs, _setPs; private NvApiClkFreq? _clk;
     private NvApiPwrInfo? _pwrI; private NvApiPwrSt? _pwrG, _pwrS;
     private NvApiThrInfo? _thrI; private NvApiThrSt? _thrG, _thrS;
-    private KaronChangePStates? _karonSet; private KaronGetPStates? _karonGet;
-    private IntPtr _karonMod;
 
     private IntPtr _gpu; private bool _ok;
     public bool IsAvailable => _ok;
     public string GpuName { get; private set; } = "";
     public bool OverclockSupported { get; private set; }
-    public string OcEngine { get; private set; } = "none"; // "karonoc" | "nvapi" | "none"
 
     private const int OK = 0, ERR = -1, NOT_SUPPORTED = -104;
-
-    // KaronOC.dll 搜索路径
-    private static readonly string[] KaronOCPaths = [
-        @"D:\Program Files\JiaoLong7.3\KaronOC.dll",
-        @"C:\Program Files\JiaoLong7.3\KaronOC.dll",
-        Path.Combine(AppContext.BaseDirectory, "KaronOC.dll"),
-    ];
 
     public bool Init()
     {
@@ -220,112 +223,127 @@ public sealed class NvapiGpuController : IDisposable
             var nb = new byte[64]; _name(_gpu, nb);
             GpuName = Encoding.ASCII.GetString(nb).TrimEnd('\0');
 
-            // 1) 优先尝试 KaronOC.dll (蛟龙超频引擎, 绕过 NVAPI 限制)
-            //    目标机型固定 (RTX 5060 Laptop GPU)，超频能力已知，仅检测 DLL 是否存在，不调用测试
-            if (TryLoadKaronOC())
-            {
-                OverclockSupported = true;
-                OcEngine = "karonoc";
-            }
-            else
-            {
-                // 2) 回退: 直接 NVAPI (目标机型已知支持，跳过 SetPStates20 探测)
-                OverclockSupported = true;
-                OcEngine = "nvapi";
-            }
+            OverclockSupported = true;
 
             _ok = true;
-            AppLog.Write("NVAPI", $"OK: {GpuName} | OC={OverclockSupported} engine={OcEngine}");
+            AppLog.Write("NVAPI", $"OK: {GpuName} | OC={OverclockSupported}");
             return true;
         }
         catch (Exception ex) { AppLog.Write("NVAPI", ex.Message); return false; }
     }
 
-    private bool TryLoadKaronOC()
-    {
-        foreach (var path in KaronOCPaths)
-        {
-            if (!File.Exists(path)) continue;
-            IntPtr mod = IntPtr.Zero;
-            try
-            {
-                mod = NativeLibrary.Load(path);
-                var pSet = NativeLibrary.GetExport(mod, "ChangePstatesLevel0Settings");
-                var pGet = NativeLibrary.GetExport(mod, "GetPstatesLevel0Settings");
-                _karonSet = Marshal.GetDelegateForFunctionPointer<KaronChangePStates>(pSet);
-                _karonGet = Marshal.GetDelegateForFunctionPointer<KaronGetPStates>(pGet);
-                _karonMod = mod; // 全部成功后才保存句柄
-                AppLog.Write("KaronOC", $"Loaded: {path}");
-                return true;
-            }
-            catch (Exception ex)
-            {
-                AppLog.Write("KaronOC", $"Load failed ({path}): {ex.Message}");
-                if (mod != IntPtr.Zero) NativeLibrary.Free(mod);
-                _karonSet = null; _karonGet = null; // 清理残留委托
-            }
-        }
-        return false;
-    }
-
     // ── P-State 偏移 (超频/降频) ──
 
-    /// <summary>读取 P0 时钟偏移 (kHz)</summary>
+    /// <summary>读取 P0 时钟偏移 (kHz) — NvAPIWrapper Marshal 模式</summary>
     public unsafe (int coreKhz, int memKhz, bool ok) GetP0Offsets()
     {
         if (!_ok) return (0, 0, false);
-        var ps = new NV_GPU_PSTATES20 { version = NV_GPU_PSTATES20.MakeVersion() };
-        if (_getPs!(_gpu, &ps) != OK) return (0, 0, false);
 
-        int core = 0, mem = 0;
-        for (int i = 0; i < (int)ps.state_count; i++)
+        int sz = Marshal.SizeOf<NV_GPU_PSTATES20>();
+        var ps = new NV_GPU_PSTATES20();
+        ps.version = NV_GPU_PSTATES20.MakeVersion();
+        var ptr = Marshal.AllocHGlobal(sz);
+        try
         {
-            var sp = NV_GPU_PSTATES20.StatePtr(&ps, i);
-            if (NV_GPU_PSTATES20.StateNum(sp) != 0) continue;
-            for (int j = 0; j < (int)ps.clock_count && j < 8; j++)
+            Marshal.StructureToPtr(ps, ptr, false);
+            if (_getPs!(_gpu, ptr) != OK) return (0, 0, false);
+
+            byte* raw = (byte*)ptr;
+            uint stateCount = *(uint*)(raw + 8);
+            uint clockCount = *(uint*)(raw + 12);
+            byte* data = raw + 20; // header: version(4)+flags(4)+states(4)+clocks(4)+voltages(4)
+
+            int core = 0, mem = 0;
+            for (int i = 0; i < (int)stateCount; i++)
             {
-                var cp = NV_GPU_PSTATES20.ClockPtr(sp, j);
-                var dom = NV_GPU_PSTATES20.ClockDomain(cp);
-                if (dom == 0) core = NV_GPU_PSTATES20.ClockDeltaValue(cp);
-                else if (dom == 4) mem = NV_GPU_PSTATES20.ClockDeltaValue(cp);
+                var sp = data + i * NV_GPU_PSTATES20.PER_STATE;
+                if (*(uint*)sp != 0) continue; // state_num != P0
+                for (int j = 0; j < (int)clockCount && j < 8; j++)
+                {
+                    var cp = NV_GPU_PSTATES20.ClockPtr(sp, j);
+                    var dom = NV_GPU_PSTATES20.ClockDomain(cp);
+                    if (dom == 0) core = NV_GPU_PSTATES20.ClockDeltaValue(cp);
+                    else if (dom == 4) mem = NV_GPU_PSTATES20.ClockDeltaValue(cp);
+                }
+                break;
             }
-            break;
+            return (core, mem, true);
         }
-        return (core, mem, true);
+        finally { Marshal.FreeHGlobal(ptr); }
     }
 
-    /// <summary>设置 P0 偏移 (MHz) — 优先使用 KaronOC, 回退 NVAPI</summary>
+    /// <summary>设置 P0 偏移 (MHz) — NVAPI SetPStates20 V2/7416</summary>
     public int SetP0Offset(int coreMhz, int memMhz)
     {
         if (!_ok || !OverclockSupported) return NOT_SUPPORTED;
-
-        // KaronOC 引擎 (蛟龙超频)
-        if (_karonSet != null && OcEngine == "karonoc")
-            return _karonSet(coreMhz, memMhz);
-
-        // NVAPI 直接引擎 (回退)
         return SetP0OffsetNvapi(coreMhz, memMhz);
     }
 
     private unsafe int SetP0OffsetNvapi(int coreMhz, int memMhz)
     {
-        var ps = new NV_GPU_PSTATES20 { version = NV_GPU_PSTATES20.MakeVersion() };
-        if (_getPs!(_gpu, &ps) != OK) return ERR;
-
-        for (int i = 0; i < (int)ps.state_count; i++)
+        // UXTU/NvAPIWrapper 模式: 从零构造最小化 V1 结构体, 直接 Set
+        // PerformanceStates20InfoV1(state_count=1, clock_count=2, voltage_count=0)
+        int sz = Marshal.SizeOf<NV_GPU_PSTATES20_V1>();
+        var ptr = Marshal.AllocHGlobal(sz);
+        try
         {
-            var sp = NV_GPU_PSTATES20.StatePtr(&ps, i);
-            if (NV_GPU_PSTATES20.StateNum(sp) != 0) continue;
-            for (int j = 0; j < (int)ps.clock_count && j < 8; j++)
+            // 整块内存清零 (NvAPIWrapper 的 Instantiate<T> 会初始化所有字段)
+            new Span<byte>((void*)ptr, sz).Clear();
+
+            byte* raw = (byte*)ptr;
+
+            // Header (20 bytes)
+            *(uint*)(raw + 0) = NV_GPU_PSTATES20_V1.MakeVersion(); // version = (1 << 16) | 7316
+            *(uint*)(raw + 4) = 0;                                  // flags
+            *(uint*)(raw + 8) = 1;                                  // state_count = 1
+            *(uint*)(raw + 12) = 2;                                 // clock_count = 2
+            *(uint*)(raw + 16) = 0;                                 // voltage_count = 0
+
+            // P0 State (offset 20, 456 bytes)
+            byte* p0 = raw + 20;
+            *(uint*)(p0 + 0) = 0;  // state_id = P0_3DPerformance
+            *(uint*)(p0 + 4) = 0;  // flags
+
+            // Clock[0]: Graphics (domain=0, offset at p0+8)
+            byte* clk0 = p0 + 8;
+            *(uint*)(clk0 + 0) = 0;                   // domain = Graphics
+            *(uint*)(clk0 + 4) = 0;                   // type
+            *(uint*)(clk0 + 8) = 0;                   // flags
+            *(int*)(clk0 + 12) = coreMhz * 1000;      // delta value (kHz)
+            *(int*)(clk0 + 16) = 0;                   // delta min
+            *(int*)(clk0 + 20) = 0;                   // delta max
+
+            // Clock[1]: Memory (domain=4, offset at p0+8+44)
+            byte* clk1 = p0 + 8 + NV_GPU_PSTATES20_V1.CLK_ENTRY;
+            *(uint*)(clk1 + 0) = 4;                   // domain = Memory
+            *(uint*)(clk1 + 4) = 0;                   // type
+            *(uint*)(clk1 + 8) = 0;                   // flags
+            *(int*)(clk1 + 12) = memMhz * 1000;       // delta value (kHz)
+            *(int*)(clk1 + 16) = 0;                   // delta min
+            *(int*)(clk1 + 20) = 0;                   // delta max
+
+            var rcSet = _setPs!(_gpu, ptr);
+            if (rcSet == OK)
             {
-                var cp = NV_GPU_PSTATES20.ClockPtr(sp, j);
-                var dom = NV_GPU_PSTATES20.ClockDomain(cp);
-                if (dom == 0) NV_GPU_PSTATES20.SetClockDelta(cp, coreMhz * 1000);
-                else if (dom == 4) NV_GPU_PSTATES20.SetClockDelta(cp, memMhz * 1000);
+                // 等驱动应用偏移后回读验证
+                System.Threading.Thread.Sleep(300);
+                var rb = GetP0Offsets();
+                var clk = GetCurrentClocks();
+                var rbCore = rb.ok ? rb.coreKhz / 1000 : -1;
+                var rbMem = rb.ok ? rb.memKhz / 1000 : -1;
+                var curCore = clk.ok ? (int)clk.coreMhz : -1;
+                var curMem = clk.ok ? (int)clk.memMhz : -1;
+                AppLog.Write("NVAPI",
+                    $"SetP0Offset: req=({coreMhz},{memMhz})MHz actual_offset=({rbCore},{rbMem})MHz " +
+                    $"current_clk=({curCore},{curMem})MHz rc={rcSet}");
             }
-            break;
+            else
+            {
+                AppLog.Write("NVAPI", $"SetP0Offset: req=({coreMhz},{memMhz})MHz rc={rcSet} [FAILED]");
+            }
+            return rcSet;
         }
-        return _setPs!(_gpu, &ps);
+        finally { Marshal.FreeHGlobal(ptr); }
     }
 
     // ── 时钟频率 ──
@@ -405,7 +423,7 @@ public sealed class NvapiGpuController : IDisposable
 
     public NvapiStatus GetStatus()
     {
-        var s = new NvapiStatus { Available = _ok, GpuName = GpuName, OverclockSupported = OverclockSupported, OcEngine = OcEngine };
+        var s = new NvapiStatus { Available = _ok, GpuName = GpuName, OverclockSupported = OverclockSupported };
         if (!_ok) return s;
 
         var clk = GetCurrentClocks();
@@ -431,33 +449,42 @@ public sealed class NvapiGpuController : IDisposable
     public unsafe string DumpPStates()
     {
         if (!_ok) return "NVAPI not init";
-        var ps = new NV_GPU_PSTATES20 { version = NV_GPU_PSTATES20.MakeVersion() };
-        int rc = _getPs!(_gpu, &ps);
-        if (rc != OK) return $"GetPStates20 rc={rc}";
-        var sb = new StringBuilder();
-        sb.AppendLine($"sizeof={sizeof(NV_GPU_PSTATES20)} states={ps.state_count} clocks={ps.clock_count} voltages={ps.voltage_count} OC={OverclockSupported}");
-        for (int i = 0; i < (int)ps.state_count && i < 4; i++)
+        int sz = Marshal.SizeOf<NV_GPU_PSTATES20>();
+        var ps = new NV_GPU_PSTATES20();
+        ps.version = NV_GPU_PSTATES20.MakeVersion();
+        var ptr = Marshal.AllocHGlobal(sz);
+        try
         {
-            var sp = NV_GPU_PSTATES20.StatePtr(&ps, i);
-            sb.Append($"  P{NV_GPU_PSTATES20.StateNum(sp)}:");
-            for (int j = 0; j < (int)ps.clock_count && j < 8; j++)
-            {
-                var cp = NV_GPU_PSTATES20.ClockPtr(sp, j);
-                var dom = NV_GPU_PSTATES20.ClockDomain(cp);
-                var dval = NV_GPU_PSTATES20.ClockDeltaValue(cp);
-                var dmin = *(int*)(cp + 16);
-                var dmax = *(int*)(cp + 20);
-                sb.Append($" clk[{j}]dom={dom}/delta={dval / 1000}MHz/range=[{dmin / 1000},{dmax / 1000}]");
-            }
-            sb.AppendLine();
-        }
-        return sb.ToString();
-    }
+            Marshal.StructureToPtr(ps, ptr, false);
+            int rc = _getPs!(_gpu, ptr);
+            if (rc != OK) return $"GetPStates20 rc={rc}";
 
-    private void ReleaseKaronOC()
-    {
-        _karonSet = null; _karonGet = null;
-        if (_karonMod != IntPtr.Zero) { NativeLibrary.Free(_karonMod); _karonMod = IntPtr.Zero; }
+            byte* raw = (byte*)ptr;
+            uint stateCount = *(uint*)(raw + 8);
+            uint clockCount = *(uint*)(raw + 12);
+            uint voltageCount = *(uint*)(raw + 16);
+            byte* data = raw + 20;
+
+            var sb = new StringBuilder();
+            sb.AppendLine($"marshalSize={sz} states={stateCount} clocks={clockCount} voltages={voltageCount} OC={OverclockSupported}");
+            for (int i = 0; i < (int)stateCount && i < 4; i++)
+            {
+                var sp = data + i * NV_GPU_PSTATES20.PER_STATE;
+                sb.Append($"  P{*(uint*)sp}:");
+                for (int j = 0; j < (int)clockCount && j < 8; j++)
+                {
+                    var cp = NV_GPU_PSTATES20.ClockPtr(sp, j);
+                    var dom = NV_GPU_PSTATES20.ClockDomain(cp);
+                    var dval = NV_GPU_PSTATES20.ClockDeltaValue(cp);
+                    var dmin = *(int*)(cp + 16);
+                    var dmax = *(int*)(cp + 20);
+                    sb.Append($" clk[{j}]dom={dom}/delta={dval / 1000}MHz/range=[{dmin / 1000},{dmax / 1000}]");
+                }
+                sb.AppendLine();
+            }
+            return sb.ToString();
+        }
+        finally { Marshal.FreeHGlobal(ptr); }
     }
 
     private bool _disposed;
@@ -465,14 +492,13 @@ public sealed class NvapiGpuController : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
-        ReleaseKaronOC();
     }
 }
 
 public struct NvapiStatus
 {
     public bool Available, OverclockSupported;
-    public string GpuName, OcEngine;
+    public string GpuName;
     public float CoreMhz, MemMhz;
     public int CoreOffsetMhz, MemOffsetMhz;
     public uint PowerLimitMw, PowerMinMw, PowerMaxMw, PowerDefaultMw;

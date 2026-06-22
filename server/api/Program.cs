@@ -350,9 +350,9 @@ async System.Threading.Tasks.Task RestoreComputeSettings(string tag)
         {
             try
             {
-                nv.SetP0Offset(o.Nvapi.OcCoreOffsetMhz ?? 0, o.Nvapi.OcMemOffsetMhz ?? 0);
+                var rc = nv.SetP0Offset(o.Nvapi.OcCoreOffsetMhz ?? 0, o.Nvapi.OcMemOffsetMhz ?? 0);
                 restored++;
-                Log($"[{tag}] NVAPI OC → core={o.Nvapi.OcCoreOffsetMhz ?? 0}, mem={o.Nvapi.OcMemOffsetMhz ?? 0}");
+                Log($"[{tag}] NVAPI OC → core={o.Nvapi.OcCoreOffsetMhz ?? 0}, mem={o.Nvapi.OcMemOffsetMhz ?? 0} (rc={rc})");
             }
             catch (Exception ex) { Log($"[{tag}] NVAPI OC failed: {ex.Message}"); }
         }
@@ -438,6 +438,10 @@ _ = System.Threading.Tasks.Task.Run(async () =>
                         ApplyFanSpeed(wmi, hal, o.Fan.LargeRpm, o.Fan.SmallRpm);
                     }
                 }
+
+                // 参数下发后等时钟稳定，记录实际运行数据快照
+                await System.Threading.Tasks.Task.Delay(10_000);
+                LogTelemetrySnapshot();
             }
             catch (Exception ex)
             {
@@ -447,6 +451,47 @@ _ = System.Threading.Tasks.Task.Run(async () =>
     }
     catch (OperationCanceledException) { /* 正常退出 */ }
 });
+
+// ---- 遥测快照: 参数下发后记录实际运行数据 ----
+void LogTelemetrySnapshot()
+{
+    try
+    {
+        // CPU
+        var cpuFreq = hal.CpuFreq;
+        var cpuTemp = hal.CpuTemperature;
+
+        // GPU (HAL: LHM/WMI 来源)
+        var gpuFreq = hal.GpuFreq;
+        var gpuTemp = hal.GpuTemperature;
+        var gpuMemMhz = hal.GpuMemMhz;
+        var gpuPower = hal.GpuPowerDrawW;
+
+        // Fan
+        var fanLarge = hal.CpuFanRpm;
+        var fanSmall = hal.GpuFanRpm;
+
+        // NVAPI (精确频率 + P0 偏移量)
+        var nv = app.Services.GetRequiredService<NvapiGpuController>();
+        string nvPart = "";
+        if (nv.IsAvailable)
+        {
+            var ns = nv.GetStatus();
+            nvPart = $" | NVAPI core={ns.CoreMhz:F0}MHz(Δ{(ns.CoreOffsetMhz >= 0 ? "+" : "")}{ns.CoreOffsetMhz}) " +
+                     $"mem={ns.MemMhz:F0}MHz(Δ{(ns.MemOffsetMhz >= 0 ? "+" : "")}{ns.MemOffsetMhz}) " +
+                     $"pwr={ns.PowerLimitMw / 1000}W thr={ns.ThermalLimitC:F0}°C";
+        }
+
+        AppLog.Write("Telemetry",
+            $"CPU {cpuFreq:F2}GHz/{cpuTemp}°C | " +
+            $"GPU {gpuFreq:F2}GHz/{gpuMemMhz}MHz/{gpuTemp}°C/{gpuPower:F0}W | " +
+            $"Fan {fanLarge}/{fanSmall}RPM{nvPart}");
+    }
+    catch (Exception ex)
+    {
+        AppLog.Write("Telemetry", $"快照失败: {ex.Message}");
+    }
+}
 
 // ---- 启动时恢复 GPU 模式 (异步，不阻塞服务启动) ----
 _ = System.Threading.Tasks.Task.Run(() =>
@@ -1175,11 +1220,10 @@ try
 {
     var gpuCtrl = app.Services.GetRequiredService<GpuController>();
     var gpuName = nvapi.GpuName;
-    var ocEngine = nvapi.OcEngine;
     var driverVer = "";
     try { driverVer = gpuCtrl.GetDriverVersion(); } catch { }
     var gpuMode = wmi.Available ? wmi.GetGpuMode().ToString() : "N/A";
-    Log($"[Startup] GPU: {gpuName} | Driver: {driverVer} | Mode: {gpuMode} | OC: {ocEngine}");
+    Log($"[Startup] GPU: {gpuName} | Driver: {driverVer} | Mode: {gpuMode}");
 }
 catch (Exception ex)
 {
@@ -1190,7 +1234,7 @@ app.MapGet("/api/nvapi/status", (NvapiGpuController nv) =>
 {
     var s = nv.GetStatus();
     return Results.Json(new {
-        ok = s.Available, gpuName = s.GpuName, overclockSupported = s.OverclockSupported, ocEngine = s.OcEngine,
+        ok = s.Available, gpuName = s.GpuName, overclockSupported = s.OverclockSupported,
         coreMhz = s.CoreMhz, memMhz = s.MemMhz,
         coreOffsetMhz = s.CoreOffsetMhz, memOffsetMhz = s.MemOffsetMhz,
         powerLimitMw = s.PowerLimitMw, powerMinMw = s.PowerMinMw,
