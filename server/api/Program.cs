@@ -132,6 +132,7 @@ void ApplyFanSpeed(WmiInterface wmi, HardwareAbstractionLayer hal, int? largeRpm
         wmi.SetFanManual(0, true);
         wmi.SetFanSpeed(0, speed);
         hal.WriteEcPort(0x5E, speed);
+        AppLog.Write("FanEC", $"EC直写 0x5E={speed} (大风扇 {largeRpm.Value}RPM)");
     }
     if (smallRpm.HasValue)
     {
@@ -139,6 +140,7 @@ void ApplyFanSpeed(WmiInterface wmi, HardwareAbstractionLayer hal, int? largeRpm
         wmi.SetFanManual(1, true);
         wmi.SetFanSpeed(1, speed);
         hal.WriteEcPort(0x5A, speed);
+        AppLog.Write("FanEC", $"EC直写 0x5A={speed} (小风扇 {smallRpm.Value}RPM)");
     }
 }
 
@@ -425,9 +427,13 @@ _ = System.Threading.Tasks.Task.Run(async () =>
             }
             try
             {
+                var cycleStart = DateTime.Now;
+                AppLog.Write("ParameterGuard", $"── 周期开始 [{cycleStart:HH:mm:ss}] ──");
+
                 await RestoreComputeSettings("ParameterGuard");
 
                 // 风扇固定转速守护: 仅在自定义曲线未运行时守护手动 RPM，防止 EC 漂移
+                var fanGuardActive = false;
                 if (!fanCurveSvc.Active)
                 {
                     var o = LoadPerfOverrides();
@@ -436,12 +442,16 @@ _ = System.Threading.Tasks.Task.Run(async () =>
                         var wmi = app.Services.GetRequiredService<WmiInterface>();
                         var hal = app.Services.GetRequiredService<HardwareAbstractionLayer>();
                         ApplyFanSpeed(wmi, hal, o.Fan.LargeRpm, o.Fan.SmallRpm);
+                        fanGuardActive = true;
                     }
                 }
 
                 // 参数下发后等时钟稳定，记录实际运行数据快照
                 await System.Threading.Tasks.Task.Delay(10_000);
                 LogTelemetrySnapshot();
+
+                var elapsed = (DateTime.Now - cycleStart).TotalMilliseconds;
+                AppLog.Write("ParameterGuard", $"── 周期完成 耗时={elapsed:F0}ms, 风扇守护={fanGuardActive}, 曲线运行={fanCurveSvc.Active}, 活跃游戏={ProcessMonitorService.ActiveGameCount} ──");
             }
             catch (Exception ex)
             {
@@ -703,6 +713,43 @@ app.MapGet("/api/health", (HardwareAbstractionLayer hal) =>
         timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
     });
 });
+
+// ---- 优雅关闭: 停止内核驱动 + 触发应用退出 ----
+app.MapPost("/api/shutdown", (IHostApplicationLifetime lifetime) =>
+{
+    Log("[shutdown] 收到关闭请求，停止内核驱动...");
+    StopKernelDrivers();
+    lifetime.StopApplication();
+    return Results.Json(new { ok = true });
+});
+
+// ---- ApplicationStopping 兜底: 确保驱动被停止 ----
+app.Lifetime.ApplicationStopping.Register(() =>
+{
+    AppLog.Write("API", "[shutdown] ApplicationStopping 触发，停止内核驱动...");
+    StopKernelDrivers();
+});
+
+void StopKernelDrivers()
+{
+    string[] services = ["inpoutx64", "WinRing0_1_2_0"];
+    foreach (var svc in services)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo("sc.exe", $"stop {svc}")
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true
+            };
+            using var p = Process.Start(psi);
+            p?.WaitForExit(3000);
+            Log($"[shutdown] {svc} 驱动已停止");
+        }
+        catch (Exception ex) { Log($"[shutdown] {svc} 停止失败: {ex.Message}"); }
+    }
+}
 app.MapPost("/api/control", (ControlRequest req, HardwareAbstractionLayer hal, WmiInterface wmi, string? mode = null) =>
 {
     try

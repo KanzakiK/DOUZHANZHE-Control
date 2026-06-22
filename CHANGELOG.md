@@ -5,6 +5,25 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
+## [1.6.10] — 2026-06-22
+
+EAC 反作弊兼容优化 + 诊断日志增强
+
+### 新增
+
+- **退出时自动卸载驱动**: 关闭控制台时自动停止 inpoutx64 和 WinRing0 内核驱动服务，防止 EAC 反作弊检测到残留驱动或内核冲突导致蓝屏
+- **反作弊进程监控**: 自动检测 EasyAntiCheat、BattlEye 等反作弊进程的启动和退出，记录 `[EAC-MONITOR]` 日志
+- **ParameterGuard 周期摘要**: 每轮参数守护完成后记录操作耗时、风扇守护状态、活跃游戏数等摘要
+- **EC 直写日志**: 风扇 EC 寄存器直写操作 (0x5E/0x5A) 独立记录 `[FanEC]` 日志
+
+### 技术细节
+
+- 新增 `POST /api/shutdown` 端点，Shell 退出时通知 API 优雅关闭并停止驱动
+- API 注册 `ApplicationStopping` 回调，兜底确保驱动被停止
+- Shell `ExitApp` 三层防护: HTTP 通知 → 杀进程 → 直接 sc stop
+- 新增 `ProcessMonitorService.ActiveGameCount` / `AntiCheatActive` 静态属性
+- 反作弊进程检测独立于游戏规则，始终监控
+
 ## [1.6.9] — 2026-06-22
 
 GPU 超频修复 (移除 KaronOC.dll 依赖) + 运行状态遥测日志

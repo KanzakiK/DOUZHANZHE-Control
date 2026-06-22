@@ -33,6 +33,22 @@ public sealed class ProcessMonitorService : IDisposable
     private readonly List<(int Pid, string ExeName, string TargetMode)> _activeGames = new();
     private readonly object _lock = new();
 
+    // 活跃游戏数量（静态可访问，供 ParameterGuard 等模块查询）
+    private static int _activeGameCount;
+    public static int ActiveGameCount => _activeGameCount;
+
+    // EAC/反作弊进程追踪
+    private static readonly HashSet<string> AntiCheatProcesses = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "EasyAntiCheat_EOS.exe",    // EOS 版本（APEX, Fortnite 等）
+        "EasyAntiCheat.exe",        // 旧版 EAC
+        "EasyAntiCheat_Setup.exe",  // EAC 安装程序
+        "BEService.exe",            // BattlEye Service
+        "start_protected_game.exe"  // EOS SDK 的反作弊启动器
+    };
+    private static int _antiCheatRefCount;
+    public static bool AntiCheatActive => _antiCheatRefCount > 0;
+
     // 快照模式（列表从空变非空时记录）
     private string? _snapshotMode;
     // 当前模式（每次 thermal_mode API 调用时更新）
@@ -163,13 +179,20 @@ public sealed class ProcessMonitorService : IDisposable
 
     private void OnProcessStarted(object sender, EventArrivedEventArgs e)
     {
-        if (!_profiles.Enabled) return;
-
         try
         {
             var targetInstance = (ManagementBaseObject)e.NewEvent["TargetInstance"];
             var processName = targetInstance["Name"]?.ToString() ?? "";
             var processId = Convert.ToInt32(targetInstance["ProcessId"]);
+
+            // 反作弊进程检测（独立于游戏规则，始终监控）
+            if (AntiCheatProcesses.Contains(processName) || processName.Contains("AntiCheat", StringComparison.OrdinalIgnoreCase))
+            {
+                Interlocked.Increment(ref _antiCheatRefCount);
+                AppLog.Write("EAC-MONITOR", $"[!] 反作弊进程启动: {processName} (PID {processId}), refCount={_antiCheatRefCount}");
+            }
+
+            if (!_profiles.Enabled) return;
 
             var profile = _profiles.MatchByExeName(processName);
             if (profile == null) return;
@@ -195,7 +218,8 @@ public sealed class ProcessMonitorService : IDisposable
 
                 // 添加到活跃列表
                 _activeGames.Add((processId, processName, profile.TargetMode));
-                AppLog.Write("ProcessMonitor", $"JOIN: {processName} (PID {processId}) target={profile.TargetMode}");
+                _activeGameCount = _activeGames.Count;
+                AppLog.Write("ProcessMonitor", $"JOIN: {processName} (PID {processId}) target={profile.TargetMode}, activeGames={_activeGameCount}");
 
                 // 计算是否需要切换
                 var newMode = GetEffectiveMode();
@@ -214,14 +238,21 @@ public sealed class ProcessMonitorService : IDisposable
 
     private void OnProcessStopped(object sender, EventArrivedEventArgs e)
     {
-        if (!_profiles.Enabled) return;
-
         try
         {
             var targetInstance = (ManagementBaseObject)e.NewEvent["TargetInstance"];
             var processName = targetInstance["Name"]?.ToString() ?? "";
             var processId = Convert.ToInt32(targetInstance["ProcessId"]);
 
+            // 反作弊进程退出检测（独立于游戏规则，始终监控）
+            if (AntiCheatProcesses.Contains(processName) || processName.Contains("AntiCheat", StringComparison.OrdinalIgnoreCase))
+            {
+                Interlocked.Decrement(ref _antiCheatRefCount);
+                if (_antiCheatRefCount < 0) _antiCheatRefCount = 0;
+                AppLog.Write("EAC-MONITOR", $"[√] 反作弊进程退出: {processName} (PID {processId}), refCount={_antiCheatRefCount}");
+            }
+
+            if (!_profiles.Enabled) return;
             lock (_lock)
             {
                 var game = _activeGames.FirstOrDefault(g => g.Pid == processId);
@@ -260,7 +291,8 @@ public sealed class ProcessMonitorService : IDisposable
             if (!_activeGames.Any(g => g.Pid == processId)) return;
 
             _activeGames.RemoveAll(g => g.Pid == processId);
-            AppLog.Write("ProcessMonitor", $"EXIT: {processName} (PID {processId})");
+            _activeGameCount = _activeGames.Count;
+            AppLog.Write("ProcessMonitor", $"EXIT: {processName} (PID {processId}), activeGames={_activeGameCount}");
 
             if (_activeGames.Count == 0)
             {
