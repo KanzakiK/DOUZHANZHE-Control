@@ -127,3 +127,26 @@ __nul_temp__
 
 # Backup file variants
 *.bak2
+
+# Runtime stdout/stderr logs (never commit)
+api_stderr.txt
+api_stdout.txt
+server/api/api_stdout.txt
+
+# Implementation docs and investigation notes
+AUTO-START-IMPLEMENTATION.md
+memories/
+
+# VS user-specific project files
+*.csproj.user
+
+# Accidental WinRing0 marker files in tools
+server/tools/query
+server/tools/start
+
+# Old Node.js server (replaced by C# backend)
+server/package.json
+server/package-lock.json
+
+# Duplicate PostCSS config (postcss.config.js is the correct one)
+postcss.config.cjs
