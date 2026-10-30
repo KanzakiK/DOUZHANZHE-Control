@@ -61,7 +61,8 @@ builder.Services.AddSingleton<FanCurveService>(sp => new FanCurveService(
     sp.GetRequiredService<WmiInterface>(),
     sp.GetRequiredService<ILogger<FanCurveService>>(),
     configDir));
-builder.Services.AddHostedService(sp => new BackgroundRotationService(configDir));
+builder.Services.AddSingleton<BackgroundRotationService>(sp => new BackgroundRotationService(configDir));
+builder.Services.AddHostedService(sp => sp.GetRequiredService<BackgroundRotationService>());
 builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
     p.WithOrigins(
         "http://localhost:3100", "http://127.0.0.1:3100",
