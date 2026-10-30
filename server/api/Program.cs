@@ -120,6 +120,32 @@ catch (Exception ex)
     Log($"PawnIO InitPawnIO 异常: {ex.Message}");
 }
 
+// ---- 开机自启任务自愈：修复存量任务的 72h ExecutionTimeLimit ----
+// 背景：安装器 (douzhanzhe-setup.iss) 创建的任务为 PT0S（无限），但设置页开关路径
+// 曾未显式设置该字段，TaskScheduler 库默认 72 小时，导致 shell 连续运行满 72h 被
+// 任务计划程序静默硬杀（表现为托盘图标消失、后端成孤儿进程，且无任何崩溃日志）。
+// v2.0.2 起注册时显式置零（见 /api/autostart），此处对存量坏任务做一次性修复。
+_ = System.Threading.Tasks.Task.Run(async () =>
+{
+    try
+    {
+        await System.Threading.Tasks.Task.Delay(5_000); // 避开启动高峰，延迟执行
+        const string autoStartTaskName = "DouzhanzheControl";
+        using var ts = new TaskService();
+        var existing = ts.RootFolder.AllTasks.FirstOrDefault(t => t.Name == autoStartTaskName);
+        if (existing == null) return; // 未开启自启，无需处理
+        var limit = existing.Definition.Settings.ExecutionTimeLimit;
+        if (limit == TimeSpan.Zero) return; // 已是无限，正常
+        existing.Definition.Settings.ExecutionTimeLimit = TimeSpan.Zero;
+        existing.RegisterChanges();
+        Log($"[AutoStart] 自启任务 '{autoStartTaskName}' 的 ExecutionTimeLimit={limit}（会触发 72h 硬终止 bug），已修复为无限 (PT0S)");
+    }
+    catch (Exception ex)
+    {
+        Log($"[AutoStart] 自启任务自愈检查失败: {ex.Message}");
+    }
+});
+
 // ---- 性能设置持久化 (按模式存储) ----
 var _perfLock = new object();
 var _jsonWriteLock = new object();
@@ -2250,6 +2276,10 @@ app.MapPost("/api/auto-start", async (HttpContext ctx) =>
             td.Settings.DisallowStartIfOnBatteries = false;
             td.Settings.StopIfGoingOnBatteries = false;
             td.Settings.DisallowStartOnRemoteAppSession = false;
+            // ExecutionTimeLimit 必须与安装器 (douzhanzhe-setup.iss) 的 PT0S 一致：
+            // TaskScheduler 库默认 72 小时，超时后任务计划程序会静默硬杀 shell
+            // （托盘消失、后端成孤儿进程）。置零 = 无运行时限。
+            td.Settings.ExecutionTimeLimit = TimeSpan.Zero;
             td.Triggers.Add(new LogonTrigger());
             td.Actions.Add(shellExe, minimized ? "--minimized" : "");
             ts.RootFolder.RegisterTaskDefinition("DouzhanzheControl", td);
