@@ -22,6 +22,8 @@ const BG_INTERVALS = [
   { id: "30m", label: "每 30 分钟" },
   { id: "1h", label: "每 1 小时" },
   { id: "3h", label: "每 3 小时" },
+  { id: "6h", label: "每 6 小时" },
+  { id: "12h", label: "每 12 小时" },
   { id: "1d", label: "每天" },
 ];
 
