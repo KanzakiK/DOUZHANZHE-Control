@@ -240,31 +240,44 @@ public sealed class SystemInfoService
 
     private void LoadMid()
     {
-        // 磁盘：型号/容量/接口/健康度（顶层三个字段取内盘 = 容量最大的非 USB 盘）
+        // 磁盘：型号/容量/接口/健康度。首选 MSFT_PhysicalDisk（自带 BusType/HealthStatus，能区分 NVMe/SATA/iSCSI），
+        // 失败回退 Win32_DiskDrive。顶层三个字段取内盘（NVMe/SATA，排除 iSCSI/USB/虚拟盘）。
         try
         {
-            var disks = new List<(string Model, long SizeGB, string Pnp, string Status)>();
-            foreach (var d in new ManagementObjectSearcher("SELECT Model, Size, PNPDeviceID, Status FROM Win32_DiskDrive").Get().Cast<ManagementObject>())
+            var disks = new List<(string Model, int SizeGB, string Iface, int Health)>();
+            var phy = new ManagementObjectSearcher(@"root\microsoft\windows\storage", "SELECT FriendlyName, Size, BusType, HealthStatus FROM MSFT_PhysicalDisk").Get().Cast<ManagementObject>().ToList();
+            if (phy.Count > 0)
             {
-                var size = d["Size"] == null ? 0 : Convert.ToInt64(d["Size"]);
-                disks.Add((ToStr(d["Model"]), size / 1073741824, ToStr(d["PNPDeviceID"]), ToStr(d["Status"])));
+                foreach (var d in phy)
+                {
+                    var sizeGB = (int)Math.Round(Convert.ToDouble(d["Size"]) / 1073741824.0);
+                    var bus = Convert.ToInt32(d["BusType"]);
+                    var iface = bus switch { 17 => "NVMe", 11 => "SATA", 9 => "iSCSI", 7 => "USB", 8 => "RAID", 10 => "SAS", 14 => "虚拟", _ => "" };
+                    var health = Convert.ToInt32(d["HealthStatus"]) switch { 0 => 100, 1 => 50, _ => 0 };
+                    disks.Add((ToStr(d["FriendlyName"]), sizeGB, iface, health));
+                }
+            }
+            else
+            {
+                foreach (var d in new ManagementObjectSearcher("SELECT Model, Size, PNPDeviceID, Status FROM Win32_DiskDrive").Get().Cast<ManagementObject>())
+                {
+                    var pnp = ToStr(d["PNPDeviceID"]);
+                    var iface = pnp.Contains("USBSTOR", StringComparison.OrdinalIgnoreCase) ? "USB"
+                              : pnp.Contains("NVME", StringComparison.OrdinalIgnoreCase) ? "NVMe" : "SATA";
+                    var health = ToStr(d["Status"]).Equals("OK", StringComparison.OrdinalIgnoreCase) ? 100 : 0;
+                    disks.Add((ToStr(d["Model"]), d["Size"] == null ? 0 : (int)(Convert.ToInt64(d["Size"]) / 1073741824), iface, health));
+                }
             }
 
-            _disks = disks.Select(d =>
-            {
-                var iface = d.Pnp.Contains("NVME", StringComparison.OrdinalIgnoreCase) ? "NVMe"
-                          : d.Pnp.Contains("USBSTOR", StringComparison.OrdinalIgnoreCase) ? "USB" : "SATA";
-                var health = d.Status.Equals("OK", StringComparison.OrdinalIgnoreCase) ? 100 : 0;
-                return (object)new { model = d.Model, sizeGB = (int)d.SizeGB, @interface = iface, health };
-            }).ToList();
+            _disks = disks.Select(d => (object)new { model = d.Model, sizeGB = d.SizeGB, @interface = d.Iface, health = d.Health }).ToList();
 
-            var internalDisk = disks.Where(d => d.Pnp.StartsWith("PCI", StringComparison.OrdinalIgnoreCase)) // 只认 PCI 本机盘（排除 USB/iSCSI/NAS 虚拟盘）
+            var internalDisk = disks.Where(d => d.Iface is "NVMe" or "SATA")
                                     .OrderByDescending(d => d.SizeGB).FirstOrDefault();
             if (internalDisk.Model != null)
             {
                 _diskModel = internalDisk.Model;
-                _diskInterface = internalDisk.Pnp.Contains("NVME", StringComparison.OrdinalIgnoreCase) ? "NVMe" : "SATA";
-                _diskHealth = internalDisk.Status.Equals("OK", StringComparison.OrdinalIgnoreCase) ? 100 : 0;
+                _diskInterface = internalDisk.Iface;
+                _diskHealth = internalDisk.Health;
             }
         }
         catch { }
