@@ -5,6 +5,14 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
+## [2.0.1-pre.5] — 2026-10-30
+
+pre.4 的滑块回显修复不完整，本版补齐
+
+### 🛠 修复
+
+- **风扇·手动调速滑块回显（补全 pre.4）**: pre.4 只加了 overrides 同步，但漏了两处——① 拖动调速后未写入前端共享 store，切 Tab 卸载重挂后仍读不到刚设的值；② 挂载时"落模式默认值"的定时器会在同步之后执行，把刚回显的值又覆盖回默认。两处均已修复：拖动后同步写入 store（overrides + uxtuParams），默认值定时器改为优先读取配置存值
+
 ## [2.0.1-pre.4] — 2026-10-30
 
 pre.3 的一个修复
