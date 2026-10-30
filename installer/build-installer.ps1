@@ -13,7 +13,10 @@ param(
     [string]$ISCC = "C:\Users\liufe\AppData\Local\Programs\Inno Setup 6\ISCC.exe"
 )
 
-$ErrorActionPreference = "Stop"
+# 用 Continue 而非 Stop：原生命令（git/npm/dotnet/ISCC）写入 stderr 的
+# 无害警告（如 git 的 CRLF 换行提醒）不应终止构建；真正的失败由各步骤
+# 已有的 $LASTEXITCODE 显式检查捕获。真正的异常（terminating）仍会终止。
+$ErrorActionPreference = "Continue"
 $Root = Split-Path -Parent $PSScriptRoot
 $PSScriptRoot_Fallback = $PSScriptRoot
 
@@ -22,7 +25,8 @@ if (-not $Version) {
     $PkgPath = Join-Path $Root "package.json"
     if (Test-Path $PkgPath) {
         $PkgRaw = Get-Content $PkgPath -Raw -Encoding UTF8
-        if ($PkgRaw -match '"version"\s*:\s*"(\d+\.\d+\.\d+)"') {
+        # 兼容预发布后缀（如 "2.0.1-pre.5"）；无后缀时仅匹配 "2.0.1"
+        if ($PkgRaw -match '"version"\s*:\s*"(\d+\.\d+\.\d+([-A-Za-z0-9.]+)?)"') {
             $Version = $matches[1]
             Write-Host "[0/6] 从 package.json 读取版本号: $Version" -ForegroundColor Cyan
         }
