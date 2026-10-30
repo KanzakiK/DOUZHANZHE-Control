@@ -5,6 +5,20 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
+## [2.0.1-pre.18] — 2026-10-30
+
+备份导出/导入覆盖本轮全部新增数据 + 备份覆盖自动审计流程
+
+### ✨ 新增
+
+- **备份分类补齐**: 新增「游戏封面图」（covers/ 目录，含 SGDB 下载与本地上传）与「SGDB Key」（cover-opts.json 凭据，默认不勾选、仅自用备份时手动勾选）；「壁纸设置与图片」分类补上壁纸图片本体（background.jpg）；仪表盘外全部存量数据盘点完毕
+- **二进制备份机制**: 图片类条目以 `{ "__base64": ... }` 打进备份 JSON，导入端解码还原——此前壁纸/封面图片在恢复时静默丢失
+- **自动审计流程**: 打包流程新增 [1.5/6] 备份覆盖审计——交叉核对「代码引用的 configDir 配置 × backupCategories 分类 × 白名单」，新增配置未入备份分类或审计白名单时**中断构建**，强制处理。白名单覆盖瞬态/机器相关/遗留文件（notify.json、last-mode、permission、window-state 等 8 项）
+
+### 🧹 杂项
+
+- dashboard-default.json 确认为 v1.x SortableDashboard 死配置（组件已删、前端零引用），移出备份分类并入白名单；对应孤儿端点待清理
+
 ## [2.0.1-pre.17] — 2026-10-30
 
 系列大作（如 Call of Duty: Modern Warfare 4）在候选中搜不到的修复
