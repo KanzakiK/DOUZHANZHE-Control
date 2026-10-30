@@ -494,14 +494,17 @@ public sealed class GameCoverService : BackgroundService
         }
     }
 
+    // cover-opts.json 用大小写不敏感解析：外部工具（PowerShell ConvertTo-Json 等）
+    // 写出的是 camelCase "sgdbKey"，默认 STJ 区分大小写会静默匹配失败
+    private static readonly JsonSerializerOptions OptsJson = new() { PropertyNameCaseInsensitive = true };
+
     public void SetSgdbKey(string key)
     {
         lock (_optsLock)
         {
             try
             {
-                var json = JsonSerializer.Serialize(new CoverOpts { SgdbKey = key.Trim() },
-                    new JsonSerializerOptions { WriteIndented = true });
+                var json = JsonSerializer.Serialize(new CoverOpts { SgdbKey = key.Trim() }, OptsJson);
                 var tmp = _optsPath + ".tmp";
                 File.WriteAllText(tmp, json);
                 File.Move(tmp, _optsPath, overwrite: true);
@@ -516,7 +519,7 @@ public sealed class GameCoverService : BackgroundService
         try
         {
             if (File.Exists(_optsPath))
-                return JsonSerializer.Deserialize<CoverOpts>(File.ReadAllText(_optsPath)) ?? new CoverOpts();
+                return JsonSerializer.Deserialize<CoverOpts>(File.ReadAllText(_optsPath), OptsJson) ?? new CoverOpts();
         }
         catch (Exception ex)
         {
