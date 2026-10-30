@@ -68,6 +68,7 @@ export default function UpdateDialog({ autoCheck = true }) {
     const handler = () => checkUpdate(true);
     window.addEventListener("check-update-manual", handler);
     return () => window.removeEventListener("check-update-manual", handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -86,6 +87,7 @@ export default function UpdateDialog({ autoCheck = true }) {
       return () => clearTimeout(timer);
     }
     return undefined;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoCheck]);
 
   useEffect(() => {
