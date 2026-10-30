@@ -525,6 +525,11 @@ public sealed class GameCoverService : BackgroundService
     /// <summary>批量入队。非 force 时跳过已有封面；已入队的跳过（防重复）。返回实际入队数。</summary>
     public int Enqueue(IEnumerable<string> profileIds, bool force)
     {
+        // 上一批是否已完结——必须在写入本轮任务【之前】判断：
+        // 双消费者下本轮任务入队后可能瞬间被取走（running>0），事后判断会永远等不到清零
+        var canReset = Volatile.Read(ref _running) == 0 &&
+                       Volatile.Read(ref _done) + Volatile.Read(ref _failed) >= Volatile.Read(ref _total);
+
         int n = 0;
         foreach (var id in profileIds)
         {
@@ -537,20 +542,13 @@ public sealed class GameCoverService : BackgroundService
 
         if (n > 0)
         {
-            // 上一轮已完结则清零计数，保证进度显示为当前批次
-            var running = Volatile.Read(ref _running);
-            var d = Volatile.Read(ref _done);
-            var f = Volatile.Read(ref _failed);
-            var t = Volatile.Read(ref _total);
-            var reset = running == 0 && d + f >= t;
-            if (reset)
+            if (canReset)
             {
                 Interlocked.Exchange(ref _total, 0);
                 Interlocked.Exchange(ref _done, 0);
                 Interlocked.Exchange(ref _failed, 0);
             }
             Interlocked.Add(ref _total, n);
-            AppLog.Write("GameCover", $"Enqueue n={n} running={running} prev(done={d},failed={f},total={t}) reset={reset} [hash={GetHashCode():X8}]");
         }
         return n;
     }
