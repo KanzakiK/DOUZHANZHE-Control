@@ -25,13 +25,33 @@ export function ToastProvider({ children }) {
   return (
     <ToastContext.Provider value={addToast}>
       {children}
-      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm">
+      {/* 全内联样式：项目未启用 Tailwind，此前用 Tailwind 类名导致 toast 永远不可见 */}
+      <div
+        style={{
+          position: "fixed",
+          bottom: 16,
+          right: 16,
+          zIndex: 9999,
+          display: "flex",
+          flexDirection: "column",
+          gap: 8,
+          maxWidth: 380,
+          pointerEvents: "none",
+        }}
+      >
         {toasts.map((t) => (
           <div
             key={t.id}
             onClick={() => removeToast(t.id)}
-            className="px-4 py-3 rounded-xl text-sm shadow-lg cursor-pointer transition-all animate-slide-up"
             style={{
+              padding: "12px 16px",
+              borderRadius: 12,
+              fontSize: 13,
+              lineHeight: 1.6,
+              boxShadow: "0 12px 32px rgba(0,0,0,.35)",
+              cursor: "pointer",
+              pointerEvents: "auto",
+              wordBreak: "break-word",
               background: t.type === "error" ? "#dc2626" : t.type === "success" ? "#16a34a" : "#2563eb",
               color: "#fff",
               border: "1px solid rgba(255,255,255,0.15)",
