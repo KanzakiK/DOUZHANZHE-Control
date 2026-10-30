@@ -741,10 +741,8 @@ app.MapGet("/api/telemetry", (HardwareAbstractionLayer hal, WmiInterface wmi) =>
 // 扩展系统信息服务（C# 直查，替代 sysinfo-ext.ps1 子进程架构）
 var _sysInfoSvc = new SystemInfoService();
 
-app.MapGet("/api/system/info", (HardwareAbstractionLayer hal, NvapiGpuController nv) =>
+app.MapGet("/api/system/info", (HardwareAbstractionLayer hal) =>
 {
-    uint? tgpMw = null;
-    try { var s = nv.GetStatus(); if (s.Available && s.PowerDefaultMw > 0) tgpMw = s.PowerDefaultMw; } catch { }
     return Results.Json(new
     {
         systemModel = hal.SystemModel,
@@ -759,11 +757,12 @@ app.MapGet("/api/system/info", (HardwareAbstractionLayer hal, NvapiGpuController
         gpuDiscrete = hal.GpuDiscreteName,
         gpuIntegrated = hal.GpuIntegratedName,
         gpuVramGB = hal.GpuVram,
-        gpuTgp = tgpMw.HasValue ? (double?)Math.Round(tgpMw.Value / 1000.0) : null,
+        gpuTgp = _sysInfoSvc.TgpW > 0 ? (double?)_sysInfoSvc.TgpW : null, // nvidia-smi power.limit
         gpuDx = _sysInfoSvc.DirectXVersion,
         memoryTotalGB = hal.MemoryTotalGB,
         memoryFreq = hal.MemoryFreq,
         diskTotalGB = hal.DiskTotalGB,
+        diskFreeGB = hal.DiskFreeGB,
     });
 });
 

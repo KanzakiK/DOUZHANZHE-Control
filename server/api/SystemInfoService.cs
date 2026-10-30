@@ -50,8 +50,15 @@ public sealed class SystemInfoService
     // ── 易变（60s）──
     private DateTime _nvTime = DateTime.MinValue;
     private string _nvDriver = "", _nvVbios = "";
+    private double _tgpW;
     private DateTime _battPctTime = DateTime.MinValue;
     private int _battPercent = -1;
+
+    /// <summary>显卡 TGP（W，nvidia-smi power.limit，60s 缓存）。0 = 不可用。供 /api/system/info 的 gpuTgp。</summary>
+    public double TgpW
+    {
+        get { lock (_lock) { if ((DateTime.UtcNow - _nvTime) >= NvTtl) { LoadNvidia(); _nvTime = DateTime.UtcNow; } return _tgpW; } }
+    }
 
     // ── 独立小缓存（供 /api/system/info 用）──
     private string _directX = "";
@@ -359,7 +366,7 @@ public sealed class SystemInfoService
     {
         try
         {
-            using var p = Process.Start(new ProcessStartInfo("nvidia-smi", "--query-gpu=driver_version,vbios_version --format=csv,noheader")
+            using var p = Process.Start(new ProcessStartInfo("nvidia-smi", "--query-gpu=driver_version,vbios_version,power.limit --format=csv,noheader")
             {
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
@@ -367,12 +374,15 @@ public sealed class SystemInfoService
             });
             if (p != null && p.WaitForExit(3000))
             {
-                var line = p.StandardOutput.ReadToEnd().Trim();
+                var line = p.StandardOutput.ReadToEnd().Trim().Split('\n')[0]; // 多卡取第一块
                 var parts = line.Split(',');
-                if (parts.Length >= 2)
+                if (parts.Length >= 3)
                 {
                     _nvDriver = parts[0].Trim();
                     _nvVbios = parts[1].Trim();
+                    // power.limit 形如 "115.00 W"
+                    var w = parts[2].Trim().Split(' ')[0];
+                    if (double.TryParse(w, NumberStyles.Float, CultureInfo.InvariantCulture, out var tgp)) _tgpW = Math.Round(tgp);
                 }
             }
             else { try { p?.Kill(); } catch { } }
