@@ -125,8 +125,22 @@ export default function GameProfilesPanel() {
     return (p && MODE_MAP[p.thermalMode]?.color) || "#888";
   };
 
-  const firstTargetId = configProfiles[0]?.id || MODES[0].id;
-  const validTargetId = (id) => (resolveProfile(id) ? id : firstTargetId);
+  // 下拉框选项归一化：把任意形式的配置 id（裸名 "gaming"/带前缀 "cfg-gaming"/用户配置 id）
+  // 映射到选项列表中真实存在的 id。老配置的 defaultMode 是裸名（如 "gaming"），而选项全是
+  // cfg- id——select 的 value 不在选项里时浏览器会静默显示第一个选项（"安静"），
+  // 造成「扫描窗显示 A、导入实际存 B、编辑框又显示 A」的三方不一致。
+  const profileOptionList = () =>
+    configProfiles.length
+      ? configProfiles
+      : MODES.map(m => ({ id: m.id, name: m.label, builtIn: true, thermalMode: m.id }));
+  const normalizeOptionId = (id) => {
+    const list = profileOptionList();
+    if (!id || list.length === 0) return list[0]?.id || id;
+    if (list.some(p => p.id === id)) return id;
+    const bare = id.replace(/^cfg-/, "");
+    const byThermal = list.find(p => (p.thermalMode || p.id) === bare);
+    return byThermal ? byThermal.id : (list[0]?.id || id);
+  };
 
   const profileOptions = () => {
     const list = configProfiles.length
@@ -262,7 +276,7 @@ export default function GameProfilesPanel() {
         return;
       }
       setShowAdd(false);
-      setAddForm({ name: "", exePath: "", targetMode: validTargetId(config.defaultMode) });
+      setAddForm({ name: "", exePath: "", targetMode: normalizeOptionId(config.defaultMode) });
       fetchData();
     } catch (err) {
       console.error("Failed to add profile:", err);
@@ -339,7 +353,7 @@ export default function GameProfilesPanel() {
       const data = await res.json();
       setScanResults(data || []);
       setSelectedGames(new Set());
-      setBatchTargetMode(validTargetId(config.defaultMode));
+      setBatchTargetMode(normalizeOptionId(config.defaultMode));
       setShowScan(true);
     } catch (err) {
       console.error("Failed to scan games:", err);
@@ -378,7 +392,7 @@ export default function GameProfilesPanel() {
     const games = [...selectedGames].map(i => ({
       name: scanResults[i].name,
       exePath: scanResults[i].exePath,
-      targetMode: batchTargetMode,
+      targetMode: normalizeOptionId(batchTargetMode),
       source: scanResults[i].source,
       appId: scanResults[i].appId || "",
     }));
@@ -745,7 +759,7 @@ export default function GameProfilesPanel() {
         <button className="btn" onClick={scanGames} disabled={scanning}>
           {scanning ? ICONS.search : ICONS.search}扫描游戏
         </button>
-        <button className="btn primary" onClick={() => { setShowAdd(true); setAddForm({ name: "", exePath: "", targetMode: validTargetId(config.defaultMode) }); }}>
+        <button className="btn primary" onClick={() => { setShowAdd(true); setAddForm({ name: "", exePath: "", targetMode: normalizeOptionId(config.defaultMode) }); }}>
           {ICONS.plus}添加规则
         </button>
         <button className="btn" onClick={openKeyDlg} title="SteamGridDB API Key 设置" aria-label="封面图源设置">
@@ -763,7 +777,7 @@ export default function GameProfilesPanel() {
             </button>
             <button
               className="btn primary"
-              onClick={() => { setShowAdd(true); setAddForm({ name: "", exePath: "", targetMode: validTargetId(config.defaultMode) }); }}
+              onClick={() => { setShowAdd(true); setAddForm({ name: "", exePath: "", targetMode: normalizeOptionId(config.defaultMode) }); }}
             >
               {ICONS.plus}添加规则
             </button>
@@ -867,7 +881,7 @@ export default function GameProfilesPanel() {
               <div className="field">
                 <label>绑定配置 <small>启动该游戏时切换到的配置</small></label>
                 <select
-                  value={addForm.targetMode}
+                  value={normalizeOptionId(addForm.targetMode)}
                   onChange={(e) => setAddForm({ ...addForm, targetMode: e.target.value })}
                   aria-label="绑定配置"
                 >
@@ -946,7 +960,7 @@ export default function GameProfilesPanel() {
               <div className="field">
                 <label>绑定配置</label>
                 <select
-                  value={editForm.targetMode}
+                  value={normalizeOptionId(editForm.targetMode)}
                   onChange={(e) => setEditForm({ ...editForm, targetMode: e.target.value })}
                 >
                   {profileOptions()}
@@ -998,7 +1012,7 @@ export default function GameProfilesPanel() {
                   </div>
                   <div className="scan-bind">
                     <span>统一绑定到</span>
-                    <select value={batchTargetMode} onChange={(e) => setBatchTargetMode(e.target.value)} aria-label="批量绑定配置">
+                    <select value={normalizeOptionId(batchTargetMode)} onChange={(e) => setBatchTargetMode(e.target.value)} aria-label="批量绑定配置">
                       {profileOptions()}
                     </select>
                     <label className="auto-cover-check" title="导入后在后台自动搜索并下载封面（Steam 来源无需 API Key）">
