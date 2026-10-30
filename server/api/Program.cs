@@ -1933,12 +1933,16 @@ app.MapPost("/api/notify", async (HttpContext ctx) =>
 // ---- 配置备份/恢复 ----
 var backupCategories = new Dictionary<string, string[]>
 {
-    ["config"] = new[] { "custom-params.json", "fan-curve.json", "gpu-mode.json", "profiles/.index.json" },
+    ["config"] = new[] { "custom-params.json", "fan-curve.json", "gpu-mode.json", "performance-overrides.json", "profiles/.index.json" },
     ["games"] = new[] { "game-profiles.json" },
     ["hotkeys"] = new[] { "hotkey-config.json", "hotkey-status.json" },
     ["appearance"] = new[] { "ui-state.json" },
-    ["background"] = new[] { "background-opts.json" },
+    ["background"] = new[] { "background-opts.json", "background.jpg" },
     ["autostart"] = new[] { "auto-start-opts.json" },
+    // 游戏封面图（含本地上传）——二进制，导出为 base64
+    ["covers"] = new[] { "covers/" },
+    // SteamGridDB API Key（凭据）——前端默认不勾选，仅自用备份时手动勾选
+    ["sgdbkey"] = new[] { "cover-opts.json" },
 };
 
 HardwareSignatureDto CurrentHardwareSignature(HardwareDetector detector, HardwareAbstractionLayer hal)
@@ -1965,6 +1969,13 @@ app.MapPost("/api/backup/export", async (HttpContext ctx, HardwareDetector detec
                     .ToArray()
                 : Array.Empty<string>();
 
+        string[] CoversFiles() =>
+            Directory.Exists(Path.Combine(configDir, "covers"))
+                ? Directory.GetFiles(Path.Combine(configDir, "covers"))
+                    .Select(p => "covers/" + Path.GetFileName(p))
+                    .ToArray()
+                : Array.Empty<string>();
+
         using var reader = new StreamReader(ctx.Request.Body);
         var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
         var req = JsonSerializer.Deserialize<BackupRequest>(await reader.ReadToEndAsync(), opts);
@@ -1974,13 +1985,24 @@ app.MapPost("/api/backup/export", async (HttpContext ctx, HardwareDetector detec
         {
             if (!backupCategories.TryGetValue(cat, out var files)) continue;
             if (cat == "config") files = files.Concat(ProfileFiles()).Distinct().ToArray();
+            if (cat == "covers") files = CoversFiles();
             var catData = new Dictionary<string, JsonElement>();
             foreach (var f in files)
             {
                 var filePath = Path.Combine(configDir, f);
                 if (!File.Exists(filePath)) continue;
-                var json = await File.ReadAllTextAsync(filePath);
-                catData[f] = JsonSerializer.Deserialize<JsonElement>(json);
+                var ext = Path.GetExtension(filePath).ToLowerInvariant();
+                if (ext is ".jpg" or ".jpeg" or ".png" or ".webp")
+                {
+                    // 二进制图片：base64 打进备份 JSON
+                    var b64 = Convert.ToBase64String(await File.ReadAllBytesAsync(filePath));
+                    catData[f] = JsonSerializer.Deserialize<JsonElement>(JsonSerializer.Serialize(new { __base64 = b64 }));
+                }
+                else
+                {
+                    var json = await File.ReadAllTextAsync(filePath);
+                    catData[f] = JsonSerializer.Deserialize<JsonElement>(json);
+                }
             }
             if (catData.Count > 0) result[cat] = catData;
         }
@@ -2041,6 +2063,16 @@ app.MapPost("/api/backup/import", async (HttpContext ctx, HardwareDetector detec
                 if (!catFiles.TryGetProperty(f, out var content)) continue;
                 var filePath = Path.Combine(configDir, f);
                 Directory.CreateDirectory(Path.GetDirectoryName(filePath) ?? configDir);
+                // 二进制图片（备份条目形如 { "__base64": "..." }）→ 解码还原
+                if (content.ValueKind == JsonValueKind.Object &&
+                    content.TryGetProperty("__base64", out var b64) && b64.ValueKind == JsonValueKind.String)
+                {
+                    var tmpBin = filePath + ".tmp";
+                    await File.WriteAllBytesAsync(tmpBin, Convert.FromBase64String(b64.GetString() ?? ""));
+                    File.Move(tmpBin, filePath, overwrite: true);
+                    restored++;
+                    continue;
+                }
                 var tmpPath = filePath + ".tmp";
                 await File.WriteAllTextAsync(tmpPath, JsonSerializer.Serialize(content, new JsonSerializerOptions { WriteIndented = true }));
                 File.Move(tmpPath, filePath, overwrite: true);
