@@ -17,7 +17,8 @@ public sealed class ProfileService
     private readonly string _profilesDir;
     private readonly string _indexPath;
     private readonly object _lock = new();
-    private ProfileIndex? _index;
+    private ProfileIndex _index = new();  // 非空保证：LoadIndex 只会赋非空实例
+    private bool _loaded;                 // 惰性加载标志（_index 恒非空，不能再用 null 判断）
 
     private static readonly (string Id, string Name, string ThermalMode)[] BuiltInProfiles =
     [
@@ -50,7 +51,8 @@ public sealed class ProfileService
             if (!Directory.Exists(_profilesDir))
             {
                 Directory.CreateDirectory(_profilesDir);
-                _index = null;
+                _index = new ProfileIndex();
+                _loaded = true; // 目录刚创建，索引必然为空，无需读盘
             }
 
             LoadIndex();
@@ -246,7 +248,8 @@ public sealed class ProfileService
 
     private void LoadIndex()
     {
-        if (_index != null) return;
+        if (_loaded) return;
+        _loaded = true;
         try
         {
             if (File.Exists(_indexPath))
@@ -254,17 +257,12 @@ public sealed class ProfileService
                 var json = File.ReadAllText(_indexPath);
                 _index = JsonSerializer.Deserialize<ProfileIndex>(json, JsonOpts) ?? new ProfileIndex();
             }
-            else
-            {
-                _index = new ProfileIndex();
-            }
         }
         catch { _index = new ProfileIndex(); }
     }
 
     private void SaveIndex()
     {
-        if (_index == null) return;
         var json = JsonSerializer.Serialize(_index, JsonOpts);
         var tmp = _indexPath + ".tmp";
         File.WriteAllText(tmp, json);

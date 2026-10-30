@@ -9,7 +9,6 @@ namespace Douzhanzhe.HAL;
 public sealed class AmdSmuController : ISmuControl, IDisposable
 {
     private readonly RyzenSmu _smu;
-    private bool _initialized;
 
     /// <summary>创建 AmdSmuController，需先加载 RyzenSMU.bin</summary>
     public AmdSmuController()

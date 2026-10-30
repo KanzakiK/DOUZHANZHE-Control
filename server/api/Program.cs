@@ -686,7 +686,7 @@ app.Map("/ws", async (HttpContext ctx) =>
         var buf = new byte[4096];
         while (ws.State == WebSocketState.Open)
         {
-            WebSocketReceiveResult result = null;
+            WebSocketReceiveResult? result = null;
             try { result = await ws.ReceiveAsync(buf, CancellationToken.None); }
             catch (WebSocketException) { break; }
             if (result != null && result.MessageType == WebSocketMessageType.Close) break;
@@ -2773,8 +2773,8 @@ app.MapPost("/api/game-profiles/batch", async (HttpRequest req, GameProfileServi
     {
         var name = g.TryGetProperty("name", out var n) ? n.GetString() : null;
         var exePath = g.TryGetProperty("exePath", out var ep) ? ep.GetString() : null;
-        var targetMode = g.TryGetProperty("targetMode", out var tm) ? tm.GetString() : "gaming";
-        var source = g.TryGetProperty("source", out var src) ? src.GetString() : "scan";
+        var targetMode = g.TryGetProperty("targetMode", out var tm) ? tm.GetString() ?? "gaming" : "gaming";
+        var source = g.TryGetProperty("source", out var src) ? src.GetString() ?? "scan" : "scan";
 
         if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(exePath)) continue;
 
