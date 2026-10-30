@@ -87,6 +87,9 @@ server/config/hotkey-status.json
 server/config/last-mode.json
 server/config/window-state.json
 server/config/permission.json
+# 游戏封面：SGDB Key（隐私）与每机用户数据
+server/config/cover-opts.json
+server/config/covers/
 server/config/profiles/
 server/config/overrides-*.json
 
