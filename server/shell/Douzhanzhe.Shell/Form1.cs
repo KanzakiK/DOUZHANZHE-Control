@@ -441,7 +441,7 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
         "Douzhanzhe Console", "logs");
     private static readonly string _appLogPath = Path.Combine(_logDir, "app.log");
 
-    private static void AppLog(string tag, string msg)
+    internal static void AppLog(string tag, string msg)
     {
         try
         {

@@ -208,32 +208,10 @@ static class Program
     }
 
     /// <summary>
-    /// 写崩溃日志到应用目录下的 crash.log（不可写时回退到 %LOCALAPPDATA%）
+    /// 写崩溃日志：并入统一日志 app.log（与后端/Shell 日志同文件、同轮转），便于一处排查。
     /// </summary>
     internal static void LogCrash(string source, Exception ex)
     {
-        try
-        {
-            var logPath = Path.Combine(AppContext.BaseDirectory, "crash.log");
-            try
-            {
-                File.AppendAllText(logPath, ""); // 测试是否可写
-            }
-            catch
-            {
-                // Program Files 可能无写权限，回退到用户目录
-                var fallbackDir = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "Douzhanzhe Console");
-                Directory.CreateDirectory(fallbackDir);
-                logPath = Path.Combine(fallbackDir, "crash.log");
-            }
-            var entry = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [{source}]\n" +
-                        $"  Type: {ex.GetType().FullName}\n" +
-                        $"  Message: {ex.Message}\n" +
-                        $"  StackTrace:\n{ex.StackTrace}\n\n";
-            File.AppendAllText(logPath, entry);
-        }
-        catch { }
+        Form1.AppLog("Crash", $"{source}: {ex.GetType().FullName}: {ex.Message}\n{ex.StackTrace}");
     }
 }
