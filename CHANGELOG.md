@@ -5,6 +5,16 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
+## [2.0.1-pre.3] — 2026-10-30
+
+pre.2 的三个修复
+
+### 🛠 修复
+
+- **系统信息页首开不自动加载**: 安装后首次打开页面时后端可能尚未就绪，此前需要手动点刷新；现在挂载时失败会自动重试（最多 5 次 × 1.5s），并使旧版本遗留的本地缓存失效
+- **存储·剩余空间恒为 "—"**: `/api/system/info` 此前未返回磁盘剩余空间字段，已补上
+- **显卡·功耗上限 TGP 恒为 "—"**: 改用 nvidia-smi `power.max_limit` 读取（`power.limit` 在非提权会话返回 [N/A]），RTX 5060 Laptop 正确显示 115W
+
 ## [2.0.1-pre.2] — 2026-10-30
 
 v2.0.1 第二个预发布版本：修复托盘程序静默消失、系统信息页全字段点亮、游戏卡片交互优化
