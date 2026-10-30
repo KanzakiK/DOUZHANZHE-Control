@@ -117,39 +117,72 @@ public class BackgroundRotationService : BackgroundService
             using var resp = await _http.GetAsync(apiUrl, HttpCompletionOption.ResponseHeadersRead, ct);
             var media = resp.Content.Headers.ContentType?.MediaType?.ToLowerInvariant() ?? "";
 
-            string imageUrl;
-            byte[] bytes;
+            string? imageUrl = null;
+            byte[]? bytes = null;
 
             if (media.StartsWith("image/"))
             {
-                // 接口直接返回图片（可能经过 302 跳转到图片地址），使用最终地址
+                // 接口直接返回图片（可能经过 302 跳转到图片地址），响应体即是图片
                 imageUrl = resp.RequestMessage?.RequestUri?.ToString() ?? apiUrl;
                 bytes = await resp.Content.ReadAsByteArrayAsync(ct);
             }
             else
             {
-                // 按 JSON 解析：{ urls: [...] } / 顶层数组 / 含 url 字段的对象
-                var json = await resp.Content.ReadAsStringAsync(ct);
-                var urls = ParseImageUrls(json);
-                if (urls.Count == 0)
-                    return "error:接口未返回可识别的图片地址（需为 JSON 列表/对象，或图片直链）";
-                var pick = urls[_urlIndex % urls.Count];
-                _urlIndex++;
-                imageUrl = pick;
+                // 非图片响应：按 JSON / 纯文本收集候选图片地址，再逐个校验 Content-Type
+                var body = await resp.Content.ReadAsStringAsync(ct);
+                var candidates = CollectImageCandidates(body);
+                if (candidates.Count == 0)
+                {
+                    var trimmed = body.Trim();
+                    if (IsHttpUrl(trimmed)) candidates.Add(trimmed);
+                }
+                if (candidates.Count == 0)
+                    return "error:接口未返回可识别的图片地址（支持 JSON / 图片直链 / 文本 URL）";
 
-                using var imgResp = await _http.GetAsync(pick, HttpCompletionOption.ResponseHeadersRead, ct);
-                imgResp.EnsureSuccessStatusCode();
-                media = imgResp.Content.Headers.ContentType?.MediaType?.ToLowerInvariant() ?? "";
-                bytes = await imgResp.Content.ReadAsByteArrayAsync(ct);
+                int n = candidates.Count;
+                int start = _urlIndex % n;
+                bool ok = false;
+                for (int k = 0; k < n && !ok; k++)
+                {
+                    var cand = candidates[(start + k) % n];
+                    if (cand.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var comma = cand.IndexOf(',');
+                        if (comma <= 0) continue;
+                        try
+                        {
+                            var meta = cand.Substring(0, comma).ToLowerInvariant();
+                            bytes = Convert.FromBase64String(cand.Substring(comma + 1));
+                            media = meta.Contains("png") ? "image/png" : meta.Contains("webp") ? "image/webp" : "image/jpeg";
+                            imageUrl = cand;
+                            ok = true;
+                        }
+                        catch { /* 跳过损坏的 data URL，尝试下一个候选 */ }
+                        continue;
+                    }
+                    try
+                    {
+                        using var imgResp = await _http.GetAsync(cand, HttpCompletionOption.ResponseHeadersRead, ct);
+                        var cMedia = imgResp.Content.Headers.ContentType?.MediaType?.ToLowerInvariant() ?? "";
+                        if (!cMedia.StartsWith("image/")) continue; // 非图片，尝试下一个候选
+                        imageUrl = imgResp.RequestMessage?.RequestUri?.ToString() ?? cand;
+                        media = cMedia;
+                        bytes = await imgResp.Content.ReadAsByteArrayAsync(ct);
+                        ok = true;
+                    }
+                    catch { /* 候选不可达，尝试下一个 */ }
+                }
+                if (!ok) return "error:候选地址均不是有效图片";
+                _urlIndex++;
             }
 
-            if (bytes.Length == 0)
+            if (bytes == null || bytes.Length == 0)
                 return "error:图片内容为空";
             if (bytes.Length > 20 * 1024 * 1024)
                 return "error:图片超过 20MB 限制";
 
-            var ext = DetectExt(media, imageUrl);
-            await ReplaceImageAsync(bytes, ext, imageUrl, ct);
+            var ext = DetectExt(media, imageUrl ?? apiUrl);
+            await ReplaceImageAsync(bytes, ext, imageUrl ?? apiUrl, ct);
             _lastRotation = DateTime.UtcNow;
             AppLog.Write("Background", $"网络轮换: ✓ {ext} ← {imageUrl}");
             return "ok:" + imageUrl;
@@ -180,41 +213,62 @@ public class BackgroundRotationService : BackgroundService
         }
     }
 
-    private static List<string> ParseImageUrls(string json)
+    // 更可能是图片地址的字段名（优先尝试）
+    private static readonly HashSet<string> ImageUrlKeys = new(StringComparer.OrdinalIgnoreCase)
     {
-        var urls = new List<string>();
+        "url", "src", "image", "img", "pic", "picture", "link",
+        "image_url", "img_url", "cover", "thumbnail", "origin", "original"
+    };
+
+    // 从 JSON / 纯文本响应中收集所有候选图片地址，按优先级排序：
+    // 命名字段(url/src/...) > data:image 内嵌 > 其它 http(s) 字符串
+    private static List<string> CollectImageCandidates(string body)
+    {
+        var result = new List<string>();
+        if (string.IsNullOrWhiteSpace(body)) return result;
         try
         {
-            using var doc = JsonDocument.Parse(json);
-            var root = doc.RootElement;
-
-            void Collect(JsonElement el)
-            {
-                if (el.ValueKind == JsonValueKind.Array)
-                {
-                    foreach (var item in el.EnumerateArray()) Collect(item);
-                }
-                else if (el.ValueKind == JsonValueKind.String)
-                {
-                    var s = el.GetString();
-                    if (!string.IsNullOrWhiteSpace(s) && IsHttpUrl(s)) urls.Add(s);
-                }
-                else if (el.ValueKind == JsonValueKind.Object
-                         && el.TryGetProperty("url", out var u)
-                         && u.ValueKind == JsonValueKind.String)
-                {
-                    var s = u.GetString();
-                    if (!string.IsNullOrWhiteSpace(s) && IsHttpUrl(s)) urls.Add(s);
-                }
-            }
-
-            if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("urls", out var arr))
-                Collect(arr);
-            else
-                Collect(root);
+            using var doc = JsonDocument.Parse(body);
+            WalkJson(doc.RootElement, result);
         }
-        catch { /* 非 JSON（或纯文本）时不作为图片列表 */ }
-        return urls;
+        catch { /* 非 JSON：当作纯文本在调用方处理 */ }
+        return result;
+    }
+
+    private static void WalkJson(JsonElement el, List<string> outList)
+    {
+        switch (el.ValueKind)
+        {
+            case JsonValueKind.String:
+                var s = el.GetString();
+                if (!string.IsNullOrWhiteSpace(s)) AddCandidate(s, outList, hint: null);
+                break;
+            case JsonValueKind.Object:
+                foreach (var prop in el.EnumerateObject())
+                {
+                    if (ImageUrlKeys.Contains(prop.Name) && prop.Value.ValueKind == JsonValueKind.String)
+                        AddCandidate(prop.Value.GetString(), outList, hint: prop.Name);
+                    else
+                        WalkJson(prop.Value, outList);
+                }
+                break;
+            case JsonValueKind.Array:
+                foreach (var item in el.EnumerateArray()) WalkJson(item, outList);
+                break;
+        }
+    }
+
+    private static void AddCandidate(string? s, List<string> outList, string? hint)
+    {
+        if (string.IsNullOrWhiteSpace(s)) return;
+        if (s.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase))
+        {
+            outList.Insert(0, s); // 内嵌图优先
+            return;
+        }
+        if (!IsHttpUrl(s)) return;
+        if (hint != null) outList.Insert(0, s); // 命中图片字段优先
+        else outList.Add(s);
     }
 
     private static bool IsHttpUrl(string value)
