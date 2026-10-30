@@ -132,6 +132,8 @@ public sealed class GameCoverService : BackgroundService
     {
         var p = _profiles.GetById(job.ProfileId);
         if (p == null) return "规则已删除";
+        if (!string.IsNullOrEmpty(p.ExePath) && !File.Exists(p.ExePath))
+            return "游戏文件不存在（可能已卸载）";
         if (!job.Force && HasCover(job.ProfileId)) return null; // 幂等跳过
 
         var key = GetSgdbKey();

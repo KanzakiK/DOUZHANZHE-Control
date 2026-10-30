@@ -2627,6 +2627,7 @@ app.MapGet("/api/game-profiles", (GameProfileService svc, GameCoverService cover
     var profiles = svc.GetAll().Select(p =>
     {
         var hasCover = covers.HasCover(p.Id);
+        var exeMissing = !string.IsNullOrEmpty(p.ExePath) && !File.Exists(p.ExePath);
         return new
         {
             p.Id,
@@ -2639,6 +2640,7 @@ app.MapGet("/api/game-profiles", (GameProfileService svc, GameCoverService cover
             p.StoreAppId,
             p.SgdbGameId,
             hasCover,
+            exeMissing,
             // ?v=封面文件时间戳: 换图后前端 URL 变化自动破缓存
             coverUrl = hasCover ? $"/api/game-covers/{p.Id}/image?v={covers.GetCoverVer(p.Id)}" : null
         };
@@ -2888,13 +2890,19 @@ app.MapPost("/api/game-covers/fetch", async (HttpRequest req, GameCoverService c
     return Results.Ok(new { queued = covers.Enqueue(ids, force) });
 });
 
-// 一键补齐: 所有缺封面的非手动来源游戏入队（manual 防名称误配, 走编辑弹窗人工确认）
+// 一键补齐: 所有缺封面的非手动来源游戏入队（manual 防名称误配, 走编辑弹窗人工确认）;
+// 游戏文件已不存在的失效规则自动跳过并单独回报
 app.MapPost("/api/game-covers/fetch-missing", (GameProfileService profiles, GameCoverService covers) =>
 {
-    var ids = profiles.GetAll()
-        .Where(p => p.Source != "manual")
-        .Select(p => p.Id);
-    return Results.Ok(new { queued = covers.Enqueue(ids, force: false) });
+    int skippedDead = 0;
+    var ids = new List<string>();
+    foreach (var p in profiles.GetAll())
+    {
+        if (p.Source == "manual") continue;
+        if (!string.IsNullOrEmpty(p.ExePath) && !File.Exists(p.ExePath)) { skippedDead++; continue; }
+        ids.Add(p.Id);
+    }
+    return Results.Ok(new { queued = covers.Enqueue(ids, force: false), skippedDead });
 });
 
 // 抓取进度（前端 1.5s 轮询）
