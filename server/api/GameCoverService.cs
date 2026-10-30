@@ -538,14 +538,19 @@ public sealed class GameCoverService : BackgroundService
         if (n > 0)
         {
             // 上一轮已完结则清零计数，保证进度显示为当前批次
-            if (Volatile.Read(ref _running) == 0 &&
-                Volatile.Read(ref _done) + Volatile.Read(ref _failed) >= Volatile.Read(ref _total))
+            var running = Volatile.Read(ref _running);
+            var d = Volatile.Read(ref _done);
+            var f = Volatile.Read(ref _failed);
+            var t = Volatile.Read(ref _total);
+            var reset = running == 0 && d + f >= t;
+            if (reset)
             {
                 Interlocked.Exchange(ref _total, 0);
                 Interlocked.Exchange(ref _done, 0);
                 Interlocked.Exchange(ref _failed, 0);
             }
             Interlocked.Add(ref _total, n);
+            AppLog.Write("GameCover", $"Enqueue n={n} running={running} prev(done={d},failed={f},total={t}) reset={reset} [hash={GetHashCode():X8}]");
         }
         return n;
     }
