@@ -1,6 +1,7 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { fetchGameAutoSwitchStatus, launchGameProfile, fetchProfiles } from "../../services/uxtuAdapter";
 import { Skeleton, OfflineCard, EmptyState } from "../ui/PageState";
+import { useToast } from "../ui/Toast";
 
 const MODES = [
   { id: "silent", label: "安静", color: "#4CAF50" },
@@ -23,6 +24,8 @@ const ICONS = {
   menu: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 6h16M4 12h16M4 18h10"/></svg>,
   steam: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 3v9l6 3"/></svg>,
   epic: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 2 3 7v10l9 5 9-5V7Z"/></svg>,
+  gear: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.09a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.09a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1Z"/></svg>,
+  image: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></svg>,
 };
 
 function initials(name) {
@@ -91,6 +94,24 @@ export default function GameProfilesPanel() {
   const [switchStatus, setSwitchStatus] = useState(null);
   const [launchingId, setLaunchingId] = useState(null);
 
+  // ── 封面（SteamGridDB + 官方图兜底）───────────────────────
+  const toast = useToast();
+  const [imgErrors, setImgErrors] = useState(() => new Set()); // img 加载失败的卡片 id，回退首字母
+  const [autoCover, setAutoCover] = useState(true);            // 批量导入自动抓封面（默认开）
+  const [coverProgress, setCoverProgress] = useState(null);    // 后台抓取进度
+  const [hasKey, setHasKey] = useState(false);                 // 已配置 SGDB Key
+  const [showKeyDlg, setShowKeyDlg] = useState(false);
+  const [keyInput, setKeyInput] = useState("");
+  const [coverTerm, setCoverTerm] = useState("");              // 编辑弹窗搜索词
+  const [coverSearching, setCoverSearching] = useState(false);
+  const [coverCandidates, setCoverCandidates] = useState([]);  // SGDB 候选游戏
+  const [coverGameId, setCoverGameId] = useState(null);
+  const [coverThumbs, setCoverThumbs] = useState([]);          // 候选封面缩略图
+  const [coverUploading, setCoverUploading] = useState(false);
+
+  const coverActive = !!coverProgress && (coverProgress.running > 0 ||
+    (coverProgress.total > 0 && coverProgress.done + coverProgress.failed < coverProgress.total));
+
   const resolveProfile = (id) =>
     configProfiles.find(p => p.id === id) ||
     (MODE_MAP[id] ? { id, name: MODE_MAP[id].label, builtIn: true, thermalMode: id } : null) ||
@@ -133,6 +154,7 @@ export default function GameProfilesPanel() {
       const data = await res.json();
       setConfig({ enabled: data.enabled, defaultMode: data.defaultMode });
       setProfiles(data.profiles || []);
+      setImgErrors(new Set()); // 数据刷新后清除失败标记（封面可能已补上）
       setOffline(false);
     } catch (err) {
       console.error("Failed to load game profiles:", err);
@@ -357,6 +379,7 @@ export default function GameProfilesPanel() {
       exePath: scanResults[i].exePath,
       targetMode: batchTargetMode,
       source: scanResults[i].source,
+      appId: scanResults[i].appId || "",
     }));
     if (games.length === 0) {
       setShowScan(false);
@@ -366,11 +389,11 @@ export default function GameProfilesPanel() {
       const res = await fetch("/api/game-profiles/batch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ games }),
+        body: JSON.stringify({ games, autoCover }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        alert(err.error || "批量添加失败");
+        toast(err.error || "批量添加失败", "error");
         return;
       }
       const data = await res.json();
@@ -378,14 +401,229 @@ export default function GameProfilesPanel() {
       setSelectedGames(new Set());
       setScanResults([]);
       fetchData();
-      alert(`成功添加 ${data.added || games.length} 个游戏`);
+      if (data.coverQueued) {
+        toast(`成功添加 ${data.added || games.length} 个游戏，${data.coverQueued} 张封面后台获取中`, "success");
+        setTimeout(pollCoverProgress, 400);
+      } else {
+        toast(`成功添加 ${data.added || games.length} 个游戏`, "success");
+      }
     } catch (err) {
       console.error("Failed to batch add:", err);
-      alert("批量添加失败");
+      toast("批量添加失败", "error");
     }
   };
 
+  // ── 封面操作 ─────────────────────────────────────────────
+
+  const loadKeyStatus = async () => {
+    try {
+      const r = await fetch("/api/game-covers/opts");
+      if (r.ok) setHasKey((await r.json()).hasKey);
+    } catch { /* offline */ }
+  };
+
+  const pollCoverProgress = async () => {
+    try {
+      const r = await fetch("/api/game-covers/progress");
+      if (r.ok) setCoverProgress(await r.json());
+    } catch { /* offline */ }
+  };
+
+  const fetchMissingCovers = async () => {
+    try {
+      const res = await fetch("/api/game-covers/fetch-missing", { method: "POST" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast(err.error || "补齐封面失败", "error");
+        return;
+      }
+      const data = await res.json();
+      if (!data.queued) {
+        toast("所有卡片都已有封面", "info");
+        return;
+      }
+      toast(`开始获取 ${data.queued} 张封面`, "success");
+      pollCoverProgress();
+    } catch {
+      toast("补齐封面失败", "error");
+    }
+  };
+
+  const fetchSingleCover = async (id) => {
+    try {
+      const res = await fetch("/api/game-covers/fetch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profileIds: [id], force: true }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast(err.error || "获取封面失败", "error");
+        return;
+      }
+      toast("后台获取中，稍候自动刷新", "success");
+      pollCoverProgress();
+    } catch {
+      toast("获取封面失败", "error");
+    }
+  };
+
+  const openKeyDlg = () => {
+    loadKeyStatus();
+    setKeyInput("");
+    setShowKeyDlg(true);
+  };
+
+  const saveKey = async () => {
+    const key = keyInput.trim();
+    if (!key && hasKey) { setShowKeyDlg(false); return; } // 留空视为未修改
+    try {
+      const res = await fetch("/api/game-covers/opts", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sgdbKey: key }),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        setHasKey(d.hasKey);
+        setShowKeyDlg(false);
+        toast(d.hasKey ? "SteamGridDB Key 已保存" : "SteamGridDB Key 已清除", "success");
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast(err.error || "保存失败", "error");
+      }
+    } catch {
+      toast("保存失败", "error");
+    }
+  };
+
+  const clearKey = async () => {
+    try {
+      const res = await fetch("/api/game-covers/opts", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sgdbKey: "" }),
+      });
+      if (res.ok) {
+        setHasKey(false);
+        setShowKeyDlg(false);
+        toast("SteamGridDB Key 已清除", "success");
+      }
+    } catch { toast("操作失败", "error"); }
+  };
+
+  const uploadCover = (file) => {
+    if (!file || !editingId) return;
+    if (file.size > 8 * 1024 * 1024) { toast("图片不能超过 8MB", "error"); return; }
+    setCoverUploading(true);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const res = await fetch(`/api/game-covers/${editingId}/image`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ dataUrl: reader.result }),
+        });
+        const d = await res.json().catch(() => ({}));
+        if (res.ok) { toast("封面已更新", "success"); fetchData(); }
+        else toast(d.error || "上传失败", "error");
+      } catch {
+        toast("上传失败", "error");
+      } finally {
+        setCoverUploading(false);
+      }
+    };
+    reader.onerror = () => { setCoverUploading(false); toast("读取文件失败", "error"); };
+    reader.readAsDataURL(file);
+  };
+
+  const resetCover = async () => {
+    if (!editingId) return;
+    if (!confirm("确定恢复默认（移除封面图片）？")) return;
+    try {
+      const res = await fetch(`/api/game-covers/${editingId}/image`, { method: "DELETE" });
+      if (res.ok) { toast("已恢复默认", "success"); fetchData(); }
+      else toast("操作失败", "error");
+    } catch {
+      toast("操作失败", "error");
+    }
+  };
+
+  const searchCovers = async () => {
+    const term = coverTerm.trim();
+    if (!term || !editingId) return;
+    setCoverSearching(true);
+    setCoverCandidates([]);
+    setCoverThumbs([]);
+    setCoverGameId(null);
+    try {
+      const res = await fetch(`/api/game-covers/search?term=${encodeURIComponent(term)}`);
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) { toast(d.error || "搜索失败", "error"); return; }
+      if (!d.data?.length) { toast("未找到匹配游戏，可尝试英文名", "info"); return; }
+      setCoverCandidates(d.data);
+      setCoverGameId(d.data[0].id);
+      loadCoverThumbs(d.data[0].id);
+    } catch {
+      toast("搜索失败", "error");
+    } finally {
+      setCoverSearching(false);
+    }
+  };
+
+  const loadCoverThumbs = async (gid) => {
+    if (!gid || !editingId) return;
+    setCoverThumbs([]);
+    try {
+      const res = await fetch(`/api/game-covers/candidates?gameId=${gid}`);
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) { toast(d.error || "获取候选封面失败", "error"); return; }
+      setCoverThumbs(d.data || []);
+      if (!d.data?.length) toast("该游戏暂无可用竖版封面", "info");
+    } catch {
+      toast("获取候选封面失败", "error");
+    }
+  };
+
+  const applyThumb = async (t) => {
+    if (!editingId || !t?.url) return;
+    try {
+      const res = await fetch(`/api/game-covers/${editingId}/select`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: t.url }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok) { toast("封面已应用", "success"); fetchData(); }
+      else toast(d.error || "应用失败", "error");
+    } catch {
+      toast("应用失败", "error");
+    }
+  };
+
+  // 封面进度轮询: 有活动任务时每 1.5s 拉一次
+  useEffect(() => {
+    if (!coverActive) return;
+    const t = setInterval(pollCoverProgress, 1500);
+    return () => clearInterval(t);
+  }, [coverActive]);
+
+  // 任务从进行中 → 完成的瞬间: 刷新列表 + 汇总提示
+  const prevCoverActiveRef = useRef(false);
+  useEffect(() => {
+    if (prevCoverActiveRef.current && !coverActive && coverProgress && coverProgress.total > 0) {
+      fetchData();
+      if (coverProgress.failed > 0)
+        toast(`封面完成：成功 ${coverProgress.done} 个，失败 ${coverProgress.failed} 个（未匹配的游戏可在编辑中手动搜索）`, "info");
+      else
+        toast(`封面已就绪：${coverProgress.done} 个`, "success");
+    }
+    prevCoverActiveRef.current = coverActive;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coverActive]);
+
   const activeCount = profiles.filter(p => p.enabled).length;
+  const editingProfile = profiles.find(p => p.id === editingId);
 
   const filteredScanResults = useMemo(() =>
     scanResults.map((g, i) => ({ ...g, index: i })).filter(g => scanTab === "all" || g.source === scanTab),
@@ -457,11 +695,20 @@ export default function GameProfilesPanel() {
       <div className="list-tools reveal enter" style={{ animationDelay: ".04s" }}>
         <span className="count">共 <b>{profiles.length}</b> 条规则 · 启用 <b>{activeCount}</b> 条</span>
         <span className="sp"></span>
+        <button className="btn" onClick={fetchMissingCovers} disabled={coverActive}
+          title="为所有缺封面的游戏自动获取封面（Steam 来源无需 Key 即可使用官方图）">
+          {coverActive && coverProgress
+            ? `补齐中 ${coverProgress.done + coverProgress.failed}/${coverProgress.total}…`
+            : "补齐封面"}
+        </button>
         <button className="btn" onClick={scanGames} disabled={scanning}>
           {scanning ? ICONS.search : ICONS.search}扫描游戏
         </button>
         <button className="btn primary" onClick={() => { setShowAdd(true); setAddForm({ name: "", exePath: "", targetMode: validTargetId(config.defaultMode) }); }}>
           {ICONS.plus}添加规则
+        </button>
+        <button className="btn" onClick={openKeyDlg} title="SteamGridDB API Key 设置" aria-label="封面图源设置">
+          {ICONS.gear}
         </button>
       </div>
 
@@ -485,8 +732,18 @@ export default function GameProfilesPanel() {
         <div className="game-grid reveal enter" style={{ animationDelay: ".06s" }}>
           {profiles.map(p => (
             <div key={p.id} className={`gcard ${p.enabled ? "" : "off"}`}>
-              <div className="poster" style={{ background: `linear-gradient(135deg, ${targetColor(p.targetMode)}66, #1a1a2e)` }}>
-                <span className="poster-letter">{initials(p.name)}</span>
+              <div className="poster" style={p.hasCover && !imgErrors.has(p.id) ? undefined : { background: `linear-gradient(135deg, ${targetColor(p.targetMode)}66, #1a1a2e)` }}>
+                {p.hasCover && !imgErrors.has(p.id) ? (
+                  <img
+                    className="poster-img"
+                    src={p.coverUrl}
+                    alt={p.name}
+                    loading="lazy"
+                    onError={() => setImgErrors(prev => { const n = new Set(prev); n.add(p.id); return n; })}
+                  />
+                ) : (
+                  <span className="poster-letter">{initials(p.name)}</span>
+                )}
               </div>
               <span className="shade"></span>
               <div className="top">
@@ -592,6 +849,71 @@ export default function GameProfilesPanel() {
             </div>
             <div className="p-body">
               <div className="field">
+                <label>封面 <small>SteamGridDB 搜索 · 本地图片 · 恢复默认</small></label>
+                <div className="cover-manage">
+                  <div className="cover-preview">
+                    {editingProfile?.hasCover
+                      ? <img src={editingProfile.coverUrl} alt="当前封面" />
+                      : <span className="cover-letter">{initials(editingProfile?.name)}</span>}
+                  </div>
+                  <div className="cover-ops">
+                    <button className="btn" type="button" onClick={() => fetchSingleCover(editingId)}>
+                      {ICONS.image}获取封面
+                    </button>
+                    <label className="btn" type="button">
+                      {coverUploading ? "上传中…" : "本地图片"}
+                      <input type="file" accept="image/*" hidden onChange={(e) => { uploadCover(e.target.files?.[0]); e.target.value = ""; }} />
+                    </label>
+                    <button className="btn ghost" type="button" onClick={resetCover} disabled={!editingProfile?.hasCover}>
+                      恢复默认
+                    </button>
+                  </div>
+                </div>
+                {!hasKey ? (
+                  <div className="cover-search-tip">
+                    配置 SteamGridDB API Key 后可搜索候选封面（Steam 来源的游戏无需 Key 也能获取官方封面） ·
+                    <button className="link-btn" type="button" onClick={openKeyDlg}>去设置</button>
+                  </div>
+                ) : (
+                  <div className="cover-search">
+                    <div className="in">
+                      <input
+                        type="text"
+                        value={coverTerm}
+                        onChange={(e) => setCoverTerm(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") searchCovers(); }}
+                        placeholder="搜索 SteamGridDB 游戏名（英文更准）"
+                        aria-label="搜索封面关键词"
+                      />
+                      <button className="btn" type="button" onClick={searchCovers} disabled={coverSearching}>
+                        {coverSearching ? "搜索中…" : "搜索"}
+                      </button>
+                    </div>
+                    {coverCandidates.length > 0 && (
+                      <select
+                        value={coverGameId ?? ""}
+                        onChange={(e) => { setCoverGameId(e.target.value); loadCoverThumbs(e.target.value); }}
+                        aria-label="候选游戏"
+                      >
+                        {coverCandidates.map(g => (
+                          <option key={g.id} value={g.id}>{g.name}{g.verified ? " ✓" : ""}</option>
+                        ))}
+                      </select>
+                    )}
+                    {coverThumbs.length > 0 && (
+                      <div className="cover-thumbs">
+                        {coverThumbs.map(t => (
+                          <button key={t.id} type="button" className="cover-thumb" onClick={() => applyThumb(t)}
+                            title={`风格 ${t.style || "默认"} · 评分 ${t.score}`}>
+                            <img src={t.thumb} alt="" loading="lazy" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="field">
                 <label>游戏路径</label>
                 <div className="in">
                   <input
@@ -670,6 +992,10 @@ export default function GameProfilesPanel() {
                     <select value={batchTargetMode} onChange={(e) => setBatchTargetMode(e.target.value)} aria-label="批量绑定配置">
                       {profileOptions()}
                     </select>
+                    <label className="auto-cover-check" title="导入后在后台自动搜索并下载封面（Steam 来源无需 API Key）">
+                      <input type="checkbox" checked={autoCover} onChange={(e) => setAutoCover(e.target.checked)} />
+                      自动获取封面
+                    </label>
                   </div>
                 </>
               )}
@@ -681,6 +1007,39 @@ export default function GameProfilesPanel() {
               <span style={{ flex: 1 }}></span>
               <button className="btn ghost" onClick={() => { setShowScan(false); setSelectedGames(new Set()); }}>取消</button>
               <button className="btn primary" onClick={batchAddGames} disabled={selectedGames.size === 0}>导入选中（{selectedGames.size}）</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showKeyDlg && (
+        <div className="modal show">
+          <div className="panel">
+            <div className="p-head">
+              <span><b>SteamGridDB API Key</b><small>用于搜索与下载游戏封面（Epic / 手动添加的游戏需要）</small></span>
+              <button className="x" onClick={() => setShowKeyDlg(false)} aria-label="关闭">{ICONS.close}</button>
+            </div>
+            <div className="p-body">
+              <div className="field">
+                <label>API Key <small>{hasKey ? "已配置 ✓" : "未配置"}</small></label>
+                <input
+                  type="text"
+                  value={keyInput}
+                  onChange={(e) => setKeyInput(e.target.value)}
+                  placeholder={hasKey ? "粘贴新 Key 将覆盖现有配置" : "粘贴 SteamGridDB 的 API Key"}
+                  aria-label="SteamGridDB API Key"
+                />
+              </div>
+              <div className="hint">
+                {ICONS.info}
+                免费 Key 在 <b>steamgriddb.com</b> 的「偏好设置 → API」页面生成（需注册账号）。
+                Key 仅保存在本机配置目录，不会上传到任何服务器。未配置 Key 时，Steam 来源的游戏仍会使用官方封面。
+              </div>
+            </div>
+            <div className="p-foot">
+              {hasKey && <button className="btn ghost" onClick={clearKey}>清除 Key</button>}
+              <span style={{ flex: 1 }}></span>
+              <button className="btn ghost" onClick={() => setShowKeyDlg(false)}>取消</button>
+              <button className="btn primary" onClick={saveKey}>保存</button>
             </div>
           </div>
         </div>
