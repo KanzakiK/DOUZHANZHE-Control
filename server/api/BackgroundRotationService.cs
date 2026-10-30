@@ -19,6 +19,7 @@ public class BackgroundRotationService : BackgroundService
     private DateTime _lastRotation = DateTime.MinValue;
     private string _configSignature = "";
     private int _urlIndex;
+    private readonly SemaphoreSlim _busy = new(1, 1);
 
     public BackgroundRotationService(string configDir)
     {
@@ -47,8 +48,9 @@ public class BackgroundRotationService : BackgroundService
                     var due = now - _lastRotation >= TimeSpan.FromSeconds(intervalSeconds);
                     if (signature != _configSignature || due)
                     {
-                        await RotateOnceAsync(opts.ApiUrl, ct);
-                        _lastRotation = DateTime.UtcNow;
+                        await _busy.WaitAsync(ct);
+                        try { await RotateOnceAsync(opts.ApiUrl, ct); }
+                        finally { _busy.Release(); }
                     }
                 }
 
@@ -105,71 +107,113 @@ public class BackgroundRotationService : BackgroundService
         };
     }
 
-    private async Task RotateOnceAsync(string apiUrl, CancellationToken ct)
+    private async Task<string> RotateOnceAsync(string apiUrl, CancellationToken ct)
     {
+        if (string.IsNullOrWhiteSpace(apiUrl))
+            return "error:未配置 API 地址";
+
         try
         {
-            var urls = await FetchImageUrlsAsync(apiUrl, ct);
-            if (urls.Count == 0)
+            using var resp = await _http.GetAsync(apiUrl, HttpCompletionOption.ResponseHeadersRead, ct);
+            var media = resp.Content.Headers.ContentType?.MediaType?.ToLowerInvariant() ?? "";
+
+            string imageUrl;
+            byte[] bytes;
+
+            if (media.StartsWith("image/"))
             {
-                AppLog.Write("Background", "网络轮换: API 返回空列表，保留当前图");
-                return;
+                // 接口直接返回图片（可能经过 302 跳转到图片地址），使用最终地址
+                imageUrl = resp.RequestMessage?.RequestUri?.ToString() ?? apiUrl;
+                bytes = await resp.Content.ReadAsByteArrayAsync(ct);
+            }
+            else
+            {
+                // 按 JSON 解析：{ urls: [...] } / 顶层数组 / 含 url 字段的对象
+                var json = await resp.Content.ReadAsStringAsync(ct);
+                var urls = ParseImageUrls(json);
+                if (urls.Count == 0)
+                    return "error:接口未返回可识别的图片地址（需为 JSON 列表/对象，或图片直链）";
+                var pick = urls[_urlIndex % urls.Count];
+                _urlIndex++;
+                imageUrl = pick;
+
+                using var imgResp = await _http.GetAsync(pick, HttpCompletionOption.ResponseHeadersRead, ct);
+                imgResp.EnsureSuccessStatusCode();
+                media = imgResp.Content.Headers.ContentType?.MediaType?.ToLowerInvariant() ?? "";
+                bytes = await imgResp.Content.ReadAsByteArrayAsync(ct);
             }
 
-            var pick = urls[_urlIndex % urls.Count];
-            _urlIndex++;
-            AppLog.Write("Background", $"网络轮换: 下载 {pick}");
+            if (bytes.Length == 0)
+                return "error:图片内容为空";
+            if (bytes.Length > 20 * 1024 * 1024)
+                return "error:图片超过 20MB 限制";
 
-            using var resp = await _http.GetAsync(pick, HttpCompletionOption.ResponseHeadersRead, ct);
-            resp.EnsureSuccessStatusCode();
-            var bytes = await resp.Content.ReadAsByteArrayAsync(ct);
-            if (bytes.Length == 0 || bytes.Length > 20 * 1024 * 1024)
-            {
-                AppLog.Write("Background", $"网络轮换: 图片大小非法 ({bytes.Length} bytes)，保留当前图");
-                return;
-            }
-
-            var ext = DetectExt(resp, pick);
-            await ReplaceImageAsync(bytes, ext, pick, ct);
+            var ext = DetectExt(media, imageUrl);
+            await ReplaceImageAsync(bytes, ext, imageUrl, ct);
+            _lastRotation = DateTime.UtcNow;
+            AppLog.Write("Background", $"网络轮换: ✓ {ext} ← {imageUrl}");
+            return "ok:" + imageUrl;
         }
         catch (Exception ex)
         {
-            AppLog.Write("Background", $"网络轮换失败: {ex.Message}，保留当前图");
+            AppLog.Write("Background", $"网络轮换失败: {ex.Message}");
+            return "error:" + ex.Message;
         }
     }
 
-    private async Task<List<string>> FetchImageUrlsAsync(string apiUrl, CancellationToken ct)
+    /// <summary>
+    /// 手动立即轮换一次：前端「立刻切换」按钮调用。可传入临时 URL 覆盖已保存配置。
+    /// 返回 "ok:<图片地址>" 或 "error:<原因>"。
+    /// </summary>
+    public async Task<string> RotateNowAsync(string? requestedUrl, CancellationToken ct)
     {
-        var json = await _http.GetStringAsync(apiUrl, ct);
-        using var doc = JsonDocument.Parse(json);
-        var root = doc.RootElement;
-        var urls = new List<string>();
-
-        void Collect(JsonElement el)
+        var opts = ReadOpts();
+        var url = string.IsNullOrWhiteSpace(requestedUrl) ? opts.ApiUrl : requestedUrl!;
+        await _busy.WaitAsync(ct);
+        try
         {
-            if (el.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var item in el.EnumerateArray()) Collect(item);
-            }
-            else if (el.ValueKind == JsonValueKind.String)
-            {
-                var s = el.GetString();
-                if (!string.IsNullOrWhiteSpace(s) && IsHttpUrl(s)) urls.Add(s);
-            }
-            else if (el.ValueKind == JsonValueKind.Object
-                     && el.TryGetProperty("url", out var u)
-                     && u.ValueKind == JsonValueKind.String)
-            {
-                var s = u.GetString();
-                if (!string.IsNullOrWhiteSpace(s) && IsHttpUrl(s)) urls.Add(s);
-            }
+            return await RotateOnceAsync(url, ct);
         }
+        finally
+        {
+            _busy.Release();
+        }
+    }
 
-        if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("urls", out var arr))
-            Collect(arr);
-        else
-            Collect(root);
+    private static List<string> ParseImageUrls(string json)
+    {
+        var urls = new List<string>();
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
 
+            void Collect(JsonElement el)
+            {
+                if (el.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var item in el.EnumerateArray()) Collect(item);
+                }
+                else if (el.ValueKind == JsonValueKind.String)
+                {
+                    var s = el.GetString();
+                    if (!string.IsNullOrWhiteSpace(s) && IsHttpUrl(s)) urls.Add(s);
+                }
+                else if (el.ValueKind == JsonValueKind.Object
+                         && el.TryGetProperty("url", out var u)
+                         && u.ValueKind == JsonValueKind.String)
+                {
+                    var s = u.GetString();
+                    if (!string.IsNullOrWhiteSpace(s) && IsHttpUrl(s)) urls.Add(s);
+                }
+            }
+
+            if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("urls", out var arr))
+                Collect(arr);
+            else
+                Collect(root);
+        }
+        catch { /* 非 JSON（或纯文本）时不作为图片列表 */ }
         return urls;
     }
 
@@ -179,9 +223,10 @@ public class BackgroundRotationService : BackgroundService
             && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
     }
 
-    private static string DetectExt(HttpResponseMessage resp, string pick)
+    private static string DetectExt(string media, string pick)
     {
-        var media = resp.Content.Headers.ContentType?.MediaType?.ToLowerInvariant() ?? "";
+        if (string.IsNullOrEmpty(media)) media = "";
+        else media = media.ToLowerInvariant();
         if (media.Contains("png")) return ".png";
         if (media.Contains("jpeg") || media.Contains("jpg")) return ".jpg";
         if (media.Contains("webp")) return ".webp";

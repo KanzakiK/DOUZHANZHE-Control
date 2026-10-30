@@ -2378,6 +2378,29 @@ app.MapDelete("/api/background", () =>
     catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }); }
 });
 
+// 手动立即从网络接口拉取一张壁纸（设置页「立刻切换」按钮）
+app.MapPost("/api/background-rotate-now", async (HttpContext ctx) =>
+{
+    try
+    {
+        string? requestedUrl = null;
+        if (ctx.Request.ContentLength is > 0)
+        {
+            using var reader = new StreamReader(ctx.Request.Body);
+            var body = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(await reader.ReadToEndAsync());
+            if (body != null && body.TryGetValue("url", out var u) && u.ValueKind == JsonValueKind.String)
+                requestedUrl = u.GetString();
+        }
+
+        var bg = ctx.RequestServices.GetRequiredService<BackgroundRotationService>();
+        var result = await bg.RotateNowAsync(requestedUrl, ctx.RequestAborted);
+        if (result.StartsWith("ok:"))
+            return Results.Json(new { ok = true, url = result.Substring(3) });
+        return Results.Json(new { ok = false, error = result.Substring(6) });
+    }
+    catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }); }
+});
+
 // ---- 检查更新 (GitHub Releases API) ----
 var _updateHttpClient = new HttpClient();
 _updateHttpClient.Timeout = TimeSpan.FromSeconds(8);
