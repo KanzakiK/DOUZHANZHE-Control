@@ -88,6 +88,14 @@ if (-not (Test-Path "C:\Program Files\dotnet\dotnet.exe")) {
     Write-Host "错误: 未找到 .NET SDK！" -ForegroundColor Red; exit 1
 }
 
+# ── 1.5 备份覆盖审计：新增持久化配置必须入备份分类或审计白名单，否则中断构建 ──
+Write-Host "[1.5/6] 备份覆盖审计..." -ForegroundColor Cyan
+& (Join-Path $Root "tools\audit-backup-coverage.ps1")
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "错误: 备份覆盖审计未通过——请把新增配置加入 Program.cs backupCategories，或在 tools/audit-backup-coverage.ps1 白名单声明不备份理由" -ForegroundColor Red
+    exit 1
+}
+
 # ── 2. 构建前端 ──
 if (-not $SkipFrontend) {
     Write-Host "[2/6] 构建前端..." -ForegroundColor Cyan
