@@ -16,7 +16,6 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using Douzhanzhe.HAL;
-using Microsoft.Win32;
 
 namespace Douzhanzhe.API;
 
@@ -80,7 +79,6 @@ public sealed class ProcessMonitorService : IDisposable
         if (resolveThermal != null) _resolveThermal = resolveThermal;
 
         SubscribeWmiEvents();
-        SystemEvents.PowerModeChanged += OnPowerModeChanged;
 
         AppLog.Write("ProcessMonitor", "Service started");
     }
@@ -168,16 +166,6 @@ public sealed class ProcessMonitorService : IDisposable
         catch (Exception ex)
         {
             AppLog.Write("ProcessMonitor", $"WMI unsubscribe failed: {ex.Message}");
-        }
-    }
-
-    private void OnPowerModeChanged(object sender, PowerModeChangedEventArgs e)
-    {
-        if (e.Mode == PowerModes.Resume)
-        {
-            AppLog.Write("ProcessMonitor", "System resumed, re-subscribing WMI events");
-            UnsubscribeWmiEvents();
-            SubscribeWmiEvents();
         }
     }
 
@@ -395,7 +383,6 @@ public sealed class ProcessMonitorService : IDisposable
         if (_disposed) return;
         _disposed = true;
 
-        SystemEvents.PowerModeChanged -= OnPowerModeChanged;
         UnsubscribeWmiEvents();
 
         lock (_lock)

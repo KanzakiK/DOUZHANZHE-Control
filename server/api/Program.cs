@@ -8,7 +8,6 @@ using System.Text.Json;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
-using Microsoft.Win32;
 using Microsoft.Win32.TaskScheduler;
 
 // ---- SMU 控制器 ----
@@ -149,7 +148,6 @@ _ = System.Threading.Tasks.Task.Run(async () =>
 // ---- 性能设置持久化 (按模式存储) ----
 var _perfLock = new object();
 var _jsonWriteLock = new object();
-bool _pgSuppress = false; // ParameterGuard 睡眠期间暂停标志
 
 string CurrentMode()
 {
@@ -265,66 +263,6 @@ void ApplyFanSpeed(WmiInterface wmi, HardwareAbstractionLayer hal, int? largeRpm
     }
 }
 
-// ---- 睡眠/休眠恢复：重置底层驱动并重新初始化 ----
-SystemEvents.PowerModeChanged += (sender, e) =>
-{
-    if (e.Mode == PowerModes.Suspend)
-    {
-        // 系统即将进入睡眠，暂停 ParameterGuard 和 HealthWatchdog 恢复
-        _pgSuppress = true;
-        TelemetryBackgroundService.SetSleeping(true);
-        Log("[PowerEvent] 系统即将睡眠，暂停 ParameterGuard + HealthWatchdog");
-    }
-    else if (e.Mode == PowerModes.Resume)
-    {
-        Log("[PowerEvent] 系统从睡眠恢复，重置底层驱动...");
-        _ = System.Threading.Tasks.Task.Run(async () =>
-        {
-            try
-            {
-                // DriverBridge 睡眠恢复（v2.0 PawnIO 驱动持久，无需重连）
-                AppLog.Write("DriverBridge", "睡眠恢复: PawnIO 驱动持久，无需重连");
-
-                // NVAPI 也需要重新初始化（GPU 驱动可能在睡眠后重新加载）
-                var nv = app.Services.GetRequiredService<NvapiGpuController>();
-                nv.Init();
-
-                // GPU 模式恢复 (从 gpu-mode.json)
-                var saved = JsonRead<Dictionary<string, int>>("gpu-mode.json", new Dictionary<string, int>());
-                if (saved.TryGetValue("gpuMode", out int mode) && mode >= 0 && mode <= 2)
-                {
-                    var wmi = app.Services.GetRequiredService<WmiInterface>();
-                    if (wmi.Available)
-                    {
-                        if (wmi.SetGpuMode((byte)mode))
-                            Log($"[PowerEvent] GPU mode → {mode}");
-                        else
-                            Log($"[PowerEvent] GPU mode restore to {mode} failed");
-                    }
-                }
-
-                // 恢复所有性能设置 (CPU/SMU/GPU/NVAPI/固定风扇)
-                await RestoreAllPerfSettings("PowerEvent");
-
-                // 自定义风扇曲线: 重新下发 ITSM 模式 + 重置 ShouldWrite 状态
-                var fanCurve = app.Services.GetRequiredService<FanCurveService>();
-                fanCurve.RecoverAfterSleep();
-
-                Log("[PowerEvent] 全部恢复完成");
-
-                // 等 SMU 完全稳定后再恢复 ParameterGuard 和 HealthWatchdog
-                await System.Threading.Tasks.Task.Delay(30_000);
-                _pgSuppress = false;
-                TelemetryBackgroundService.SetSleeping(false);
-                Log("[PowerEvent] ParameterGuard + HealthWatchdog 已恢复");
-            }
-            catch (Exception ex)
-            {
-                Log($"[PowerEvent] 恢复异常: {ex.Message}");
-            }
-        });
-    }
-};
 // ---- JSON persistence helpers ----
 T JsonRead<T>(string fileName, T fallback) where T : class
 {
@@ -581,11 +519,6 @@ _ = System.Threading.Tasks.Task.Run(async () =>
     {
         while (await timer.WaitForNextTickAsync())
         {
-            if (_pgSuppress)
-            {
-                AppLog.Write("ParameterGuard", "睡眠期间暂停，跳过本轮重发");
-                continue;
-            }
             try
             {
                 var cycleStart = DateTime.Now;
