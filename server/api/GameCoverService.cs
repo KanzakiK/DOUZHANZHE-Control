@@ -168,19 +168,14 @@ public sealed class GameCoverService : BackgroundService
     /// <summary>SGDB 链路: ID 精确匹配 → 名称搜索（缓存优先）。返回 null=成功。</summary>
     private async Task<string?> TryFetchViaSgdbAsync(GameProfile p, string key, CancellationToken ct)
     {
-        // ① 商店 ID 精确匹配（零搜索零误配）
-        if (p.Source == "steam" && !string.IsNullOrEmpty(p.StoreAppId))
+        // ① 商店 ID 精确匹配（404/无封面 → 落名称搜索；鉴权/网络错误 → 直接返回，外层 steam 落官方直链）
+        if (!string.IsNullOrEmpty(p.StoreAppId) && (p.Source == "steam" || p.Source == "epic"))
         {
-            var g = await GridsBestAsync($"grids/steam/{p.StoreAppId}", key, ct);
+            var idPath = p.Source == "steam" ? $"grids/steam/{p.StoreAppId}" : $"grids/epic/{p.StoreAppId}";
+            var g = await GridsBestAsync(idPath, key, ct);
             if (g.Error != null) return g.Error;
             if (g.Url != null) return await SaveCoverAsync(g.Url, p, gameId: null, ct);
-        }
-        else if (p.Source == "epic" && !string.IsNullOrEmpty(p.StoreAppId))
-        {
-            var g = await GridsBestAsync($"grids/epic/{p.StoreAppId}", key, ct);
-            if (g.Error != null) return g.Error;
-            if (g.Url != null) return await SaveCoverAsync(g.Url, p, gameId: null, ct);
-            // epic 无此 ID 的封面 → 落名称搜索
+            // ID 未命中（如 SGDB 的 epic ID 体系与 CatalogItemId 不一致）→ 落名称搜索
         }
 
         // ② 名称搜索（SgdbGameId 缓存优先）
@@ -231,6 +226,8 @@ public sealed class GameCoverService : BackgroundService
         {
             using var res = await SendSgdbAsync(path + "?dimensions=600x900&types=static", key, ct);
             if ((int)res.StatusCode == 401) return (null, "SGDB Key 无效");
+            // 404 = 游戏/ID 不在 SGDB：视为"未命中"返回空列表，由调用方落名称搜索
+            if ((int)res.StatusCode == 404) return (new List<SgdbGrid>(), null);
             if ((int)res.StatusCode == 429)
             {
                 // 限流: 延迟 30s 重试一次
