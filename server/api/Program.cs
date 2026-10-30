@@ -753,7 +753,7 @@ app.MapGet("/api/system/info", (HardwareAbstractionLayer hal, NvapiGpuController
         cpuCores = hal.CpuCores,
         cpuThreads = hal.CpuThreads,
         cpuBaseFreq = Math.Round((double)hal.CpuBaseFreqMHz / 1000, 2), // 标称基频 GHz（Win32_Processor.MaxClockSpeed）
-        cpuMaxFreq = (double?)null,                                     // 真实睿频上限需 SMU GetBoostLimit，暂未实现 → 前端显示 "—"
+        cpuMaxFreq = hal.CpuBoostGHz > 0 ? (double?)hal.CpuBoostGHz : null, // 按型号查表（斗战者在售 SKU），表外返回 null
         cpuFreq = Math.Round((double)hal.CpuFreq, 1),                   // 兼容保留（当前实时频率）
         cpuL3Cache = hal.CpuL3CacheMB,
         gpuDiscrete = hal.GpuDiscreteName,
