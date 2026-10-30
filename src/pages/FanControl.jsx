@@ -4,7 +4,7 @@ import FanCurvePanel from "../components/panels/FanCurvePanel";
 import { fetchFanCurveStatus, fetchRouteInfo, getFanRange, MODE_FAN_DEFAULTS, resolvePerfMode } from "../services/uxtuAdapter";
 
 export default function FanControl() {
-  const { telemetry, settings, overrides, profiles } = useControlState();
+  const { telemetry, settings, overrides, profiles, setOverrides, setUxtuParams } = useControlState();
   const [curveActive, setCurveActive] = useState(false);
   // 风扇区间/默认按「性能模式」取，配置 id 先解包成性能模式裸名
   const perfMode = resolvePerfMode(settings.mode, profiles);
@@ -18,18 +18,23 @@ export default function FanControl() {
   const fan1Pct = telemetry?.fanLargeMax ? Math.min(100, (fan1Rpm / telemetry.fanLargeMax) * 100) : 0;
   const fan2Pct = telemetry?.fanSmallMax ? Math.min(100, (fan2Rpm / telemetry.fanSmallMax) * 100) : 0;
 
+  // ovRef：perfMode 定时器回调里读取最新 overrides（避免闭包取到旧值）
+  const ovRef = useRef(overrides);
+  ovRef.current = overrides;
+
   useEffect(() => {
     const def = MODE_FAN_DEFAULTS[perfMode] || MODE_FAN_DEFAULTS.silent;
     const timer = setTimeout(() => {
-      setFan1TargetRpm(def.fanLargeRpmTarget);
-      setFan2TargetRpm(def.fanSmallRpmTarget);
+      // 优先用当前配置的实际存值（ParameterGuard 周期重发的就是它），未设置才落模式默认值
+      const ov = ovRef.current || {};
+      setFan1TargetRpm(ov.fanLargeRpmTarget ?? def.fanLargeRpmTarget);
+      setFan2TargetRpm(ov.fanSmallRpmTarget ?? def.fanSmallRpmTarget);
     }, 0);
     return () => clearTimeout(timer);
   }, [perfMode]);
 
-  // 滑块值与后端实际生效值同步：当前配置存有手动转速时优先用之（ParameterGuard 周期重发的就是它），
-  // 未设置（null）时保留上方 perfMode 默认值。放在 perfMode effect 之后，切配置时以实际存值为准。
-  // 拖动后 2s 内跳过同步：POST 保存与 overrides 轮询存在竞态，避免拖动中滑块被旧值拉回。
+  // overrides 晚于挂载到达（应用启动拉取/切配置响应）时同步滑块。
+  // 拖动后 2s 内跳过：POST 保存与 overrides 轮询存在竞态，避免拖动中滑块被旧值拉回。
   const lastDragRef = useRef(0);
   useEffect(() => {
     if (overrides == null) return;
@@ -62,6 +67,10 @@ export default function FanControl() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
+      // 同步到共享 store：否则切 tab 卸载重挂后滑块读不到刚设的值（overrides 是稀疏存储，fan 属于用户改过项）
+      const key = fanIdx === 0 ? "fanLargeRpmTarget" : "fanSmallRpmTarget";
+      setOverrides(prev => ({ ...prev, [key]: rpm }));
+      setUxtuParams(prev => ({ ...prev, [key]: rpm }));
     } catch { /* 调速失败保持当前滑块值 */ }
   };
 
