@@ -5,10 +5,10 @@ const LS_SYS_INFO = "douzhanzhe_sys_info";
 const LS_SYS_EXT  = "douzhanzhe_sys_info_ext";
 const LS_CACHE_VER = "douzhanzhe_cache_ver";
 
-if (localStorage.getItem(LS_CACHE_VER) !== "2") {
+if (localStorage.getItem(LS_CACHE_VER) !== "3") {
   localStorage.removeItem(LS_SYS_INFO);
   localStorage.removeItem(LS_SYS_EXT);
-  localStorage.setItem(LS_CACHE_VER, "2");
+  localStorage.setItem(LS_CACHE_VER, "3");
 }
 
 const ICONS = {
@@ -66,13 +66,20 @@ export default function SystemInfoPanel({ trigger, onRefreshDone }) {
   const [loading, setLoading] = useState(!info || !ext);
   const [offline, setOffline] = useState(false);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (auto = false) => {
     setLoading(true);
     try {
-      const [r1, r2] = await Promise.all([
-        fetch("/api/system/info").then(r => r.json()).catch(() => null),
-        fetch("/api/system/info-ext").then(r => r.json()).catch(() => null),
-      ]);
+      let r1 = null, r2 = null;
+      // 挂载首载时 API 可能尚未就绪（刚启动/刚装完）：失败自动重试，最多 5 次 × 1.5s；手动刷新单次
+      const attempts = auto ? 5 : 1;
+      for (let i = 0; i < attempts; i++) {
+        [r1, r2] = await Promise.all([
+          fetch("/api/system/info").then(r => r.json()).catch(() => null),
+          fetch("/api/system/info-ext").then(r => r.json()).catch(() => null),
+        ]);
+        if (r1 || r2) break;
+        if (i < attempts - 1) await new Promise(r => setTimeout(r, 1500));
+      }
       if (r1) { setInfo(r1); localStorage.setItem(LS_SYS_INFO, JSON.stringify(r1)); }
       if (r2) { setExt(r2); localStorage.setItem(LS_SYS_EXT, JSON.stringify(r2)); }
       setOffline(!r1 && !r2);
@@ -82,7 +89,7 @@ export default function SystemInfoPanel({ trigger, onRefreshDone }) {
     }
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { fetchData(true); }, [fetchData]);
   useEffect(() => {
     if (trigger === 0) return;
     fetchData();
