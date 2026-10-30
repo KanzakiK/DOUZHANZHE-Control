@@ -5,6 +5,16 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
+## [2.0.1-pre.16] — 2026-10-30
+
+封面搜索对 SGDB 系列游戏"挤出"问题的缓解（与 SteamOS 插件同源接口的通病）
+
+### ✨ 改进
+
+- **搜索词归一化**: 字母/数字边界自动插空格（"warfare4" → "warfare 4"），修复粘写导致的 SGDB 分词失配
+- **候选结果智能重排**: SGDB autocomplete 条数有限且把系列页/热门作品排前面，目标游戏常被挤出；现按与搜索词的 token 覆盖度重排（全等命中优先）
+- **Steam AppID / 商店链接精确匹配**: 选图弹窗支持输入纯数字 AppID 或直接粘贴 Steam 商店链接（store.steampowered.com/app/...），绕过名称搜索 100% 命中该游戏的全部候选封面
+
 ## [2.0.1-pre.15] — 2026-10-30
 
 扫描导入绑定与显示三方不一致修复（"选安静、显示斗战、编辑又是安静"）
