@@ -34,10 +34,12 @@ public sealed record SgdbGrid(long Id, int Score, string Url, string Thumb, stri
 public sealed record CoverFailure(string ProfileId, string Name, string Error);
 public sealed record CoverProgress(int Total, int Done, int Failed, int Running, List<CoverFailure> Failures);
 
+/// <summary>cover-opts.json 模型。public：STJ 反序列化要求 public 无参构造（嵌套 private 类会被静默失败）。</summary>
+public sealed class CoverOpts { public string SgdbKey { get; set; } = ""; }
+
 public sealed class GameCoverService : BackgroundService
 {
     private sealed record CoverJob(string ProfileId, bool Force);
-    internal sealed class CoverOpts { public string SgdbKey { get; set; } = ""; }
 
     private const int MaxImageBytes = 20 * 1024 * 1024;   // 远程下载上限
     private const int MaxUploadBytes = 8 * 1024 * 1024;   // 本地上传上限（对齐壁纸）
@@ -516,7 +518,10 @@ public sealed class GameCoverService : BackgroundService
             if (File.Exists(_optsPath))
                 return JsonSerializer.Deserialize<CoverOpts>(File.ReadAllText(_optsPath)) ?? new CoverOpts();
         }
-        catch { }
+        catch (Exception ex)
+        {
+            AppLog.Write("GameCover", $"cover-opts.json 解析失败: {ex.Message}");
+        }
         return new CoverOpts();
     }
 
