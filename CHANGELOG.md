@@ -5,6 +5,14 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
+## [2.0.1-pre.11] — 2026-10-30
+
+Toast 通知从未显示的存量 bug 修复
+
+### 🛠 修复
+
+- **所有 Toast 通知从未显示过**: Toast 容器使用 Tailwind 类名（fixed bottom-4 right-4 z-50 等）定位，但项目并未启用 Tailwind（无配置文件与编译指令），类名全部无效——toast 一直渲染在页面文档流末尾不可见，全局面板的操作反馈（成功/失败/跳过提示）因此全部"没反应"。容器与内层改为全内联样式，固定右下角 z-index 9999
+
 ## [2.0.1-pre.10] — 2026-10-30
 
 封面补齐实测反馈三连修（正式版首日实测发现）
