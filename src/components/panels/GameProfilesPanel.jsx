@@ -501,22 +501,24 @@ export default function GameProfilesPanel() {
                   <span className="track"></span>
                 </label>
               </div>
-              <div className="acts">
-                <button className="ico-btn" title="编辑" aria-label={`编辑 ${p.name} 规则`}
-                  onClick={() => { setEditingId(p.id); setEditForm({ name: p.name, exePath: p.exePath, targetMode: p.targetMode, enabled: p.enabled }); }}>
-                  {ICONS.edit}
-                </button>
-                <button className="ico-btn danger" title="删除" aria-label={`删除 ${p.name} 规则`} onClick={() => deleteProfile(p.id)}>
-                  {ICONS.trash}
-                </button>
-              </div>
               <div className="info">
                 <b>{p.name}</b>
                 <small>{p.exeName}</small>
               </div>
-              <button className="btn primary launch" onClick={() => launchGame(p)} disabled={launchingId === p.id}>
-                {ICONS.play}{launchingId === p.id ? "启动中..." : "启动"}
-              </button>
+              <div className="bottom">
+                <button className="btn primary launch" onClick={() => launchGame(p)} disabled={launchingId === p.id}>
+                  {ICONS.play}{launchingId === p.id ? "启动中..." : "启动"}
+                </button>
+                <div className="acts">
+                  <button className="ico-btn" title="编辑" aria-label={`编辑 ${p.name} 规则`}
+                    onClick={() => { setEditingId(p.id); setEditForm({ name: p.name, exePath: p.exePath, targetMode: p.targetMode, enabled: p.enabled }); }}>
+                    {ICONS.edit}
+                  </button>
+                  <button className="ico-btn danger" title="删除" aria-label={`删除 ${p.name} 规则`} onClick={() => deleteProfile(p.id)}>
+                    {ICONS.trash}
+                  </button>
+                </div>
+              </div>
             </div>
           ))}
         </div>
