@@ -53,10 +53,10 @@ if ($Version) {
         [System.IO.File]::WriteAllText($Changelog, $ClText, $utf8NoBom)
     }
 
-    # package.json
+    # package.json（兼容带预发布后缀的版本号，如 2.0.1-pre.2）
     $PkgJson = Join-Path $AbsRoot "package.json"
     $PkgText = [System.IO.File]::ReadAllText($PkgJson, $utf8NoBom)
-    $PkgText = [regex]::Replace($PkgText, '("version":\s*")\d+\.\d+(\.\d+)?(")', "`${1}$Version`${3}")
+    $PkgText = [regex]::Replace($PkgText, '("version":\s*")\d+\.\d+(\.\d+)?(-[A-Za-z0-9.]+)?(")', "`${1}$Version`${4}")
     [System.IO.File]::WriteAllText($PkgJson, $PkgText, $utf8NoBom)
 
     # server/api/version.txt (后端固定版本文件)
