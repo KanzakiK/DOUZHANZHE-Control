@@ -20,6 +20,7 @@ public class BackgroundRotationService : BackgroundService
     private string _configSignature = "";
     private int _urlIndex;
     private readonly SemaphoreSlim _busy = new(1, 1);
+    private readonly Random _rng = new();
 
     public BackgroundRotationService(string configDir)
     {
@@ -27,6 +28,7 @@ public class BackgroundRotationService : BackgroundService
         _optsPath = Path.Combine(configDir, "background-opts.json");
         _http.Timeout = TimeSpan.FromSeconds(12);
         _http.DefaultRequestHeaders.UserAgent.ParseAdd("DouzhanzheConsole-BackgroundRotation/1.0");
+        _urlIndex = _rng.Next(1, 100000); // 随机起始，避免每次服务启动都从列表第 0 张图开始
     }
 
     protected override async Task ExecuteAsync(CancellationToken ct)
