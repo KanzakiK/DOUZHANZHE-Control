@@ -5,6 +5,27 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
+## [2.0.1-pre.9] — 2026-10-30
+
+游戏卡片封面：SteamGridDB + Steam 官方图兜底（live 实测 3/3 卡片全配齐）
+
+### ✨ 新增
+
+- **游戏卡片封面**: 卡片自动配竖版封面（600x900，与卡片 2:3 比例一致），遮罩/配置胶囊/悬停按钮自然叠加。图源双层——配置 SteamGridDB 免费 API Key 后全部游戏走 SGDB（Steam 按 AppID 精确匹配零误配、Epic 按 CatalogItemId→名称搜索、SgdbGameId 缓存二次秒匹配）；未配置 Key 时 Steam 游戏自动用 Steam 官方 CDN 竖版封面（零配置可用），Epic/手动游戏保持首字母占位
+- **扫描导入自动配封面**: 导入弹窗「自动获取封面」默认勾选，后台队列（2 并发 + SGDB 限速 + 429 重试）抓取不阻塞导入，卡片先以首字母占位、封面就绪自动显示
+- **一键补齐封面**: 游戏页工具栏按钮，为所有缺封面游戏批量抓取，按钮实时显示「补齐中 N/M…」、完成后 toast 汇总成败；旧数据启动时自动反查商店 ID（Steam appmanifest / Epic 清单回填 StoreAppId）
+- **手动调整**: 编辑弹窗封面管理区——当前封面预览、获取封面、本地图片上传（≤8MB）、SteamGridDB 搜索（关键词→候选游戏 verified 标记→缩略图点选应用）、恢复默认；工具栏齿轮配置 API Key（仅存本机配置文件，任何接口不回传、不上传）
+
+### 🛠 修复
+
+- **封面进度计数跨批次累加不清零**: 完结判断原在任务入队之后执行，双消费者下本轮任务瞬间被取走导致清零条件永不成立；改为入队前快照判断（live 实测定位）
+- **SGDB Key 恒读取失败**: cover-opts.json 改大小写不敏感解析（外部工具写 camelCase 与 C# 属性大小写不符会静默失败），配置类提为 public 并补解析失败日志
+- **Epic 游戏封面 404**: SGDB 的 epic ID 体系与 Epic CatalogItemId 不一致，404 现按"未命中"正确落入名称搜索（此前直接报错）
+
+### 🧹 杂项
+
+- .gitignore 补充封面 Key 配置与本机封面目录（隐私数据不入库，已撤出误入库文件）
+
 ## [2.0.1-pre.8] — 2026-10-30
 
 三个视觉细节修复（仅前端样式）
