@@ -5,6 +5,14 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
+## [2.0.1-pre.17] — 2026-10-30
+
+系列大作（如 Call of Duty: Modern Warfare 4）在候选中搜不到的修复
+
+### 🛠 修复
+
+- **系列大作被挤出 SGDB 候选结果**: 完整名称（如 "Call of Duty: Modern Warfare 4"）常被系列页/热门作品挤出 autocomplete 的有限条数——SteamOS 插件同源接口的通病（SGDB 网站端能搜到是因为走的是另一个按图直搜接口）。现在搜索词含 ≥4 个词时用"末 3 词"短变体自动补一次查询并按 id 合并去重，再走覆盖率重排——实测 MW4 已排在候选第一位
+
 ## [2.0.1-pre.16] — 2026-10-30
 
 封面搜索对 SGDB 系列游戏"挤出"问题的缓解（与 SteamOS 插件同源接口的通病）
