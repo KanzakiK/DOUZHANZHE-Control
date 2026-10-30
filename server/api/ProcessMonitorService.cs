@@ -27,6 +27,8 @@ public sealed class ProcessMonitorService : IDisposable
     // WMI 事件订阅
     private ManagementEventWatcher? _startWatcher;
     private ManagementEventWatcher? _stopWatcher;
+    // watcher 断开自愈：0=空闲 1=重建中（Stop()/Dispose() 也会触发 Stopped，需防重入）
+    private int _resubscribing;
 
     // 活跃游戏列表
     private readonly List<(int Pid, string ExeName, string TargetMode)> _activeGames = new();
@@ -136,11 +138,13 @@ public sealed class ProcessMonitorService : IDisposable
             _startWatcher = new ManagementEventWatcher(
                 new WqlEventQuery("SELECT * FROM __InstanceCreationEvent WITHIN 2 WHERE TargetInstance ISA 'Win32_Process'"));
             _startWatcher.EventArrived += OnProcessStarted;
+            _startWatcher.Stopped += OnWatcherStopped;
             _startWatcher.Start();
 
             _stopWatcher = new ManagementEventWatcher(
                 new WqlEventQuery("SELECT * FROM __InstanceDeletionEvent WITHIN 2 WHERE TargetInstance ISA 'Win32_Process'"));
             _stopWatcher.EventArrived += OnProcessStopped;
+            _stopWatcher.Stopped += OnWatcherStopped;
             _stopWatcher.Start();
 
             AppLog.Write("ProcessMonitor", "WMI event subscriptions created");
@@ -166,6 +170,27 @@ public sealed class ProcessMonitorService : IDisposable
         catch (Exception ex)
         {
             AppLog.Write("ProcessMonitor", $"WMI unsubscribe failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// watcher 断开自愈：WMI 服务重启/连接断开等导致订阅失效时自动重建，
+    /// 避免"睡眠后游戏自动切换失灵"这类静默故障。
+    /// Stopped 在主动 Stop()/Dispose() 时也会触发：_resubscribing 防重入，_disposed 拦截销毁路径。
+    /// </summary>
+    private void OnWatcherStopped(object? sender, StoppedEventArgs e)
+    {
+        if (_disposed) return;
+        if (Interlocked.CompareExchange(ref _resubscribing, 1, 0) != 0) return;
+        try
+        {
+            AppLog.Write("ProcessMonitor", "watcher stopped unexpectedly, re-subscribing");
+            UnsubscribeWmiEvents();
+            SubscribeWmiEvents();
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _resubscribing, 0);
         }
     }
 
