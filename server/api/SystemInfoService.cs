@@ -150,7 +150,7 @@ public sealed class SystemInfoService
             {
                 _biosVersion = ToStr(bios["SMBIOSBIOSVersion"]);
                 _serialNumber = ToStr(bios["SerialNumber"]);
-                if (bios["ReleaseDate"] is DateTime d) _biosDate = d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                _biosDate = ToDateStr(bios["ReleaseDate"]);
             }
         }
         catch { }
@@ -170,7 +170,7 @@ public sealed class SystemInfoService
                 _osName = ToStr(os["Caption"]).Replace("Microsoft", "").Trim();
                 _osBuild = ToStr(os["BuildNumber"]);
                 _osVersion = ToStr(os["Version"]);
-                if (os["InstallDate"] is DateTime d) _osInstallDate = d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                _osInstallDate = ToDateStr(os["InstallDate"]);
             }
         }
         catch { }
@@ -258,7 +258,7 @@ public sealed class SystemInfoService
                 return (object)new { model = d.Model, sizeGB = (int)d.SizeGB, @interface = iface, health };
             }).ToList();
 
-            var internalDisk = disks.Where(d => !d.Pnp.Contains("USBSTOR", StringComparison.OrdinalIgnoreCase))
+            var internalDisk = disks.Where(d => d.Pnp.StartsWith("PCI", StringComparison.OrdinalIgnoreCase)) // 只认 PCI 本机盘（排除 USB/iSCSI/NAS 虚拟盘）
                                     .OrderByDescending(d => d.SizeGB).FirstOrDefault();
             if (internalDisk.Model != null)
             {
@@ -374,6 +374,15 @@ public sealed class SystemInfoService
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private static string ToStr(object? o) => o?.ToString()?.Trim() ?? "";
+
+    /// <summary>WMI DMTF 日期 → "yyyy-MM-dd"。兼容 DateTime 与原始字符串两种返回形态。</summary>
+    private static string ToDateStr(object? o)
+    {
+        if (o == null) return "";
+        if (o is DateTime dt) return dt.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        try { return ManagementDateTimeConverter.ToDateTime(o.ToString()).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture); }
+        catch { return ""; }
+    }
 
     private static int ParseInt(Match m)
         => m.Success ? int.TryParse(m.Groups[1].Value.Replace(",", ""), out var v) ? v : 0 : 0;
