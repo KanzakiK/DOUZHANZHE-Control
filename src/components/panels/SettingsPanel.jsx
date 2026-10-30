@@ -527,11 +527,11 @@ export default function SettingsPanel({ theme, setTheme }) {
             </>
           )}
           <div className={`set-row bg-dep ${bgEnabled ? "" : "disabled"}`}>
-            <span className="rk"><b>透明度</b><small>壁纸层叠加在控件之下的显现程度</small></span>
+            <span className="rk"><b>透明度</b><small>单一滑块：同时控制壁纸显现与卡片通透度（越大越透）</small></span>
             <span className="rctrl"><input type="range" className="slider" min="0" max="100" value={bgOpacity} onChange={(e) => handleBgOpacity(Number(e.target.value))} /><span className="pv">{bgOpacity}%</span></span>
           </div>
           <div className={`set-row bg-dep ${bgEnabled ? "" : "disabled"}`}>
-            <span className="rk"><b>模糊度</b><small>0 时退化为普通壁纸模式，调高则强化 Mica 质感</small></span>
+            <span className="rk"><b>模糊度</b><small>非线性校准：低值平缓、高值明显，强化 Mica 质感</small></span>
             <span className="rctrl"><input type="range" className="slider" min="0" max="100" value={bgBlur} onChange={(e) => handleBgBlur(Number(e.target.value))} /><span className="pv">{bgBlur}%</span></span>
           </div>
           <div className={`set-row bg-dep ${bgEnabled ? "" : "disabled"}`}>

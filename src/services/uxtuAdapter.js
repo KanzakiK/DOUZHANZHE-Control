@@ -767,8 +767,16 @@ export async function launchGameProfile(id) {
 export function applyWallpaperCss(opts) {
   const root = document.documentElement;
   const show = !!opts.enabled && !!opts.hasImage && !!opts.url;
-  root.style.setProperty("--wallpaper-opacity", show ? String((opts.opacity ?? 60) / 100) : "0");
-  root.style.setProperty("--wallpaper-blur", String(Math.round((opts.blur ?? 45) / 100 * 60)) + "px");
+  const opacity = (opts.opacity ?? 60) / 100; // 0~1，单一滑块同时驱动壁纸与卡片
+  root.style.setProperty("--wallpaper-opacity", show ? String(opacity) : "0");
+  // 卡片通透度：与壁纸滑块联动（越大越透）。
+  // 范围约 88%(接近不透明) → 58%(很透)；默认值 60 时约 70%，正好对标「添加规则」卡片观感。
+  const cardMixPct = Math.max(50, 88 - opacity * 30);
+  root.style.setProperty("--card-mix", cardMixPct.toFixed(1) + "%");
+  // 模糊度：非线性（感知均匀）。0~100 → 0~60px，采用平方曲线。
+  // 低值变化平缓、高值变化明显，修正「20 以下变化大、20 以上变化小」的线性错觉。
+  const blurPx = Math.round(60 * Math.pow((opts.blur ?? 45) / 100, 2));
+  root.style.setProperty("--wallpaper-blur", blurPx + "px");
   root.style.setProperty("--wallpaper-image", show ? `url("${opts.url}")` : "none");
 }
 
