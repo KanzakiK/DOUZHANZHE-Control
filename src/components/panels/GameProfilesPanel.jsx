@@ -581,6 +581,15 @@ export default function GameProfilesPanel() {
     setCoverThumbs([]);
     setCoverGameId(null);
     try {
+      // 纯数字或 Steam 商店链接 → 按 AppID 精确查询（系列大作的名称搜索常被挤出结果，AppID 100% 命中）
+      if (/^\d{2,10}$/.test(term) || /store\.steampowered\.com\/app\//i.test(term)) {
+        const res2 = await fetch(`/api/game-covers/candidates?steamAppId=${encodeURIComponent(term)}`);
+        const d2 = await res2.json().catch(() => ({}));
+        if (!res2.ok) { toast(d2.error || "查询失败", "error"); return; }
+        setCoverThumbs(d2.data || []);
+        if (!d2.data?.length) toast("该 AppID 在 SGDB 无可用竖版封面", "info");
+        return;
+      }
       const res = await fetch(`/api/game-covers/search?term=${encodeURIComponent(term)}`);
       const d = await res.json().catch(() => ({}));
       if (!res.ok) { toast(d.error || "搜索失败", "error"); return; }
@@ -1057,7 +1066,7 @@ export default function GameProfilesPanel() {
                         value={coverTerm}
                         onChange={(e) => setCoverTerm(e.target.value)}
                         onKeyDown={(e) => { if (e.key === "Enter") searchCovers(); }}
-                        placeholder="搜索 SteamGridDB 游戏名（英文更准）"
+                        placeholder="搜游戏名 / Steam AppID / 商店链接"
                         aria-label="搜索封面关键词"
                       />
                       <button className="btn" type="button" onClick={() => searchCovers()} disabled={coverSearching}>
