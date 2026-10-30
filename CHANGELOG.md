@@ -5,6 +5,10 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
+## [2.0.2-pre.1] — 2026-10-30
+
+整合发布版本：本版本无独立变更，作为 2.0.2 系列的首个发布包。完整内容见 GitHub Release 说明（2.0.1-pre.2 – pre.20 的整合稿），下方 2.0.1 系列各条目保持原样存档。
+
 ## [2.0.1-pre.20] — 2026-10-30
 
 手动检查更新无反馈修复（"没有可用更新"分支静默）
