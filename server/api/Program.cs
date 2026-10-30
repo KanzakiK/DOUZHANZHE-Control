@@ -2923,11 +2923,22 @@ app.MapGet("/api/game-covers/search", async (string term, GameCoverService cover
     return Results.Json(new { data });
 });
 
-// SGDB 候选封面列表代理（缩略图选择用）
-app.MapGet("/api/game-covers/candidates", async (string gameId, GameCoverService covers) =>
+// SGDB 候选封面列表代理（缩略图选择用）；steamAppId=按 Steam AppID 精确查询（绕过名称搜索）
+app.MapGet("/api/game-covers/candidates", async (string? gameId, string? steamAppId, GameCoverService covers) =>
 {
+    if (!string.IsNullOrWhiteSpace(steamAppId))
+    {
+        var appId = GameCoverService.ExtractSteamAppId(steamAppId);
+        if (appId == null)
+            return Results.BadRequest(new { error = "无法解析 AppID——支持纯数字或 Steam 商店链接（store.steampowered.com/app/...）" });
+        if (!covers.HasKey)
+            return Results.BadRequest(new { error = "未配置 SteamGridDB API Key" });
+        var (d, e) = await covers.GetCandidatesBySteamAppIdAsync(steamAppId);
+        if (e != null) return Results.Json(new { error = e }, statusCode: 502);
+        return Results.Json(new { data = d });
+    }
     if (string.IsNullOrWhiteSpace(gameId))
-        return Results.BadRequest(new { error = "gameId required" });
+        return Results.BadRequest(new { error = "gameId or steamAppId required" });
     if (!covers.HasKey)
         return Results.BadRequest(new { error = "未配置 SteamGridDB API Key" });
     var (data, err) = await covers.GetCandidatesAsync(gameId);

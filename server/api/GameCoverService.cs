@@ -22,6 +22,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -287,6 +288,7 @@ public sealed class GameCoverService : BackgroundService
 
     private async Task<(List<SgdbGame>? Data, string? Error)> SearchCoreAsync(string term, string key, CancellationToken ct)
     {
+        term = NormalizeSearchTerm(term);
         await Task.Delay(300, ct); // SGDB API 限速
         try
         {
@@ -305,10 +307,60 @@ public sealed class GameCoverService : BackgroundService
                         g.TryGetProperty("verified", out var v) && v.ValueKind == JsonValueKind.True));
                 }
             }
+            // 客户端重排：SGDB autocomplete 条数有限且把系列页/热门作品排前面，
+            // 目标游戏可能被挤出可视范围。按与搜索词的 token 覆盖度重排（全等 > 覆盖率 > verified）。
+            var tokens = Tokenize(term).ToHashSet();
+            double Score(SgdbGame g)
+            {
+                var nameTokens = Tokenize(g.Name);
+                int hit = nameTokens.Count(tokens.Contains);
+                double s = tokens.Count == 0 ? 0 : (double)hit / tokens.Count;
+                if (g.Verified) s += 0.05;
+                if (hit == tokens.Count && tokens.Count > 0) s += 0.5; // 搜索词全部命中
+                return s;
+            }
+            list = list.OrderByDescending(Score).ToList();
             return (list, null);
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception ex) { return (null, $"SGDB 请求失败: {ex.Message}"); }
+    }
+
+    /// <summary>搜索词归一化：字母/数字边界插空格（"warfare4"→"warfare 4"，否则 SGDB 分词匹配不上）、压缩空白。</summary>
+    internal static string NormalizeSearchTerm(string term)
+    {
+        if (string.IsNullOrWhiteSpace(term)) return "";
+        var t = Regex.Replace(term.Trim(), "(?<=[A-Za-z])(?=[0-9])|(?<=[0-9])(?=[A-Za-z])", " ");
+        return Regex.Replace(t, "\\s+", " ");
+    }
+
+    private static string[] Tokenize(string s) =>
+        Regex.Split(s.ToLowerInvariant(), "[^a-z0-9]+").Where(t => t.Length > 0).ToArray();
+
+    /// <summary>按 Steam AppID 精确取候选封面（绕过名称搜索——系列游戏名称搜索常被挤出结果）。</summary>
+    public async Task<(List<SgdbGrid>? Data, string? Error)> GetCandidatesBySteamAppIdAsync(string appId, CancellationToken ct = default)
+    {
+        var key = GetSgdbKey();
+        if (key == null) return (null, "未配置 SteamGridDB API Key");
+        return await GridsListAsync($"grids/steam/{appId}", key, ct);
+    }
+
+    /// <summary>
+    /// 从用户输入提取 Steam AppID：支持纯数字，也支持商店链接
+    /// （https://store.steampowered.com/app/4435490/...）。解析失败返回 null。
+    /// </summary>
+    internal static string? ExtractSteamAppId(string? input)
+    {
+        if (string.IsNullOrWhiteSpace(input)) return null;
+        var s = input.Trim();
+        var idx = s.IndexOf("/app/", StringComparison.OrdinalIgnoreCase);
+        if (idx >= 0)
+        {
+            var rest = s[(idx + 5)..];
+            var digits = new string(rest.TakeWhile(char.IsDigit).ToArray());
+            return digits.Length >= 2 && digits.Length <= 10 ? digits : null;
+        }
+        return long.TryParse(s, out var n) && n >= 10 && s.Length <= 10 ? s : null;
     }
 
     /// <summary>名称搜索 → 游戏 ID。策略: verified 且名称去空格全等 → 第一个 verified → 第一个。</summary>
