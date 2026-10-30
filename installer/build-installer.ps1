@@ -148,13 +148,6 @@ foreach ($f in $ToolFiles) {
     }
 }
 
-# 复制 sysinfo-ext.ps1（不在 publish 输出中，需手动复制）
-$SysInfoPs1 = Join-Path $Root "server\api\sysinfo-ext.ps1"
-if (Test-Path $SysInfoPs1) {
-    Copy-Item $SysInfoPs1 $ApiDir -Force
-    Write-Host "  已复制: sysinfo-ext.ps1" -ForegroundColor Green
-}
-
 # 复制固定版本文件
 $ApiVersionFile = Join-Path $Root "server\api\version.txt"
 if (Test-Path $ApiVersionFile) {
