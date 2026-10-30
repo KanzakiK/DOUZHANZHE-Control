@@ -419,8 +419,13 @@ export default function GameProfilesPanel() {
   const loadKeyStatus = async () => {
     try {
       const r = await fetch("/api/game-covers/opts");
-      if (r.ok) setHasKey((await r.json()).hasKey);
-    } catch { /* offline */ }
+      if (r.ok) {
+        const v = !!(await r.json()).hasKey;
+        setHasKey(v);
+        return v;
+      }
+    } catch { /* 后端未就绪/离线 */ }
+    return null; // 状态未知——调用方不应据此覆盖已有状态
   };
 
   const pollCoverProgress = async () => {
@@ -472,15 +477,15 @@ export default function GameProfilesPanel() {
     }
   };
 
-  const openKeyDlg = () => {
-    loadKeyStatus();
+  const openKeyDlg = async () => {
+    await loadKeyStatus(); // 实时读取，弹窗内"已配置/未配置"不使用过期状态
     setKeyInput("");
     setShowKeyDlg(true);
   };
 
   const saveKey = async () => {
     const key = keyInput.trim();
-    if (!key && hasKey) { setShowKeyDlg(false); return; } // 留空视为未修改
+    if (!key) { setShowKeyDlg(false); return; } // 空输入一律视为无操作——绝不误清 Key（清除走「清除 Key」按钮）
     try {
       const res = await fetch("/api/game-covers/opts", {
         method: "PUT",
@@ -634,14 +639,29 @@ export default function GameProfilesPanel() {
     setShowCoverPicker(false);
   };
 
-  const openCoverPicker = () => {
+  const openCoverPicker = async () => {
+    const v = await loadKeyStatus(); // 打开时实时读取，避免挂载期的过期状态误判"未配置"
     setCoverTerm(editingProfile?.name || "");
     setCoverCandidates([]);
     setCoverThumbs([]);
     setCoverGameId(null);
     setShowCoverPicker(true);
-    if (hasKey && editingProfile?.name) searchCovers(editingProfile.name); // 打开即自动搜一次
+    if (v && editingProfile?.name) searchCovers(editingProfile.name); // 打开即自动搜一次
   };
+
+  // 挂载时读取 Key 状态；开机自启最小化场景 API 可能尚未就绪，失败自动重试几次
+  useEffect(() => {
+    let disposed = false;
+    const boot = async () => {
+      for (let i = 0; i < 5 && !disposed; i++) {
+        const v = await loadKeyStatus();
+        if (disposed || v !== null) return;
+        await new Promise(r => setTimeout(r, 2000));
+      }
+    };
+    boot();
+    return () => { disposed = true; };
+  }, []);
 
   const activeCount = profiles.filter(p => p.enabled).length;
   const editingProfile = profiles.find(p => p.id === editingId);
