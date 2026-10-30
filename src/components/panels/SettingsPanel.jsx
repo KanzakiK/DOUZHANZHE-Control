@@ -52,7 +52,7 @@ export default function SettingsPanel({ theme, setTheme }) {
   const [bg, setBg] = useState({ enabled: false, opacity: 60, blur: 45, maskColor: "black", hasImage: false, url: null });
 
   const [selectedCats, setSelectedCats] = useState(() =>
-    Object.fromEntries(["config", "games", "hotkeys", "appearance", "autostart", "background"].map(c => [c, c !== "autostart" && c !== "background"]))
+    Object.fromEntries(["config", "games", "hotkeys", "appearance", "covers", "autostart", "background", "sgdbkey"].map(c => [c, !["autostart", "background", "sgdbkey"].includes(c)]))
   );
   const importInputRef = useRef(null);
 
@@ -577,11 +577,13 @@ export default function SettingsPanel({ theme, setTheme }) {
           <div className="bak-grid">
            {[
               { id: "config", label: "配置参数", desc: "各预设的性能 / 功耗曲线" },
-              { id: "games", label: "游戏规则", desc: "游戏绑定与自动切换规则" },
+              { id: "games", label: "游戏规则", desc: "游戏绑定、自动切换规则与商店 ID" },
               { id: "hotkeys", label: "快捷键", desc: "全局热键绑定" },
               { id: "appearance", label: "外观与配色", desc: "主题模式与强调色" },
+              { id: "covers", label: "游戏封面图", desc: "SGDB 下载 / 本地上传的封面" },
               { id: "autostart", label: "开机自启", desc: "自启与最小化启动" },
-              { id: "background", label: "自定义背景", desc: "壁纸来源与模糊参数" },
+              { id: "background", label: "壁纸设置与图片", desc: "轮换接口地址、参数与壁纸本体" },
+              { id: "sgdbkey", label: "SGDB Key", desc: "SteamGridDB API Key（凭据，仅自用备份时勾选）" },
             ].map(item => (
               <label key={item.id} className="bak-item">
                 <input
