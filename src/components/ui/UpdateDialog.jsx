@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useToast } from "./Toast";
 
 const STORAGE_KEY = "douzhanzhe_update_check";
 const SKIP_KEY = "douzhanzhe_update_skip_version";
@@ -11,6 +12,7 @@ function formatSize(bytes) {
 }
 
 export default function UpdateDialog({ autoCheck = true }) {
+  const toast = useToast();
   const [visible, setVisible] = useState(false);
   const [updateInfo, setUpdateInfo] = useState(null);
   const [downloadState, setDownloadState] = useState("idle");
@@ -25,14 +27,20 @@ export default function UpdateDialog({ autoCheck = true }) {
       const data = await res.json();
       if (data.error) {
         console.warn("[update] check failed:", data.error);
-        if (manual) window.dispatchEvent(new CustomEvent("update-check-result", { detail: { error: true, msg: `检查更新失败: ${data.error}` } }));
+        if (manual) {
+          toast?.(`检查更新失败: ${data.error}`, "error");
+          window.dispatchEvent(new CustomEvent("update-check-result", { detail: { error: true, msg: `检查更新失败: ${data.error}` } }));
+        }
         return;
       }
 
       if (data.available) {
         const skipped = localStorage.getItem(SKIP_KEY);
         if (skipped === data.latestVersion) {
-          if (manual) window.dispatchEvent(new CustomEvent("update-check-result", { detail: { skipped: true, version: data.latestVersion } }));
+          if (manual) {
+            toast?.(`版本 ${data.latestVersion} 已被你选择跳过，如需恢复可清除浏览器数据`, "info");
+            window.dispatchEvent(new CustomEvent("update-check-result", { detail: { skipped: true, version: data.latestVersion } }));
+          }
           return;
         }
 
@@ -42,11 +50,17 @@ export default function UpdateDialog({ autoCheck = true }) {
         setErrorMsg("");
         setVisible(true);
       } else {
-        if (manual) window.dispatchEvent(new CustomEvent("update-check-result", { detail: { upToDate: true } }));
+        if (manual) {
+          toast?.(`当前已是最新版本（${data.currentVersion || "未知"}）`, "info");
+          window.dispatchEvent(new CustomEvent("update-check-result", { detail: { upToDate: true, version: data.currentVersion } }));
+        }
       }
     } catch (e) {
       console.warn("[update] check error:", e);
-      if (manual) window.dispatchEvent(new CustomEvent("update-check-result", { detail: { error: true, msg: "检查更新失败" } }));
+      if (manual) {
+        toast?.("检查更新失败：无法连接更新服务", "error");
+        window.dispatchEvent(new CustomEvent("update-check-result", { detail: { error: true, msg: "检查更新失败" } }));
+      }
     }
   };
 
