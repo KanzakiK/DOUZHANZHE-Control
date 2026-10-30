@@ -128,7 +128,6 @@ export default function SystemInfoPanel({ trigger, onRefreshDone }) {
         { k: "总容量", v: i.memoryTotalGB ? `${i.memoryTotalGB} GB` : "—" },
         { k: "频率", v: e.memorySpeed ? `${e.memorySpeed} MHz` : "—" },
         { k: "插槽占用", v: e.sticks ? `${e.sticks.length} / ${e.memorySlots || e.sticks.length}` : "—" },
-        { k: "时序", v: e.memoryTiming || "—" },
       ],
     },
     {
@@ -188,7 +187,6 @@ export default function SystemInfoPanel({ trigger, onRefreshDone }) {
         { k: "机型", v: i.systemModel || "—" },
         { k: "显示屏", v: e.displaySpec || "—" },
         { k: "网卡", v: e.networkCard || "—" },
-        { k: "保修状态", v: e.warrantyStatus ? `${e.warrantyStatus}` : "—" },
       ],
     },
   ];
