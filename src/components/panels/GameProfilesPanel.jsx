@@ -282,7 +282,7 @@ export default function GameProfilesPanel() {
         alert(err.error || "更新失败");
         return;
       }
-      setEditingId(null);
+      closeEditDialog();
       fetchData();
     } catch (err) {
       console.error("Failed to update profile:", err);
@@ -627,6 +627,13 @@ export default function GameProfilesPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coverActive]);
 
+  // 关闭编辑弹窗的唯一出口：必须同时收起选图弹窗，否则 showCoverPicker 残留会让
+  // 下一次点「编辑」时直接弹出上一条规则的选图窗（看起来像跳到了别的规则的编辑页）
+  const closeEditDialog = () => {
+    setEditingId(null);
+    setShowCoverPicker(false);
+  };
+
   const openCoverPicker = () => {
     setCoverTerm(editingProfile?.name || "");
     setCoverCandidates([]);
@@ -783,7 +790,7 @@ export default function GameProfilesPanel() {
                 </button>
                 <div className="acts">
                   <button className="ico-btn" title="编辑" aria-label={`编辑 ${p.name} 规则`}
-                    onClick={() => { setEditingId(p.id); setEditForm({ name: p.name, exePath: p.exePath, targetMode: p.targetMode, enabled: p.enabled }); }}>
+                    onClick={() => { setEditingId(p.id); setEditForm({ name: p.name, exePath: p.exePath, targetMode: p.targetMode, enabled: p.enabled }); setShowCoverPicker(false); }}>
                     {ICONS.edit}
                   </button>
                   <button className="ico-btn danger" title="删除" aria-label={`删除 ${p.name} 规则`} onClick={() => deleteProfile(p.id)}>
@@ -861,7 +868,7 @@ export default function GameProfilesPanel() {
           <div className="panel">
             <div className="p-head">
               <span><b>编辑游戏规则</b><small>修改绑定路径或目标配置</small></span>
-              <button className="x" onClick={() => setEditingId(null)} aria-label="关闭">{ICONS.close}</button>
+              <button className="x" onClick={closeEditDialog} aria-label="关闭">{ICONS.close}</button>
             </div>
             <div className="p-body">
               <div className="field">
@@ -927,7 +934,7 @@ export default function GameProfilesPanel() {
               </div>
             </div>
             <div className="p-foot">
-              <button className="btn ghost" onClick={() => setEditingId(null)}>取消</button>
+              <button className="btn ghost" onClick={closeEditDialog}>取消</button>
               <button className="btn primary" onClick={updateProfile}>保存</button>
             </div>
           </div>
