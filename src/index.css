@@ -51,6 +51,13 @@ html[data-theme="light"]{
   --card-shadow:0 8px 22px color-mix(in srgb, #2a3346 16%, transparent);
 }
 
+/* 原生控件（下拉框展开层、滚动条等）跟随主题配色：
+   原生 <select> 的弹出列表由浏览器绘制，仅靠 CSS 变量无法染色，
+   必须设置 color-scheme 才会切换为深色/浅色。 */
+html[data-theme="dark"] { color-scheme: dark; }
+html[data-theme="light"] { color-scheme: light; }
+select option { background: var(--surface); color: var(--fg); }
+
 /* ============================================================
    Base
    ============================================================ */
@@ -705,6 +712,10 @@ html[data-theme="light"] .theme-toggle .moon{display:none}
 .set-row .rctrl .sel,.set-row .rctrl .api-input{background:var(--card-2);color:var(--text);border:1px solid var(--stroke-strong);border-radius:6px;padding:7px 10px;font-size:13px;outline:none}
 .set-row .rctrl .sel:focus,.set-row .rctrl .api-input:focus{border-color:var(--primary)}
 .set-row .rctrl .sel:disabled,.set-row .rctrl .api-input:disabled{opacity:.5;cursor:not-allowed}
+.set-row .rctrl .api-row{display:flex;gap:8px;align-items:center;width:100%}
+.set-row .rctrl .api-row .api-input{flex:1;min-width:0}
+.set-row .rctrl .rotate-now-btn{flex:0 0 auto;white-space:nowrap;padding:7px 12px}
+.set-row .rctrl .rotate-now-btn:disabled{opacity:.6;cursor:not-allowed}
 .set-row .rctrl .api-input{width:280px}
 .set-row.disabled{opacity:.5;pointer-events:none}
 

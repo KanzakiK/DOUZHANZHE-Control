@@ -62,6 +62,7 @@ export default function SettingsPanel({ theme, setTheme }) {
   const [bgSource, setBgSource] = useState("local");
   const [bgInterval, setBgInterval] = useState("1h");
   const [bgApiUrl, setBgApiUrl] = useState("");
+  const [bgRotating, setBgRotating] = useState(false);
 
   const fileInputRef = useRef(null);
   const colorInputRef = useRef(null);
@@ -269,6 +270,35 @@ export default function SettingsPanel({ theme, setTheme }) {
     await saveBgOpts({ apiUrl: bgApiUrl.trim() });
   };
 
+  const handleBgRotateNow = async () => {
+    const url = bgApiUrl.trim();
+    if (!url) { toast?.("请先填写 API 地址", "error"); return; }
+    setBgRotating(true);
+    try {
+      // 先提交当前输入地址，确保后端使用的是最新值
+      await saveBgOpts({ apiUrl: url });
+      const res = await fetch("/api/background-rotate-now", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const d = await res.json();
+      if (d.ok) {
+        const nextUrl = "/api/background?t=" + Date.now();
+        updateBg(prev => ({ ...prev, enabled: true, hasImage: true, url: nextUrl }));
+        syncWallpaperCss({ ...bg, enabled: true, hasImage: true, url: nextUrl });
+        saveBgOpts({ enabled: true, hasImage: true });
+        toast?.("已切换壁纸", "success");
+      } else {
+        toast?.(d.error || "切换失败", "error");
+      }
+    } catch (e) {
+      toast?.("请求失败: " + e.message, "error");
+    } finally {
+      setBgRotating(false);
+    }
+  };
+
   const handleBgOpacity = async (v) => {
     updateBg((prev) => {
       const next = { ...prev, opacity: v };
@@ -471,11 +501,17 @@ export default function SettingsPanel({ theme, setTheme }) {
           {bgSource === "network" && (
             <>
               <div className={`set-row bg-dep ${bgEnabled ? "" : "disabled"}`}>
-                <span className="rk"><b>API 地址</b><small>返回 {`{ urls: [...] }`} 或顶层数组的 JSON 接口</small></span>
+                <span className="rk"><b>API 地址</b><small>返回 {`{ urls: [...] }`} / 顶层数组的 JSON，或直接返回图片的接口</small></span>
                 <span className="rctrl">
-                  <input type="text" className="api-input" value={bgApiUrl} placeholder="https://example.com/wallpapers.json"
-                    onChange={(e) => handleBgApiUrlChange(e.target.value)}
-                    onBlur={() => handleBgApiUrlCommit()} />
+                  <span className="api-row">
+                    <input type="text" className="api-input" value={bgApiUrl} placeholder="https://example.com/wallpapers.json"
+                      onChange={(e) => handleBgApiUrlChange(e.target.value)}
+                      onBlur={() => handleBgApiUrlCommit()} />
+                    <button className="btn primary rotate-now-btn" onClick={handleBgRotateNow} disabled={bgRotating}
+                      title="从接口地址立即获取一张壁纸并生效">
+                      {ICONS.update}{bgRotating ? "切换中…" : "立刻切换"}
+                    </button>
+                  </span>
                 </span>
               </div>
               <div className={`set-row bg-dep ${bgEnabled ? "" : "disabled"}`}>
