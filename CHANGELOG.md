@@ -5,6 +5,14 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
+## [2.0.1-pre.4] — 2026-10-30
+
+pre.3 的一个修复
+
+### 🛠 修复
+
+- **风扇·手动调速滑块不回显当前设定值**: 每次进入风扇控制页，滑块都跳到当前模式的默认转速而非实际生效的设定值。现在滑块会从当前配置读取实际存值（ParameterGuard 周期重发的就是它）；拖动后 2 秒内的配置轮询不会反向拉回滑块，避免拖动中跳动
+
 ## [2.0.1-pre.3] — 2026-10-30
 
 pre.2 的三个修复
