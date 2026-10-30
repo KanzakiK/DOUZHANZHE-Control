@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useControlState } from "../hooks/useControlState";
 import FanCurvePanel from "../components/panels/FanCurvePanel";
 import { fetchFanCurveStatus, fetchRouteInfo, getFanRange, MODE_FAN_DEFAULTS, resolvePerfMode } from "../services/uxtuAdapter";
@@ -27,6 +27,17 @@ export default function FanControl() {
     return () => clearTimeout(timer);
   }, [perfMode]);
 
+  // 滑块值与后端实际生效值同步：当前配置存有手动转速时优先用之（ParameterGuard 周期重发的就是它），
+  // 未设置（null）时保留上方 perfMode 默认值。放在 perfMode effect 之后，切配置时以实际存值为准。
+  // 拖动后 2s 内跳过同步：POST 保存与 overrides 轮询存在竞态，避免拖动中滑块被旧值拉回。
+  const lastDragRef = useRef(0);
+  useEffect(() => {
+    if (overrides == null) return;
+    if (Date.now() - lastDragRef.current < 2000) return;
+    if (overrides.fanLargeRpmTarget != null) setFan1TargetRpm(overrides.fanLargeRpmTarget);
+    if (overrides.fanSmallRpmTarget != null) setFan2TargetRpm(overrides.fanSmallRpmTarget);
+  }, [overrides?.fanLargeRpmTarget, overrides?.fanSmallRpmTarget]);
+
   useEffect(() => {
     let disposed = false;
     const refresh = async () => {
@@ -43,6 +54,7 @@ export default function FanControl() {
   }, []);
 
   const setFanTarget = async (fanIdx, rpm) => {
+    lastDragRef.current = Date.now();
     try {
       const body = fanIdx === 0 ? { largeRpm: rpm } : { smallRpm: rpm };
       await fetch(`/api/fan/set-target?mode=${encodeURIComponent(settings.mode)}`, {
