@@ -63,6 +63,9 @@ builder.Services.AddSingleton<FanCurveService>(sp => new FanCurveService(
     configDir));
 builder.Services.AddSingleton<BackgroundRotationService>(sp => new BackgroundRotationService(configDir));
 builder.Services.AddHostedService(sp => sp.GetRequiredService<BackgroundRotationService>());
+// 游戏封面服务（双注册: 具体类型供端点注入, HostedService 驱动后台队列）
+builder.Services.AddSingleton<GameCoverService>(sp => new GameCoverService(configDir, sp.GetRequiredService<GameProfileService>()));
+builder.Services.AddHostedService(sp => sp.GetRequiredService<GameCoverService>());
 builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
     p.WithOrigins(
         "http://localhost:3100", "http://127.0.0.1:3100",
@@ -2619,13 +2622,32 @@ app.MapPost("/api/osd/show", (OsdShowRequest req, OsdService osd) =>
 });
 
 // ---- Game Profiles API ----
-app.MapGet("/api/game-profiles", (GameProfileService svc) =>
+app.MapGet("/api/game-profiles", (GameProfileService svc, GameCoverService covers) =>
 {
+    var profiles = svc.GetAll().Select(p =>
+    {
+        var hasCover = covers.HasCover(p.Id);
+        return new
+        {
+            p.Id,
+            p.Name,
+            p.ExePath,
+            p.ExeName,
+            p.TargetMode,
+            p.Enabled,
+            p.Source,
+            p.StoreAppId,
+            p.SgdbGameId,
+            hasCover,
+            // ?v=封面文件时间戳: 换图后前端 URL 变化自动破缓存
+            coverUrl = hasCover ? $"/api/game-covers/{p.Id}/image?v={covers.GetCoverVer(p.Id)}" : null
+        };
+    }).ToList();
     return Results.Json(new
     {
         enabled = svc.Enabled,
         defaultMode = svc.DefaultMode,
-        profiles = svc.GetAll()
+        profiles
     });
 });
 
@@ -2640,7 +2662,9 @@ app.MapPost("/api/game-profiles", (GameProfileRequest req, GameProfileService sv
             ExeName = req.ExeName ?? Path.GetFileName(req.ExePath ?? ""),
             TargetMode = req.TargetMode ?? svc.DefaultMode,
             Enabled = req.Enabled ?? true,
-            Source = req.Source ?? "manual"
+            Source = req.Source ?? "manual",
+            StoreAppId = req.StoreAppId ?? "",
+            SgdbGameId = req.SgdbGameId ?? ""
         };
         var created = svc.Add(profile);
         return Results.Created($"/api/game-profiles/{created.Id}", created);
@@ -2667,7 +2691,9 @@ app.MapPut("/api/game-profiles/{id}", (string id, GameProfileRequest req, GamePr
             ExeName = req.ExeName ?? existing.ExeName,
             TargetMode = req.TargetMode ?? existing.TargetMode,
             Enabled = req.Enabled ?? existing.Enabled,
-            Source = req.Source ?? existing.Source
+            Source = req.Source ?? existing.Source,
+            StoreAppId = req.StoreAppId ?? existing.StoreAppId,
+            SgdbGameId = req.SgdbGameId ?? existing.SgdbGameId
         });
         return Results.Ok(updated);
     }
@@ -2677,9 +2703,10 @@ app.MapPut("/api/game-profiles/{id}", (string id, GameProfileRequest req, GamePr
     }
 });
 
-app.MapDelete("/api/game-profiles/{id}", (string id, GameProfileService svc) =>
+app.MapDelete("/api/game-profiles/{id}", (string id, GameProfileService svc, GameCoverService covers) =>
 {
     svc.Delete(id);
+    covers.DeleteCover(id); // 同步清理封面文件（含其它扩展名残留）
     return Results.Ok();
 });
 
@@ -2757,40 +2784,176 @@ app.MapGet("/api/game-profiles/scan", (GameProfileService profiles) =>
 });
 
 // 批量添加游戏
-app.MapPost("/api/game-profiles/batch", async (HttpRequest req, GameProfileService profiles) =>
+app.MapPost("/api/game-profiles/batch", async (HttpRequest req, GameProfileService profiles, GameCoverService covers) =>
 {
     var body = await req.ReadFromJsonAsync<JsonElement>();
     if (!body.TryGetProperty("games", out var games) || games.ValueKind != JsonValueKind.Array)
         return Results.BadRequest(new { error = "games array required" });
 
     int added = 0;
+    var addedIds = new List<string>();
     foreach (var g in games.EnumerateArray())
     {
         var name = g.TryGetProperty("name", out var n) ? n.GetString() : null;
         var exePath = g.TryGetProperty("exePath", out var ep) ? ep.GetString() : null;
         var targetMode = g.TryGetProperty("targetMode", out var tm) ? tm.GetString() ?? "gaming" : "gaming";
         var source = g.TryGetProperty("source", out var src) ? src.GetString() ?? "scan" : "scan";
+        var appId = g.TryGetProperty("appId", out var aid) ? aid.GetString() ?? "" : "";
 
         if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(exePath)) continue;
 
         var exeName = Path.GetFileName(exePath);
         try
         {
-            profiles.Add(new GameProfile
+            var created = profiles.Add(new GameProfile
             {
                 Name = name,
                 ExeName = exeName,
                 ExePath = exePath,
                 TargetMode = targetMode,
                 Source = source,
-                Enabled = true
+                Enabled = true,
+                StoreAppId = appId
             });
             added++;
+            addedIds.Add(created.Id);
         }
         catch { }
     }
 
-    return Results.Ok(new { added });
+    // 自动获取封面: 后台队列抓取, 不阻塞导入响应; 已有封面/已在队列的自动跳过
+    int coverQueued = 0;
+    var autoCover = body.TryGetProperty("autoCover", out var ac) && ac.ValueKind == JsonValueKind.True;
+    if (autoCover && addedIds.Count > 0)
+        coverQueued = covers.Enqueue(addedIds, force: false);
+
+    return Results.Ok(new { added, coverQueued });
+});
+
+
+// ---- Game Covers API ----
+// 封面图片（?v= 由前端携带, 内容变化时 URL 随之变化, 可长缓存）
+app.MapGet("/api/game-covers/{id}/image", async (string id, HttpContext ctx, GameCoverService covers) =>
+{
+    var path = covers.FindCoverFile(id);
+    if (path == null) return Results.NotFound();
+
+    var ext = Path.GetExtension(path).ToLowerInvariant();
+    var contentType = ext switch
+    {
+        ".png" => "image/png",
+        ".webp" => "image/webp",
+        _ => "image/jpeg"
+    };
+    ctx.Response.Headers["Cache-Control"] = "public, max-age=604800"; // 7 天, 靠 ?v= 破缓存
+
+    var bytes = await File.ReadAllBytesAsync(path);
+    return Results.File(bytes, contentType);
+});
+
+// 上传本地图片（base64 dataUrl, ≤8MB）
+app.MapPost("/api/game-covers/{id}/image", async (string id, HttpRequest req, GameProfileService profiles, GameCoverService covers) =>
+{
+    var body = await req.ReadFromJsonAsync<JsonElement>();
+    var dataUrl = body.TryGetProperty("dataUrl", out var d) ? d.GetString() : null;
+    if (string.IsNullOrEmpty(dataUrl))
+        return Results.BadRequest(new { error = "dataUrl required" });
+    if (profiles.GetById(id) == null)
+        return Results.NotFound(new { error = "规则不存在" });
+
+    var err = covers.UploadFromBase64(id, dataUrl);
+    if (err != null) return Results.BadRequest(new { error = err });
+    return Results.Ok(new { ok = true, coverVer = covers.GetCoverVer(id) });
+});
+
+// 恢复默认（删除封面文件, 回到首字母占位）
+app.MapDelete("/api/game-covers/{id}/image", (string id, GameCoverService covers) =>
+{
+    covers.DeleteCover(id);
+    return Results.Ok(new { ok = true });
+});
+
+// 手动入队抓取（编辑弹窗单发 / 指定集合）
+app.MapPost("/api/game-covers/fetch", async (HttpRequest req, GameCoverService covers) =>
+{
+    var body = await req.ReadFromJsonAsync<JsonElement>();
+    var ids = new List<string>();
+    if (body.TryGetProperty("profileIds", out var arr) && arr.ValueKind == JsonValueKind.Array)
+        foreach (var e in arr.EnumerateArray())
+        {
+            var s = e.GetString();
+            if (!string.IsNullOrEmpty(s)) ids.Add(s);
+        }
+    var force = body.TryGetProperty("force", out var f) && f.ValueKind == JsonValueKind.True;
+    return Results.Ok(new { queued = covers.Enqueue(ids, force) });
+});
+
+// 一键补齐: 所有缺封面的非手动来源游戏入队（manual 防名称误配, 走编辑弹窗人工确认）
+app.MapPost("/api/game-covers/fetch-missing", (GameProfileService profiles, GameCoverService covers) =>
+{
+    var ids = profiles.GetAll()
+        .Where(p => p.Source != "manual")
+        .Select(p => p.Id);
+    return Results.Ok(new { queued = covers.Enqueue(ids, force: false) });
+});
+
+// 抓取进度（前端 1.5s 轮询）
+app.MapGet("/api/game-covers/progress", (GameCoverService covers) =>
+{
+    return Results.Json(covers.GetProgress());
+});
+
+// SGDB 候选游戏搜索代理（Key 不下发前端）
+app.MapGet("/api/game-covers/search", async (string term, GameCoverService covers) =>
+{
+    if (string.IsNullOrWhiteSpace(term))
+        return Results.BadRequest(new { error = "term required" });
+    if (!covers.HasKey)
+        return Results.BadRequest(new { error = "未配置 SteamGridDB API Key" });
+    var (data, err) = await covers.SearchGamesAsync(term);
+    if (err != null) return Results.Json(new { error = err }, statusCode: 502);
+    return Results.Json(new { data });
+});
+
+// SGDB 候选封面列表代理（缩略图选择用）
+app.MapGet("/api/game-covers/candidates", async (string gameId, GameCoverService covers) =>
+{
+    if (string.IsNullOrWhiteSpace(gameId))
+        return Results.BadRequest(new { error = "gameId required" });
+    if (!covers.HasKey)
+        return Results.BadRequest(new { error = "未配置 SteamGridDB API Key" });
+    var (data, err) = await covers.GetCandidatesAsync(gameId);
+    if (err != null) return Results.Json(new { error = err }, statusCode: 502);
+    return Results.Json(new { data });
+});
+
+// 采用用户选定的候选图（仅允许 https + *.steamgriddb.com, 防 SSRF）
+app.MapPost("/api/game-covers/{id}/select", async (string id, HttpRequest req, GameProfileService profiles, GameCoverService covers) =>
+{
+    var body = await req.ReadFromJsonAsync<JsonElement>();
+    var url = body.TryGetProperty("url", out var u) ? u.GetString() : null;
+    if (string.IsNullOrEmpty(url))
+        return Results.BadRequest(new { error = "url required" });
+    if (profiles.GetById(id) == null)
+        return Results.NotFound(new { error = "规则不存在" });
+
+    var err = await covers.DownloadFromUrlAsync(id, url);
+    if (err != null) return Results.BadRequest(new { error = err });
+    return Results.Ok(new { ok = true, coverVer = covers.GetCoverVer(id) });
+});
+
+// SGDB Key 设置（只回 hasKey, 不回明文）
+app.MapGet("/api/game-covers/opts", (GameCoverService covers) =>
+{
+    return Results.Ok(new { hasKey = covers.HasKey });
+});
+
+app.MapPut("/api/game-covers/opts", async (HttpRequest req, GameCoverService covers) =>
+{
+    var body = await req.ReadFromJsonAsync<JsonElement>();
+    var key = body.TryGetProperty("sgdbKey", out var k) ? k.GetString() : null;
+    covers.SetSgdbKey(key ?? "");
+    return Results.Ok(new { ok = true, hasKey = covers.HasKey });
 });
 
 

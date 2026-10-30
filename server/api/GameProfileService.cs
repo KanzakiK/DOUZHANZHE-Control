@@ -145,6 +145,34 @@ public sealed class GameProfileService
         }
     }
 
+    /// <summary>
+    /// 封面相关元数据更新（封面服务专用）：
+    /// SgdbGameId = SGDB 名称搜索匹配缓存；StoreAppId = 商店 AppID 存量回填。
+    /// 找不到 profile（可能已被删除）时静默返回 false。
+    /// </summary>
+    public bool UpdateCoverMeta(string id, string? sgdbGameId = null, string? storeAppId = null)
+    {
+        lock (_lock)
+        {
+            var profile = _data.Profiles.FirstOrDefault(p => p.Id == id);
+            if (profile == null) return false;
+
+            var changed = false;
+            if (sgdbGameId != null && profile.SgdbGameId != sgdbGameId)
+            {
+                profile.SgdbGameId = sgdbGameId;
+                changed = true;
+            }
+            if (storeAppId != null && profile.StoreAppId != storeAppId)
+            {
+                profile.StoreAppId = storeAppId;
+                changed = true;
+            }
+            if (changed) Save();
+            return changed;
+        }
+    }
+
     // ── 持久化 ─────────────────────────────────────────────
 
     private void Load()
@@ -202,6 +230,10 @@ public class GameProfile
     public string TargetMode { get; set; } = "cfg-gaming";
     public bool Enabled { get; set; } = true;
     public string Source { get; set; } = "manual"; // manual, steam, epic
+    // 封面相关：steam=Steam AppID / epic=CatalogItemId（存量数据由封面服务启动时反查回填）
+    public string StoreAppId { get; set; } = "";
+    // SteamGridDB 名称搜索匹配结果缓存（成功匹配后写回，二次抓取不再搜索）
+    public string SgdbGameId { get; set; } = "";
 }
 
 public class GameProfilesData
@@ -219,6 +251,8 @@ public record GameProfileRequest(
     string? ExeName,
     string? TargetMode,
     bool? Enabled,
-    string? Source);
+    string? Source,
+    string? StoreAppId = null,
+    string? SgdbGameId = null);
 
 public record GameConfigRequest(bool? Enabled, string? DefaultMode);

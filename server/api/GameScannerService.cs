@@ -19,6 +19,9 @@ public class GameScanResult
     public string ExePath { get; set; } = "";
     public string Source { get; set; } = ""; // steam, epic
     public bool AlreadyAdded { get; set; }
+    // steam=Steam AppID（来自 appmanifest_{appid}.acf 文件名）/ epic=CatalogItemId（.item 清单）
+    // 供封面服务做 SteamGridDB 精确匹配与官方 CDN 直链兜底
+    public string AppId { get; set; } = "";
 }
 
 public static class GameScannerService
@@ -91,7 +94,8 @@ public static class GameScannerService
                     {
                         Name = name,
                         ExePath = exePath,
-                        Source = "steam"
+                        Source = "steam",
+                        AppId = Path.GetFileNameWithoutExtension(acf).Split('_').Last()
                     });
                 }
                 catch { }
@@ -126,6 +130,7 @@ public static class GameScannerService
                 var displayName = root.TryGetProperty("DisplayName", out var dn) ? dn.GetString() : null;
                 var installLoc = root.TryGetProperty("InstallLocation", out var il) ? il.GetString() : null;
                 var launchExe = root.TryGetProperty("LaunchExecutable", out var le) ? le.GetString() : null;
+                var catalogId = root.TryGetProperty("CatalogItemId", out var ci) ? ci.GetString() : null;
 
                 if (string.IsNullOrEmpty(displayName) || string.IsNullOrEmpty(installLoc) ||
                     string.IsNullOrEmpty(launchExe))
@@ -144,7 +149,8 @@ public static class GameScannerService
                 {
                     Name = displayName,
                     ExePath = exePath,
-                    Source = "epic"
+                    Source = "epic",
+                    AppId = catalogId ?? ""
                 });
                 count++;
             }
@@ -218,5 +224,120 @@ public static class GameScannerService
         {
             try { return new FileInfo(e).Length; } catch { return 0L; }
         }).First();
+    }
+
+    // ── 封面服务支撑：商店 ID 映射与存量回填 ─────────────────
+
+    /// <summary>
+    /// 扫描 Steam/Epic 清单，构建「安装目录 → 商店 ID」映射。
+    /// steam: appmanifest_{appid}.acf 的 installdir；epic: .item 的 InstallLocation → CatalogItemId。
+    /// 供封面服务对存量 profile（无 StoreAppId）按 ExePath 前缀反查回填。
+    /// </summary>
+    public static (Dictionary<string, string> Steam, Dictionary<string, string> Epic) BuildStoreIdMaps()
+    {
+        var steam = new Dictionary<string, string>(StringComparer.Ordinal);
+        var epic = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        try
+        {
+            var vdfPath = @"C:\Program Files (x86)\Steam\steamapps\libraryfolders.vdf";
+            if (File.Exists(vdfPath))
+            {
+                var libraryPaths = new List<string>();
+                foreach (Match m in Regex.Matches(File.ReadAllText(vdfPath), @"""path""\s+""([^""]+)"""))
+                    libraryPaths.Add(m.Groups[1].Value.Replace(@"\\", @"\"));
+
+                foreach (var lib in libraryPaths)
+                {
+                    var appsDir = Path.Combine(lib, "steamapps");
+                    if (!Directory.Exists(appsDir)) continue;
+
+                    foreach (var acf in Directory.GetFiles(appsDir, "appmanifest_*.acf"))
+                    {
+                        try
+                        {
+                            var appId = Path.GetFileNameWithoutExtension(acf).Split('_').Last();
+                            var installDir = ExtractVdfValue(File.ReadAllText(acf), "installdir");
+                            if (string.IsNullOrEmpty(appId) || string.IsNullOrEmpty(installDir)) continue;
+                            steam[NormDirKey(Path.Combine(appsDir, "common", installDir))] = appId;
+                        }
+                        catch { }
+                    }
+                }
+            }
+        }
+        catch { }
+
+        try
+        {
+            var manifestDir = @"C:\ProgramData\Epic\EpicGamesLauncher\Data\Manifests";
+            if (Directory.Exists(manifestDir))
+            {
+                foreach (var itemFile in Directory.GetFiles(manifestDir, "*.item"))
+                {
+                    try
+                    {
+                        var root = JsonDocument.Parse(File.ReadAllText(itemFile)).RootElement;
+                        var id = root.TryGetProperty("CatalogItemId", out var ci) ? ci.GetString() : null;
+                        var loc = root.TryGetProperty("InstallLocation", out var il) ? il.GetString() : null;
+                        if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(loc)) continue;
+                        epic[NormDirKey(loc)] = id;
+                    }
+                    catch { }
+                }
+            }
+        }
+        catch { }
+
+        return (steam, epic);
+    }
+
+    /// <summary>
+    /// 存量回填：对 steam/epic 来源且 StoreAppId 为空的 profile，
+    /// 用安装目录映射按 ExePath 前缀匹配反查商店 ID 并写回（锁内、幂等）。
+    /// </summary>
+    public static void BackfillStoreAppIds(GameProfileService profiles)
+    {
+        var targets = profiles.GetAll()
+            .Where(p => string.IsNullOrEmpty(p.StoreAppId) && (p.Source == "steam" || p.Source == "epic"))
+            .ToList();
+        if (targets.Count == 0) return;
+
+        var (steam, epic) = BuildStoreIdMaps();
+        int n = 0;
+        foreach (var p in targets)
+        {
+            var exeNorm = NormExePath(p.ExePath);
+            if (exeNorm == null) continue;
+            var map = p.Source == "steam" ? steam : epic;
+            foreach (var kv in map)
+            {
+                if (exeNorm.StartsWith(kv.Key, StringComparison.Ordinal))
+                {
+                    if (profiles.UpdateCoverMeta(p.Id, storeAppId: kv.Value)) n++;
+                    break;
+                }
+            }
+        }
+        if (n > 0)
+            AppLog.Write("GameScan", $"存量 StoreAppId 回填 {n}/{targets.Count} 条");
+    }
+
+    /// <summary>目录归一化：全路径大写 + 统一尾部分隔符（作前缀匹配键）。</summary>
+    private static string NormDirKey(string p)
+    {
+        try
+        {
+            return Path.GetFullPath(p)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                .ToUpperInvariant() + "\\";
+        }
+        catch { return ""; }
+    }
+
+    private static string? NormExePath(string p)
+    {
+        try { return string.IsNullOrEmpty(p) ? null : Path.GetFullPath(p).ToUpperInvariant(); }
+        catch { return null; }
     }
 }
