@@ -366,7 +366,7 @@ public sealed class SystemInfoService
     {
         try
         {
-            using var p = Process.Start(new ProcessStartInfo("nvidia-smi", "--query-gpu=driver_version,vbios_version,power.limit --format=csv,noheader")
+            using var p = Process.Start(new ProcessStartInfo("nvidia-smi", "--query-gpu=driver_version,vbios_version,power.max_limit --format=csv,noheader")
             {
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
@@ -380,7 +380,7 @@ public sealed class SystemInfoService
                 {
                     _nvDriver = parts[0].Trim();
                     _nvVbios = parts[1].Trim();
-                    // power.limit 形如 "115.00 W"
+                    // power.max_limit 形如 "115.00 W"（= TGP；power.limit 非提权会返回 [N/A]）
                     var w = parts[2].Trim().Split(' ')[0];
                     if (double.TryParse(w, NumberStyles.Float, CultureInfo.InvariantCulture, out var tgp)) _tgpW = Math.Round(tgp);
                 }
