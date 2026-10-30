@@ -5,7 +5,7 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
-## [2.0.1-pre.5] — 2026-10-30
+## [2.0.1-pre.6] — 2026-10-30
 
 pre.4 的滑块回显修复不完整，本版补齐
 
