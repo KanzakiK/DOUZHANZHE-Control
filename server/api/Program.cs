@@ -2442,20 +2442,50 @@ var _updateHttpClient = new HttpClient();
 _updateHttpClient.Timeout = TimeSpan.FromSeconds(8);
 _updateHttpClient.DefaultRequestHeaders.UserAgent.ParseAdd("DouzhanzheConsole-UpdateChecker/1.0");
 
-// 版本号读取固定 version.txt（deploy.ps1 / build-installer.ps1 从 package.json 写入）
+// 版本号读取固定 version.txt（deploy.ps1 / build-installer.ps1 从 package.json 写入）。
+// 支持预发布后缀（如 2.0.1-pre.18）：System.Version 不认识 "-pre.N"，
+// 拆成「数字版本 + 预发布串」分别保存；比较用 CompareAppVersion（数字优先，SemVer 简化规则）。
 var _appVersion = "0.0.0";
+Version? _appVersionNum = null;
+string? _appPre = null;
 try
 {
     var versionFile = Path.Combine(AppContext.BaseDirectory, "version.txt");
     if (File.Exists(versionFile))
     {
         var text = File.ReadAllText(versionFile).Trim().TrimStart('v');
-        if (Version.TryParse(text, out var v))
-            _appVersion = v.ToString();
+        var dash = text.IndexOf('-');
+        var numPart = dash >= 0 ? text[..dash] : text;
+        if (Version.TryParse(numPart, out var v))
+        {
+            _appVersionNum = v;
+            _appPre = dash >= 0 ? text[(dash + 1)..] : null;
+            _appVersion = text; // 保留完整版本串（含预发布后缀）供前端展示
+        }
     }
 }
 catch { /* 读取失败时使用默认值 */ }
-Log($"Version: {_appVersion}");
+Log($"Version: {_appVersion} (numeric {_appVersionNum?.ToString() ?? "?"}, pre {_appPre ?? "-"})");
+
+// 版本比较：数字优先；数字相同按 SemVer 简化规则——无预发布 > 有预发布，
+// 两者都有预发布时按末尾数字比较（本项目约定 pre.N）
+static int CompareAppVersion(Version a, string? aPre, Version b, string? bPre)
+{
+    var c = a.CompareTo(b);
+    if (c != 0) return c;
+    if (aPre == null && bPre == null) return 0;
+    if (aPre == null) return 1;
+    if (bPre == null) return -1;
+
+    static string PreTail(string pre)
+    {
+        var digits = new string(pre.Reverse().TakeWhile(char.IsDigit).Reverse().ToArray());
+        return digits.Length == 0 ? "0" : digits;
+    }
+    if (int.TryParse(PreTail(aPre), out var an) && int.TryParse(PreTail(bPre), out var bn) && an != bn)
+        return an.CompareTo(bn);
+    return string.CompareOrdinal(aPre, bPre);
+}
 
 // build-info.json 由打包脚本生成：数字版本保持不变，commit 仅作展示/追溯
 var _buildLabel = "";
@@ -2479,60 +2509,79 @@ app.MapGet("/api/update/check", async () =>
 {
     try
     {
-        var CurrentVersion = _appVersion;
+        // 拉全部 release（含预发布、排除草稿——/releases/latest 会跳过预发布），
+        // 取版本最高的一个再与当前比较：pre.N 安装版才能感知 pre.N+1
         var res = await _updateHttpClient.GetAsync(
-            "https://api.github.com/repos/KanzakiK/DOUZHANZHE-Control/releases/latest");
+            "https://api.github.com/repos/KanzakiK/DOUZHANZHE-Control/releases?per_page=30");
 
         // 无 release (404) 或网络故障 → 视为无更新
         if (!res.IsSuccessStatusCode)
-            return Results.Json(new { available = false, currentVersion = CurrentVersion,
+            return Results.Json(new { available = false, currentVersion = _appVersion,
                 reason = "无法获取发布信息" });
 
         var json = await res.Content.ReadAsStringAsync();
         using var doc = JsonDocument.Parse(json);
-        var root = doc.RootElement;
+        if (doc.RootElement.ValueKind != JsonValueKind.Array)
+            return Results.Json(new { available = false, currentVersion = _appVersion,
+                reason = "发布数据格式异常" });
 
-        var tag = root.GetProperty("tag_name").GetString() ?? "";
-        var latestVersion = tag.TrimStart('v');
-        var body = root.TryGetProperty("body", out var b) ? b.GetString() : null;
-        var publishedAt = root.TryGetProperty("published_at", out var p) ? p.GetString() : null;
-        var htmlUrl = root.TryGetProperty("html_url", out var u) ? u.GetString() : null;
-        string? downloadUrl = null;
-        if (root.TryGetProperty("assets", out var assets) && assets.ValueKind == JsonValueKind.Array)
+        // 在全部 release 中取版本最高的一条（含其 body/发布时间/资产）
+        string? bestTag = null, bestBody = null, bestPublished = null, bestUrl = null, bestDl = null, bestPre = null;
+        Version? bestNum = null;
+        foreach (var rel in doc.RootElement.EnumerateArray())
         {
-            foreach (var asset in assets.EnumerateArray())
+            if (rel.TryGetProperty("draft", out var dr) && dr.ValueKind == JsonValueKind.True) continue;
+            var tag = rel.TryGetProperty("tag_name", out var tg) ? tg.GetString() ?? "" : "";
+            var dash = tag.IndexOf('-');
+            var numPart = dash >= 0 ? tag[..dash] : tag;
+            if (!Version.TryParse(numPart.TrimStart('v'), out var num)) continue;
+
+            string? pre = dash >= 0 ? tag[(dash + 1)..] : null;
+            if (bestNum == null || CompareAppVersion(num, pre, bestNum, bestPre) > 0)
             {
-                if (asset.TryGetProperty("browser_download_url", out var du) &&
-                    du.ValueKind == JsonValueKind.String &&
-                    !string.IsNullOrWhiteSpace(du.GetString()))
+                bestNum = num; bestPre = pre; bestTag = tag;
+                bestBody = rel.TryGetProperty("body", out var b) ? b.GetString() : null;
+                bestPublished = rel.TryGetProperty("published_at", out var p) ? p.GetString() : null;
+                bestUrl = rel.TryGetProperty("html_url", out var u) ? u.GetString() : null;
+                bestDl = null;
+                if (rel.TryGetProperty("assets", out var assets) && assets.ValueKind == JsonValueKind.Array)
                 {
-                    var candidate = du.GetString();
-                    downloadUrl = candidate;
-                    if (Uri.TryCreate(candidate, UriKind.Absolute, out var assetUri) &&
-                        Path.GetExtension(assetUri.AbsolutePath).Equals(".exe", StringComparison.OrdinalIgnoreCase))
+                    foreach (var asset in assets.EnumerateArray())
                     {
-                        break;
+                        if (asset.TryGetProperty("browser_download_url", out var du) &&
+                            du.ValueKind == JsonValueKind.String &&
+                            !string.IsNullOrWhiteSpace(du.GetString()))
+                        {
+                            var candidate = du.GetString();
+                            bestDl = candidate;
+                            if (Uri.TryCreate(candidate, UriKind.Absolute, out var assetUri) &&
+                                Path.GetExtension(assetUri.AbsolutePath).Equals(".exe", StringComparison.OrdinalIgnoreCase))
+                            {
+                                break;
+                            }
+                        }
                     }
                 }
             }
         }
 
-        var isNewer = false;
-        if (Version.TryParse(latestVersion, out var latest) &&
-            Version.TryParse(CurrentVersion, out var current))
-        {
-            isNewer = latest > current;
-        }
+        if (bestNum == null)
+            return Results.Json(new { available = false, currentVersion = _appVersion,
+                reason = "仓库暂无发布版本" });
+
+        // 当前版本解析失败（version.txt 缺失/损坏）→ 视为 0.0.0，任何发布都算可更新
+        var curNum = _appVersionNum ?? new Version(0, 0, 0);
+        var isNewer = CompareAppVersion(bestNum, bestPre, curNum, _appPre) > 0;
 
         return Results.Json(new
         {
             available = isNewer,
-            currentVersion = CurrentVersion,
-            latestVersion,
-            body,
-            publishedAt,
-            url = htmlUrl,
-            downloadUrl
+            currentVersion = _appVersion,
+            latestVersion = bestTag?.TrimStart('v'),
+            body = bestBody,
+            publishedAt = bestPublished,
+            url = bestUrl,
+            downloadUrl = bestDl
         });
     }
     catch (Exception ex)
