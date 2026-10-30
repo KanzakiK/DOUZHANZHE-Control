@@ -296,27 +296,37 @@ public sealed class GameCoverService : BackgroundService
             if ((int)res.StatusCode == 401) return (null, "SGDB Key 无效");
             if (!res.IsSuccessStatusCode) return (null, $"SGDB 返回 {(int)res.StatusCode}");
             using var doc = await JsonDocument.ParseAsync(await res.Content.ReadAsStreamAsync(), cancellationToken: ct);
-            var list = new List<SgdbGame>();
-            if (doc.RootElement.TryGetProperty("data", out var arr) && arr.ValueKind == JsonValueKind.Array)
+            var list = ParseGameList(doc.RootElement);
+
+            // 系列大作（如 Call of Duty: Modern Warfare 4）的完整名称常被系列页/热门作品
+            // 挤出 autocomplete 的有限条数——用"末 3 个词"的短变体补一次查询并合并去重
+            var tokens = Tokenize(term).ToList();
+            if (tokens.Count >= 4)
             {
-                foreach (var g in arr.EnumerateArray())
+                var variant = string.Join(" ", tokens.TakeLast(3));
+                if (!string.Equals(variant, term, StringComparison.OrdinalIgnoreCase))
                 {
-                    list.Add(new SgdbGame(
-                        g.TryGetProperty("id", out var i) && i.ValueKind == JsonValueKind.Number ? i.GetInt64() : 0,
-                        g.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "",
-                        g.TryGetProperty("verified", out var v) && v.ValueKind == JsonValueKind.True));
+                    await Task.Delay(300, ct);
+                    using var res2 = await SendSgdbAsync("search/autocomplete/" + Uri.EscapeDataString(variant), key, ct);
+                    if (res2.IsSuccessStatusCode)
+                    {
+                        using var doc2 = await JsonDocument.ParseAsync(await res2.Content.ReadAsStreamAsync(), cancellationToken: ct);
+                        var seen = list.Select(g => g.Id).ToHashSet();
+                        foreach (var g in ParseGameList(doc2.RootElement))
+                            if (seen.Add(g.Id)) list.Add(g);
+                    }
                 }
             }
-            // 客户端重排：SGDB autocomplete 条数有限且把系列页/热门作品排前面，
-            // 目标游戏可能被挤出可视范围。按与搜索词的 token 覆盖度重排（全等 > 覆盖率 > verified）。
-            var tokens = Tokenize(term).ToHashSet();
+
+            // 客户端重排：按与搜索词的 token 覆盖度重排（全等 > 覆盖率 > verified）
+            var tokenSet = Tokenize(term).ToHashSet();
             double Score(SgdbGame g)
             {
                 var nameTokens = Tokenize(g.Name);
-                int hit = nameTokens.Count(tokens.Contains);
-                double s = tokens.Count == 0 ? 0 : (double)hit / tokens.Count;
+                int hit = nameTokens.Count(tokenSet.Contains);
+                double s = tokenSet.Count == 0 ? 0 : (double)hit / tokenSet.Count;
                 if (g.Verified) s += 0.05;
-                if (hit == tokens.Count && tokens.Count > 0) s += 0.5; // 搜索词全部命中
+                if (hit == tokenSet.Count && tokenSet.Count > 0) s += 0.5; // 搜索词全部命中
                 return s;
             }
             list = list.OrderByDescending(Score).ToList();
@@ -324,6 +334,22 @@ public sealed class GameCoverService : BackgroundService
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception ex) { return (null, $"SGDB 请求失败: {ex.Message}"); }
+    }
+
+    private static List<SgdbGame> ParseGameList(JsonElement root)
+    {
+        var list = new List<SgdbGame>();
+        if (root.TryGetProperty("data", out var arr) && arr.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var g in arr.EnumerateArray())
+            {
+                list.Add(new SgdbGame(
+                    g.TryGetProperty("id", out var i) && i.ValueKind == JsonValueKind.Number ? i.GetInt64() : 0,
+                    g.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "",
+                    g.TryGetProperty("verified", out var v) && v.ValueKind == JsonValueKind.True));
+            }
+        }
+        return list;
     }
 
     /// <summary>搜索词归一化：字母/数字边界插空格（"warfare4"→"warfare 4"，否则 SGDB 分词匹配不上）、压缩空白。</summary>
