@@ -738,65 +738,37 @@ app.MapGet("/api/telemetry", (HardwareAbstractionLayer hal, WmiInterface wmi) =>
         gpuMode = wmi.Available ? wmi.GetGpuMode().ToString() : null,
     });
 });
-app.MapGet("/api/system/info", (HardwareAbstractionLayer hal) =>
+// 扩展系统信息服务（C# 直查，替代 sysinfo-ext.ps1 子进程架构）
+var _sysInfoSvc = new SystemInfoService();
+
+app.MapGet("/api/system/info", (HardwareAbstractionLayer hal, NvapiGpuController nv) =>
 {
+    uint? tgpMw = null;
+    try { var s = nv.GetStatus(); if (s.Available && s.PowerDefaultMw > 0) tgpMw = s.PowerDefaultMw; } catch { }
     return Results.Json(new
     {
         systemModel = hal.SystemModel,
+        systemManufacturer = _sysInfoSvc.SystemManufacturer,
         cpuName = hal.CpuName,
         cpuCores = hal.CpuCores,
-        cpuFreq = Math.Round((double)hal.CpuFreq, 1),
+        cpuThreads = hal.CpuThreads,
+        cpuBaseFreq = Math.Round((double)hal.CpuBaseFreqMHz / 1000, 2), // 标称基频 GHz（Win32_Processor.MaxClockSpeed）
+        cpuMaxFreq = (double?)null,                                     // 真实睿频上限需 SMU GetBoostLimit，暂未实现 → 前端显示 "—"
+        cpuFreq = Math.Round((double)hal.CpuFreq, 1),                   // 兼容保留（当前实时频率）
+        cpuL3Cache = hal.CpuL3CacheMB,
         gpuDiscrete = hal.GpuDiscreteName,
         gpuIntegrated = hal.GpuIntegratedName,
+        gpuVramGB = hal.GpuVram,
+        gpuTgp = tgpMw.HasValue ? (double?)Math.Round(tgpMw.Value / 1000.0) : null,
+        gpuDx = _sysInfoSvc.DirectXVersion,
         memoryTotalGB = hal.MemoryTotalGB,
         memoryFreq = hal.MemoryFreq,
         diskTotalGB = hal.DiskTotalGB,
     });
 });
 
-// Extended system info (BIOS/OS/disks/memory sticks/GPU driver) — single PowerShell call
-var _sysInfoExtCache = "";
-var _sysInfoExtTime = DateTime.MinValue;
-app.MapGet("/api/system/info-ext", () =>
-{
-    if ((DateTime.UtcNow - _sysInfoExtTime).TotalSeconds < 60 && !string.IsNullOrEmpty(_sysInfoExtCache))
-        return Results.Content(_sysInfoExtCache, "application/json; charset=utf-8");
-    try
-    {
-        // bin/<config>/net8.0/ → project root (up 3), or bin/run/ or bin/build/ → project root (up 2)
-        var scriptPath = Path.Combine(AppContext.BaseDirectory, "sysinfo-ext.ps1");
-        if (!File.Exists(scriptPath))
-            scriptPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "sysinfo-ext.ps1");
-        if (!File.Exists(scriptPath))
-            scriptPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "sysinfo-ext.ps1");
-        if (!File.Exists(scriptPath))
-            scriptPath = Path.Combine(Directory.GetCurrentDirectory(), "sysinfo-ext.ps1");
-        using var p = new System.Diagnostics.Process
-        {
-            StartInfo = new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = "powershell",
-                Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\"",
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                CreateNoWindow = true
-            }
-        };
-        p.Start();
-        if (!p.WaitForExit(8000)) { p.Kill(); return Results.Json(new { error = "timeout" }); }
-        var json = p.StandardOutput.ReadToEnd().Trim();
-        if (!string.IsNullOrEmpty(json))
-        {
-            _sysInfoExtCache = json;
-            _sysInfoExtTime = DateTime.UtcNow;
-        }
-        return Results.Content(_sysInfoExtCache, "application/json; charset=utf-8");
-    }
-    catch (Exception ex)
-    {
-        return Results.Json(new { error = ex.Message });
-    }
-});
+// 扩展系统信息（BIOS/OS/磁盘/内存条/电池/显示器/网卡等）—— C# 直查 + 分级缓存
+app.MapGet("/api/system/info-ext", () => Results.Json(_sysInfoSvc.GetExtSnapshot()));
 
 app.MapGet("/api/health", (HardwareAbstractionLayer hal) =>
 {

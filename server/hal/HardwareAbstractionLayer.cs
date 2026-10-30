@@ -631,6 +631,42 @@ public sealed class HardwareAbstractionLayer : IDisposable
 
     public int CpuCores => Environment.ProcessorCount;
 
+    // ---- CPU 静态信息（Win32_Processor 直查，进程生命周期缓存一次；CPU 规格不会变）----
+    private static readonly object _cpuStaticLock = new();
+    private static (int Threads, int MaxFreqMHz, int L3CacheMB)? _cpuStatic;
+
+    private static (int, int, int) GetCpuStatic()
+    {
+        lock (_cpuStaticLock)
+        {
+            if (_cpuStatic != null) return _cpuStatic.Value;
+            int threads = 0, maxFreq = 0, l3MB = 0;
+            try
+            {
+                using var searcher = new System.Management.ManagementObjectSearcher(
+                    "SELECT NumberOfLogicalProcessors, MaxClockSpeed, L3CacheSize FROM Win32_Processor");
+                foreach (var o in searcher.Get())
+                {
+                    threads = Convert.ToInt32(o["NumberOfLogicalProcessors"]);
+                    maxFreq = Convert.ToInt32(o["MaxClockSpeed"]);
+                    if (o["L3CacheSize"] != null) l3MB = Convert.ToInt32(o["L3CacheSize"]) / 1024; // KB → MB
+                    break;
+                }
+            }
+            catch { }
+            _cpuStatic = (threads, maxFreq, l3MB);
+            return _cpuStatic.Value;
+        }
+    }
+
+    /// <summary>逻辑处理器数（线程）。0 = 查询失败</summary>
+    public int CpuThreads => GetCpuStatic().Item1;
+    /// <summary>标称基础频率 MHz（Win32_Processor.MaxClockSpeed，即设备管理器显示的额定值；真实睿频上限需 SMU 读取，暂未实现）。0 = 查询失败</summary>
+    public int CpuBaseFreqMHz => GetCpuStatic().Item2;
+    /// <summary>三级缓存 MB。0 = 查询失败</summary>
+    public int CpuL3CacheMB => GetCpuStatic().Item3;
+
+
     public byte GpuUsage { get { RefreshGpu(); return _sgGpuUsage; } }
     public float GpuFreq { get { RefreshGpu(); return _sgGpuFreq; } }
     public uint GpuVram { get { RefreshGpu(); return _sgGpuVram; } }
