@@ -438,8 +438,11 @@ export default function GameProfilesPanel() {
         return;
       }
       const data = await res.json();
+      if (data.skippedDead) {
+        toast(`${data.skippedDead} 条规则的游戏文件已不存在（可能已卸载），已跳过——建议删除规则或编辑更新路径`, "info");
+      }
       if (!data.queued) {
-        toast("所有卡片都已有封面", "info");
+        if (!data.skippedDead) toast("所有卡片都已有封面", "info");
         return;
       }
       toast(`开始获取 ${data.queued} 张封面`, "success");
@@ -748,6 +751,7 @@ export default function GameProfilesPanel() {
               <span className="shade"></span>
               <div className="top">
                 <span className="cfg"><span className="dot" style={{ background: targetColor(p.targetMode) }}></span>{targetLabel(p.targetMode)}</span>
+                {p.exeMissing && <span className="miss-tag" title="游戏文件不存在，可能已卸载——可删除此规则或编辑更新路径">失效</span>}
                 <label className="switch sw">
                   <input
                     type="checkbox"
@@ -784,6 +788,7 @@ export default function GameProfilesPanel() {
       <div className="hint reveal enter" style={{ animationDelay: ".08s" }}>
         {ICONS.info}
         退出游戏后，将自动恢复为<b>控制面板当前选中的配置</b>，而非固定指向某个配置。例：当前选中 gaming，启动原神切到「均衡」，退出后恢复 gaming。
+        手动添加的非平台游戏（本地导入）不参与「补齐封面」批量获取——可在<b>编辑弹窗</b>中按英文名搜索（需配置 SteamGridDB Key）或直接上传本地图片；游戏已卸载的规则会标「失效」并可删除。
       </div>
 
       {showAdd && (
