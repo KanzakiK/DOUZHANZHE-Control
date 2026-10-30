@@ -108,6 +108,7 @@ export default function GameProfilesPanel() {
   const [coverGameId, setCoverGameId] = useState(null);
   const [coverThumbs, setCoverThumbs] = useState([]);          // 候选封面缩略图
   const [coverUploading, setCoverUploading] = useState(false);
+  const [showCoverPicker, setShowCoverPicker] = useState(false); // 独立选图弹窗
 
   const coverActive = !!coverProgress && (coverProgress.running > 0 ||
     (coverProgress.total > 0 && coverProgress.done + coverProgress.failed < coverProgress.total));
@@ -552,9 +553,10 @@ export default function GameProfilesPanel() {
     }
   };
 
-  const searchCovers = async () => {
-    const term = coverTerm.trim();
+  const searchCovers = async (termArg) => {
+    const term = (typeof termArg === "string" ? termArg : coverTerm).trim();
     if (!term || !editingId) return;
+    setCoverTerm(term);
     setCoverSearching(true);
     setCoverCandidates([]);
     setCoverThumbs([]);
@@ -624,6 +626,15 @@ export default function GameProfilesPanel() {
     prevCoverActiveRef.current = coverActive;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coverActive]);
+
+  const openCoverPicker = () => {
+    setCoverTerm(editingProfile?.name || "");
+    setCoverCandidates([]);
+    setCoverThumbs([]);
+    setCoverGameId(null);
+    setShowCoverPicker(true);
+    if (hasKey && editingProfile?.name) searchCovers(editingProfile.name); // 打开即自动搜一次
+  };
 
   const activeCount = profiles.filter(p => p.enabled).length;
   const editingProfile = profiles.find(p => p.id === editingId);
@@ -865,6 +876,9 @@ export default function GameProfilesPanel() {
                     <button className="btn" type="button" onClick={() => fetchSingleCover(editingId)}>
                       {ICONS.image}获取封面
                     </button>
+                    <button className="btn" type="button" onClick={openCoverPicker}>
+                      {ICONS.search}搜索封面
+                    </button>
                     <label className="btn" type="button">
                       {coverUploading ? "上传中…" : "本地图片"}
                       <input type="file" accept="image/*" hidden onChange={(e) => { uploadCover(e.target.files?.[0]); e.target.value = ""; }} />
@@ -874,47 +888,10 @@ export default function GameProfilesPanel() {
                     </button>
                   </div>
                 </div>
-                {!hasKey ? (
+                {!hasKey && (
                   <div className="cover-search-tip">
                     配置 SteamGridDB API Key 后可搜索候选封面（Steam 来源的游戏无需 Key 也能获取官方封面） ·
                     <button className="link-btn" type="button" onClick={openKeyDlg}>去设置</button>
-                  </div>
-                ) : (
-                  <div className="cover-search">
-                    <div className="in">
-                      <input
-                        type="text"
-                        value={coverTerm}
-                        onChange={(e) => setCoverTerm(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === "Enter") searchCovers(); }}
-                        placeholder="搜索 SteamGridDB 游戏名（英文更准）"
-                        aria-label="搜索封面关键词"
-                      />
-                      <button className="btn" type="button" onClick={searchCovers} disabled={coverSearching}>
-                        {coverSearching ? "搜索中…" : "搜索"}
-                      </button>
-                    </div>
-                    {coverCandidates.length > 0 && (
-                      <select
-                        value={coverGameId ?? ""}
-                        onChange={(e) => { setCoverGameId(e.target.value); loadCoverThumbs(e.target.value); }}
-                        aria-label="候选游戏"
-                      >
-                        {coverCandidates.map(g => (
-                          <option key={g.id} value={g.id}>{g.name}{g.verified ? " ✓" : ""}</option>
-                        ))}
-                      </select>
-                    )}
-                    {coverThumbs.length > 0 && (
-                      <div className="cover-thumbs">
-                        {coverThumbs.map(t => (
-                          <button key={t.id} type="button" className="cover-thumb" onClick={() => applyThumb(t)}
-                            title={`风格 ${t.style || "默认"} · 评分 ${t.score}`}>
-                            <img src={t.thumb} alt="" loading="lazy" />
-                          </button>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
@@ -1016,6 +993,73 @@ export default function GameProfilesPanel() {
           </div>
         </div>
       )}
+      {showCoverPicker && editingId && (
+        <div className="modal show">
+          <div className="panel" style={{ width: "min(760px, 94vw)" }}>
+            <div className="p-head">
+              <span><b>选择封面</b><small>{editingProfile?.name} · SteamGridDB</small></span>
+              <button className="x" onClick={() => setShowCoverPicker(false)} aria-label="关闭">{ICONS.close}</button>
+            </div>
+            <div className="p-body">
+              {!hasKey ? (
+                <div className="cover-search-tip">
+                  未配置 SteamGridDB API Key，无法搜索候选封面。Steam 来源的游戏可直接用「获取封面」拿官方图；
+                  其他游戏配置 Key 后搜索，或返回编辑弹窗上传本地图片 ·
+                  <button className="link-btn" type="button" onClick={() => { setShowCoverPicker(false); openKeyDlg(); }}>去设置</button>
+                </div>
+              ) : (
+                <>
+                  <div className="cover-search">
+                    <div className="in">
+                      <input
+                        type="text"
+                        value={coverTerm}
+                        onChange={(e) => setCoverTerm(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") searchCovers(); }}
+                        placeholder="搜索 SteamGridDB 游戏名（英文更准）"
+                        aria-label="搜索封面关键词"
+                      />
+                      <button className="btn" type="button" onClick={() => searchCovers()} disabled={coverSearching}>
+                        {coverSearching ? "搜索中…" : "搜索"}
+                      </button>
+                    </div>
+                    {coverCandidates.length > 0 && (
+                      <select
+                        value={coverGameId ?? ""}
+                        onChange={(e) => { setCoverGameId(e.target.value); loadCoverThumbs(e.target.value); }}
+                        aria-label="候选游戏"
+                      >
+                        {coverCandidates.map(g => (
+                          <option key={g.id} value={g.id}>{g.name}{g.verified ? " ✓" : ""}</option>
+                        ))}
+                      </select>
+                    )}
+                    {coverThumbs.length > 0 ? (
+                      <div className="cover-thumbs lg">
+                        {coverThumbs.map(t => (
+                          <button key={t.id} type="button" className="cover-thumb" onClick={() => applyThumb(t)}
+                            title={`风格 ${t.style || "默认"} · 评分 ${t.score}（点击应用）`}>
+                            <img src={t.thumb} alt="" loading="lazy" />
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      !coverSearching && coverGameId != null && (
+                        <p className="cover-empty">该游戏暂无可用竖版封面，可换一个候选或上传本地图片</p>
+                      )
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="p-foot">
+              <span style={{ flex: 1 }}></span>
+              <button className="btn primary" onClick={() => setShowCoverPicker(false)}>完成</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showKeyDlg && (
         <div className="modal show">
           <div className="panel">
