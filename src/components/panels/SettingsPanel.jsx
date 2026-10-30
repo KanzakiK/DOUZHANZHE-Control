@@ -501,7 +501,7 @@ export default function SettingsPanel({ theme, setTheme }) {
           {bgSource === "network" && (
             <>
               <div className={`set-row bg-dep ${bgEnabled ? "" : "disabled"}`}>
-                <span className="rk"><b>API 地址</b><small>返回 {`{ urls: [...] }`} / 顶层数组的 JSON，或直接返回图片的接口</small></span>
+                <span className="rk"><b>API 地址</b><small>支持 JSON 列表/对象，或接口直接返回 / 302 跳转到图片</small></span>
                 <span className="rctrl">
                   <span className="api-row">
                     <input type="text" className="api-input" value={bgApiUrl} placeholder="https://example.com/wallpapers.json"
