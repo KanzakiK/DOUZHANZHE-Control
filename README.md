@@ -40,7 +40,6 @@ An open-source alternative to Lenovo's official Douzhanzhe console.
 - CPU / GPU / 内存·硬盘 三块核心监控卡：温度、频率、占用率、功耗、显存、内存与磁盘占用，WebSocket 每 250ms 推送全量遥测。
 - 风扇信息卡：大/小风扇实时 RPM、转速百分比、EC 寄存器直读。
 - 系统状态栏：当前散热模式、GPU 模式、电源计划、键盘背光等级聚合显示。
-- 支持 @dnd-kit 拖拽排序与卡片隐藏/显示，打造个人专属仪表盘。
 
 ![仪表盘](screenshots/dashboard.png)
 
@@ -151,7 +150,7 @@ dotnet run --urls http://0.0.0.0:3100
 | 层级 | 技术 |
 |------|------|
 | 桌面壳 | WinForms + WebView2（单实例、托盘、开机自启） |
-| 前端 | React 19 + Vite 8 + @dnd-kit |
+| 前端 | React 19 + Vite 8 |
 | 后端 | .NET 8 Minimal API + WMI + PawnIO |
 | 内核驱动 | **PawnIO** v2.2.0.0（替代 inpoutx64 + WinRing0） |
 | AMD SMU | PawnIO RyzenSMU.bin（替代 ryzenadj 子进程） |
