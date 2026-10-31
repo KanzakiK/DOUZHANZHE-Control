@@ -32,7 +32,7 @@
 
 ## AI 必须遵守的规则
 
-- **未经用户明确命令，不得创建/推送 GitHub Release**（打 tag、gh release 都算）；"打包" = 本地出 exe。用户明确要发时：`gh release create vX.Y.Z-pre.N --title ... --notes-file <changelog节> --prerelease <exe>`，notes 文件写项目目录内（/tmp 会被沙箱回滚）。
+- **未经用户明确命令，不得创建/推送 GitHub Release**（打 tag、gh release 都算）；"打包" = 本地出 exe。用户明确要发时：`gh release create vX.Y.Z-pre.N --target <当前分支HEAD的SHA> --title ... --notes-file <changelog节> --prerelease <exe>`——**必须带 --target 指向 feature 分支的提交**（默认会打在 main 的 HEAD 上：tag 日期变成 main 的旧提交日期导致 Release 列表排序错乱，且发布页源码指向错误代码——v2.0.2-pre.1 踩过，被迫删除重建）。notes 文件写项目目录内（/tmp 会被沙箱回滚）。
 - **声称完成/发布前必须验证远程可见性**（git fetch + ahead 计数 / gh release view），不凭本地命令成功下结论。
 - **撤版**：`gh release delete <tag> --yes`（附件随删，tag 默认保留）。
 - **新增持久化配置必须过备份覆盖审计**（[1.5/6] FAIL 中断构建）：真用户数据 → 加进 Program.cs `backupCategories`；瞬态/机器相关 → 在 `tools/audit-backup-coverage.ps1` 的 `$allow` 白名单写一行理由。二进制走 `{ "__base64": ... }` 打包机制。
