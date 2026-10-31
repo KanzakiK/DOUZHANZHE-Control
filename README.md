@@ -80,9 +80,10 @@ CPU / GPU 性能调优与配置管理。
 
 ### 游戏 Games
 
-游戏进程感知与性能配置自动切换。
+游戏进程感知与性能配置自动切换，卡片墙自动配竖版封面。
 
-- 游戏海报墙：为每个已添加的游戏生成海报卡片，直观展示绑定配置。
+- 游戏海报墙：为每个已添加的游戏自动配竖版封面——未配置 Key 时 Steam 游戏直接使用官方封面（零配置），配置免费 SteamGridDB API Key 后全部游戏可搜索候选图挑选，也支持上传本地图片。
+- 一键补齐封面：批量抓取所有缺封面的游戏，实时进度反馈；已卸载游戏的失效规则自动跳过并标记。
 - 自动切换：检测到绑定游戏进程启动时自动切换到对应配置，退出后恢复当前配置。
 - 规则管理：扫描已安装游戏、手动添加规则、批量管理启用/禁用。
 - 运行中游戏计数与生效状态实时展示。
@@ -94,21 +95,22 @@ CPU / GPU 性能调优与配置管理。
 硬件配置卡片网格化展示。
 
 - 处理器 CPU、显卡 GPU、内存、存储、主板 / BIOS、电池、操作系统、设备概览八大类信息。
-- 关键字段直接可读：型号、核心/线程、显存、容量、BIOS 版本、电池健康度、操作系统版本等。
+- 关键字段直接可读：型号、核心/线程、显存、容量、BIOS / EC 版本、电池健康度、磁盘接口与健康度、显卡功耗上限、CPU 最大睿频、操作系统版本等。
+- 采集由 PowerShell 子进程升级为 C# 直查（首开 2 秒内、二次毫秒级）。
 - 首次加载后本地缓存，右上角一键刷新。
 
 ![系统信息](screenshots/sysinfo.png)
 
 ### 设置 Settings
 
-外观、启动、快捷键与备份。
+外观、壁纸、启动、快捷键、备份与更新。
 
 - 外观：浅色 / 深色 / 跟随系统三档，同步影响所有 Fluent 控件与 OSD 提示。
 - 配色：24 套主题皮肤，主色选择后辅助强调色按色彩规则自动派生。
 - 开机自启：登录 Windows 时自动运行，支持最小化到托盘启动。
-- 自定义背景：上传壁纸经高斯模糊后作为 Mica 材质底层纹理。
+- 自定义背景：上传本地壁纸或配置网络壁纸接口（JSON / 直链 / 302 / base64 / 明文 URL 均可），支持「立刻切换」与每 1h / 6h / 12h 自动轮换；「透明度」滑块同时控制壁纸与卡片通透度，模糊度为感知均匀的非线性曲线。
 - 快捷键：自定义全局热键快速唤起面板或切换模式。
-- 备份与导入：一键导出/导入全部配置；关于页面查看版本与更新。
+- 备份与导入：按分类导出/导入全部配置（含封面图、壁纸图片、SGDB Key 可选）；关于页面查看版本与检查更新。
 
 ![设置](screenshots/settings.png)
 
@@ -151,7 +153,7 @@ dotnet run --urls http://0.0.0.0:3100
 | 层级 | 技术 |
 |------|------|
 | 桌面壳 | WinForms + WebView2（单实例、托盘、开机自启） |
-| 前端 | React 19 + Vite 8 + TailwindCSS 3 + @dnd-kit |
+| 前端 | React 19 + Vite 8 + @dnd-kit |
 | 后端 | .NET 8 Minimal API + WMI + PawnIO |
 | 内核驱动 | **PawnIO** v2.2.0.0（替代 inpoutx64 + WinRing0） |
 | AMD SMU | PawnIO RyzenSMU.bin（替代 ryzenadj 子进程） |
@@ -167,24 +169,25 @@ DOUZHANZHE-Control/
 ├── src/                        # React 前端
 │   ├── App.jsx                 # 7 标签页 + 主题 Dock + 自定义背景
 │   ├── components/
-│   │   ├── SortableDashboard   # 拖拽仪表盘（11 张卡片内联渲染）
-│   │   ├── panels/             # 8 个面板（含 IntelCpuPanel/IntelPowerPanel）
-│   │   └── ui/                 # 10 个通用组件
+│   │   ├── panels/             # 12 个面板（含 IntelCpuPanel/IntelPowerPanel）
+│   │   └── ui/                 # 通用组件（含 UpdateDialog 更新弹窗）
 │   ├── hooks/                  # useCardOrder, useControlState
 │   └── services/               # uxtuAdapter (API 封装 + flattenBackendOverrides)
 ├── server/
 │   ├── api/                    # .NET 8 后端
 │   │   ├── Program.cs          # ~70 个端点 + WebSocket 遥测
 │   │   ├── WmiInterface.cs     # WMI ACPI 硬件通信
+│   │   ├── GameCoverService.cs # 游戏封面获取（SteamGridDB + 官方图兜底）
 │   │   └── TelemetryBackgroundService.cs
 │   ├── hal/                    # 硬件抽象层
 │   │   ├── DriverBridge.cs     # PawnIO EC IO（替代 inpoutx64）
 │   │   ├── HardwareAbstractionLayer.cs
 │   │   ├── AmdSmuController.cs # PawnIO RyzenSMU.bin（替代 ryzenadj）
 │   │   └── IntelPowerController.cs  # PawnIO IntelMSR.bin
-│   ├── services/               # FanCurveService, GameProfileService, OsdService...
+│   ├── services/               # FanCurveService, GameProfileService, BackgroundRotationService, SystemInfoService...
 │   └── shell/                  # WinForms 桌面壳
 ├── installer/                  # Inno Setup + 构建脚本
+├── tools/                      # 备份覆盖审计等辅助脚本
 ├── docs/                       # 开发文档
 │   ├── dev-api.md, dev-backend.md, dev-frontend.md, ...
 │   └── archive/                # 已归档的历史文档
