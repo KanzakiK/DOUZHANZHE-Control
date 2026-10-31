@@ -23,10 +23,10 @@
 ---
 
 **斗战者控制台** — 专为联想斗战者系列打造的开源硬件控制面板。
-替代官方联想电脑管家，提供完整的硬件监控、性能调优和系统控制能力。
+替代官方斗战者控制台，提供完整的硬件监控、性能调优和系统控制能力。
 
 **Douzhanzhe Console** — Open-source hardware control panel for Lenovo Legion 7000 series.
-A full-featured alternative to Lenovo Vantage.
+An open-source alternative to Lenovo's official Douzhanzhe console.
 
 ---
 
@@ -36,8 +36,8 @@ A full-featured alternative to Lenovo Vantage.
 
 实时硬件监控与系统状态总览。
 
-- 顶部“当前配置”卡片：安静 / 均衡 / 野兽 / 斗战 四档性能模式一键切换，切换状态由全局动画提示。
-- CPU / GPU / 内存·硬盘 三块核心监控卡：温度、频率、占用率、功耗、显存、内存与磁盘占用，WebSocket 每秒推送全量遥测。
+- 顶部“当前配置”卡片：安静 / 均衡 / 野兽 / 斗战 四档性能模式与自定义配置一键切换，切换状态由全局动画提示。
+- CPU / GPU / 内存·硬盘 三块核心监控卡：温度、频率、占用率、功耗、显存、内存与磁盘占用，WebSocket 每 250ms 推送全量遥测。
 - 风扇信息卡：大/小风扇实时 RPM、转速百分比、EC 寄存器直读。
 - 系统状态栏：当前散热模式、GPU 模式、电源计划、键盘背光等级聚合显示。
 - 支持 @dnd-kit 拖拽排序与卡片隐藏/显示，打造个人专属仪表盘。
@@ -50,7 +50,7 @@ CPU / GPU 性能调优与配置管理。
 
 - **CPU 频率控制**：频率上限、限制核心数、睿频加速、电源管理三档（最高能效 / 平衡 / 最佳性能）。
 - **CPU 功耗与温度（AMD）**：功耗墙 PL1/PL2、温度墙、Curve Optimizer 降压，通过 PawnIO RyzenSMU.bin 直接写入。
-- **Intel 机型**：PL1/PL2 功耗限制（PawnIO IntelMSR.bin）+ 频率/睿频/核心数限制（powercfg）。
+- **Intel 机型**：PL1/PL2 功耗限制（PawnIO IntelMSR.bin）；频率 / 睿频 / 核心数限制（powercfg）为 AMD / Intel 通用，见上。
 - **GPU 频率与超频**：NVAPI P/Invoke + nvidia-smi 实现超频偏移、锁频、温度限制。
 - 配置系统：切换配置、另存为新配置、管理配置，调节项实时保存到当前配置。
 
@@ -62,7 +62,7 @@ CPU / GPU 性能调优与配置管理。
 
 - 实时监控：大/小风扇当前 RPM 与百分比。
 - 手动调速：分别设置大/小风扇目标转速，范围随当前散热模式自动变化。
-- 自定义温度-转速曲线：双风扇独立 13 控制点 SVG 曲线编辑器，支持预设按散热模式一键切换，后台 FanCurveService 定时写入 EC。
+- 自定义温度-转速曲线：双风扇独立曲线编辑器，控制点可增删，支持预设按散热模式一键切换，后台 FanCurveService 定时写入 EC。
 - 手动调速与自定义曲线互斥，避免策略冲突。
 
 ![风扇控制](screenshots/fan.png)
@@ -106,7 +106,7 @@ CPU / GPU 性能调优与配置管理。
 外观、壁纸、启动、快捷键、备份与更新。
 
 - 外观：浅色 / 深色 / 跟随系统三档，同步影响所有 Fluent 控件与 OSD 提示。
-- 配色：24 套主题皮肤，主色选择后辅助强调色按色彩规则自动派生。
+- 配色：13 种预设主色一键切换，也支持自定义颜色，辅助强调色按色彩规则自动派生。
 - 开机自启：登录 Windows 时自动运行，支持最小化到托盘启动。
 - 自定义背景：上传本地壁纸或配置网络壁纸接口（JSON / 直链 / 302 / base64 / 明文 URL 均可），支持「立刻切换」与每 1h / 6h / 12h 自动轮换；「透明度」滑块同时控制壁纸与卡片通透度，模糊度为感知均匀的非线性曲线。
 - 快捷键：自定义全局热键快速唤起面板或切换模式。
@@ -119,8 +119,6 @@ CPU / GPU 性能调优与配置管理。
 从 [Releases](https://github.com/KanzakiK/DOUZHANZHE-Control/releases) 页面下载最新安装包 `DouzhanzheConsole-*-Setup.exe`，双击运行即可。
 
 安装程序会自动：安装 .NET 8 Runtime（如缺）、安装 PawnIO 内核驱动、清理旧版驱动残留。
-
-> 安装包已签名，驱动安装需在 Windows 测试模式下或启用 TESTSIGNING。
 
 ## 快速开始（开发环境）
 
@@ -171,7 +169,7 @@ DOUZHANZHE-Control/
 │   ├── components/
 │   │   ├── panels/             # 12 个面板（含 IntelCpuPanel/IntelPowerPanel）
 │   │   └── ui/                 # 通用组件（含 UpdateDialog 更新弹窗）
-│   ├── hooks/                  # useCardOrder, useControlState
+│   ├── hooks/                  # useControlState, useStall
 │   └── services/               # uxtuAdapter (API 封装 + flattenBackendOverrides)
 ├── server/
 │   ├── api/                    # .NET 8 后端
