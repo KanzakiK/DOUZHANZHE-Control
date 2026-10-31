@@ -29,6 +29,7 @@
 - **版本号**：`package.json` 直接写预发布号（`2.0.1-pre.N`），每轮 +1；[0/6] 自动同步 CHANGELOG 顶部标题与 `server/api/version.txt`（只改标题不改内容）。
 - **打包前三查**：①CHANGELOG 顶部条目已手写且与版本号一致；②`git log <上版构建点>..HEAD` 审计变更全部入账；③备份覆盖审计 FAIL 先处理。
 - **sync-repos.ps1**：按 frontend/api/chore/docs 分组提交 + push 当前分支；**只在工作树脏时动作**（已 commit 未 push 的它不会推，需手动 push）。构建钩子（.csproj AfterBuild）也会自动 commit+push——手动提交前先 `git log` 查重。
+- **分支策略（2026-10-31 起）**：开发直接在 **main** 上进行（feature/v2.0 已合并进 main 并停用）；本地工作副本也已切到 main。打包与发布均在 main。
 
 ## AI 必须遵守的规则
 
