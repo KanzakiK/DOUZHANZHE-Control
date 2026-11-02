@@ -36,6 +36,7 @@ public sealed class HardwareAbstractionLayer : IDisposable
     private bool _cpuTimesInit;
     private int _sgMemUsage, _sgMemTotal, _sgMemFreq;
     private DateTime _sgMemTime = DateTime.MinValue;
+    private DateTime _sgMemFreqTime = DateTime.MinValue;
     private int _sgDiskUsage, _sgDiskTotal, _sgDiskFree;
     private DateTime _sgDiskTime = DateTime.MinValue;
 
@@ -818,7 +819,7 @@ public sealed class HardwareAbstractionLayer : IDisposable
                 }
             };
             p.Start();
-            if (!p.WaitForExit(8000)) { p.Kill(); return; }
+            if (!p.WaitForExit(15000)) { p.Kill(); return; }
             var parts = p.StandardOutput.ReadToEnd().Trim().Split(',');
             if (parts.Length >= 4)
             {
@@ -841,45 +842,76 @@ public sealed class HardwareAbstractionLayer : IDisposable
     public int MemoryTotalGB { get { RefreshMem(); return _sgMemTotal; } }
     public int MemoryFreq { get { RefreshMem(); return _sgMemFreq; } }
 
+    // ---- 内存总量/占用：内核 API，微秒级 ----
+    // 此前用 PowerShell + Get-CimInstance 取，实测单次要 15.8 秒（机器负载高时更久），
+    // 放在遥测热路径上必然超时 → 内存一直显示 0/0GB。改用 GlobalMemoryStatusEx。
+    [StructLayout(LayoutKind.Sequential)]
+    private class MEMORYSTATUSEX
+    {
+        public uint dwLength;
+        public uint dwMemoryLoad;
+        public ulong ullTotalPhys;
+        public ulong ullAvailPhys;
+        public ulong ullTotalPageFile;
+        public ulong ullAvailPageFile;
+        public ulong ullTotalVirtual;
+        public ulong ullAvailVirtual;
+        public ulong ullAvailExtendedVirtual;
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GlobalMemoryStatusEx([In, Out] MEMORYSTATUSEX lpBuffer);
+
     private void RefreshMem()
     {
-        if ((DateTime.UtcNow - _sgMemTime).TotalSeconds < 2) return;
+        // 1) 总量与占用率：内核调用，每次都做（微秒级）
+        try
+        {
+            var ms = new MEMORYSTATUSEX();
+            ms.dwLength = (uint)Marshal.SizeOf(typeof(MEMORYSTATUSEX));
+            if (GlobalMemoryStatusEx(ms) && ms.ullTotalPhys > 0)
+            {
+                _sgMemTotal = (int)Math.Round(ms.ullTotalPhys / (1024.0 * 1024.0 * 1024.0));
+                _sgMemUsage = (int)Math.Round((1.0 - (double)ms.ullAvailPhys / ms.ullTotalPhys) * 100);
+                _sgMemTime = DateTime.UtcNow;
+            }
+        }
+        catch { }
+
+        // 2) 内存频率：需要 WMI（慢，15s+），只偶尔取一次，放后台且不阻塞
+        if (_sgMemFreq > 0 && (DateTime.UtcNow - _sgMemFreqTime).TotalSeconds < 600) return;
         lock (_sgMemLock)
         {
             if (_sgMemBusy) return;
-            if ((DateTime.UtcNow - _sgMemTime).TotalSeconds < 2) return;
             _sgMemBusy = true;
         }
-        // PowerShell + CIM 采集放后台：冷启动可达 1~3s
         _ = Task.Run(() =>
         {
-            try { RefreshMemCore(); }
+            try { RefreshMemFreqCore(); }
             finally { lock (_sgMemLock) _sgMemBusy = false; }
         });
     }
 
-    /// <summary>内存信息采集（实际执行体，耗时较长，由 RefreshMem 放到后台线程调用）</summary>
-    private void RefreshMemCore()
+    /// <summary>仅取内存频率（WMI，耗时长，由 RefreshMem 放到后台线程调用）</summary>
+    private void RefreshMemFreqCore()
     {
         try
         {
             var psi = new ProcessStartInfo("powershell",
-                "-NoProfile -Command \"$totalKB = (Get-CimInstance Win32_PhysicalMemory | Measure-Object -Property Capacity -Sum).Sum / 1KB; $os = Get-CimInstance Win32_OperatingSystem; $freq = (Get-CimInstance Win32_PerfFormattedData_Counters_MemoryPerformance -ErrorAction SilentlyContinue).MemoryClock; if (-not $freq) { $freq = (Get-CimInstance Win32_PhysicalMemory | Select-Object -First 1).ConfiguredClockSpeed }; Write-Output ('{0},{1},{2}' -f $totalKB, $os.FreePhysicalMemory, $freq)\"")
+                "-NoProfile -Command \"(Get-CimInstance Win32_PhysicalMemory | Select-Object -First 1).ConfiguredClockSpeed\"")
             {
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 CreateNoWindow = true
             };
             using var p = Process.Start(psi);
-            if (p == null || !p.WaitForExit(10000)) { p?.Kill(); return; }
-            var parts = p.StandardOutput.ReadToEnd().Trim().Split(',');
-            if (parts.Length >= 3 && long.TryParse(parts[0], out var total) && total > 0)
+            if (p == null || !p.WaitForExit(30000)) { p?.Kill(); return; }
+            var line = p.StandardOutput.ReadToEnd().Trim();
+            if (int.TryParse(line, out var mhz) && mhz > 0)
             {
-                _sgMemTotal = (int)Math.Round(total / 1024.0 / 1024.0);
-                if (long.TryParse(parts[1], out var free))
-                    _sgMemUsage = (int)Math.Round((1.0 - (double)free / total) * 100);
-                int.TryParse(parts[2], out _sgMemFreq);
-                _sgMemTime = DateTime.UtcNow;
+                _sgMemFreq = mhz;
+                _sgMemFreqTime = DateTime.UtcNow;
             }
         }
         catch { }
@@ -927,7 +959,7 @@ public sealed class HardwareAbstractionLayer : IDisposable
             })
             {
                 p.Start();
-                if (!p.WaitForExit(10000)) { p.Kill(); return; }
+                if (!p.WaitForExit(20000)) { p.Kill(); return; }
                 var reader = p.StandardOutput.ReadToEnd();
                 foreach (var line in reader.Split(new[] { '\r', '\n' }, System.StringSplitOptions.RemoveEmptyEntries))
                 {
