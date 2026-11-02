@@ -385,7 +385,9 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
 
     /// <summary>
     /// 仅在版本变化时清理 WebView2 磁盘缓存，避免每次启动都做无谓的目录删除。
-    /// 用 userDataDir/cachestamp.txt 记录上次清理时的程序版本。
+    /// 版本戳取自安装目录下的 version.txt（构建时同步真实版本号）——
+    /// 不能用 Application.ProductVersion：Shell 的 csproj 未设 Version 属性，
+    /// 它恒为 1.0.0.0，版本戳永不变化会导致升级后磁盘缓存不再清理（前端更新后缓存旧版本）。
     /// </summary>
     private void EnsureWebView2CachePurged(string userDataDir)
     {
@@ -393,8 +395,8 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
                                "EBWebView\\Default\\Service Worker", "EBWebView\\GrShaderCache", "EBWebView\\ShaderCache" };
         try
         {
+            string curVer = ResolveAppVersion();
             string stampFile = Path.Combine(userDataDir, "cachestamp.txt");
-            string curVer = Application.ProductVersion ?? "0";
             bool needPurge = true;
             if (File.Exists(stampFile))
             {
@@ -415,6 +417,22 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
             try { Directory.CreateDirectory(userDataDir); File.WriteAllText(stampFile, curVer); } catch { }
         }
         catch { /* 整体失败不影响启动 */ }
+    }
+
+    /// <summary>取程序真实版本：优先读安装目录 version.txt，其次退回程序集版本。</summary>
+    private static string ResolveAppVersion()
+    {
+        try
+        {
+            var v = Path.Combine(AppContext.BaseDirectory, "version.txt");
+            if (File.Exists(v))
+            {
+                var text = File.ReadAllText(v).Trim();
+                if (!string.IsNullOrEmpty(text)) return text;
+            }
+        }
+        catch { }
+        return Application.ProductVersion ?? "0";
     }
 
     private void Form1_FormClosing(object? sender, FormClosingEventArgs e)

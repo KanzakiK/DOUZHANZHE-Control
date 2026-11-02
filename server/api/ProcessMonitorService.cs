@@ -417,13 +417,22 @@ public sealed class ProcessMonitorService : IDisposable
             try
             {
                 if (ws.State == WebSocketState.Open)
-                    ws.SendAsync(segment, WebSocketMessageType.Text, true, CancellationToken.None).Wait();
+                {
+                    // 必须带超时：僵死客户端会让 SendAsync 永久挂起，
+                    // 这里 .Wait() 无上限会把自动切换逻辑整条卡死
+                    if (!ws.SendAsync(segment, WebSocketMessageType.Text, true, CancellationToken.None).Wait(2000))
+                    {
+                        deadClients.Add(ws);
+                        try { ws.Abort(); } catch { }
+                    }
+                }
                 else
                     deadClients.Add(ws);
             }
             catch
             {
                 deadClients.Add(ws);
+                try { ws.Abort(); } catch { }
             }
         }
 

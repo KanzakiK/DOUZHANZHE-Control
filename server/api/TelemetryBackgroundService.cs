@@ -98,8 +98,37 @@ public class TelemetryBackgroundService : BackgroundService
         lock (_clientLock) _clients.Remove(ws);
     }
 
+    /// <summary>单个客户端的推送超时（毫秒）。超过即判定为僵死连接。</summary>
+    private const int SendTimeoutMs = 1500;
+
+    /// <summary>首帧是否已记录（用于首帧延迟诊断日志）</summary>
+    private int _firstFrameLogged;
+
+    /// <summary>
+    /// 向单个客户端推送一帧。
+    /// 必须带发送超时：客户端进程被杀 / 半开时 socket 仍报 Open，SendAsync 会一直挂起
+    /// （发送缓冲区写满后永不返回）→ 整个推送循环卡死 → 所有前端都收不到遥测，
+    /// 表现为"后端未连接"且迟迟不自愈。超时即判定僵死，Abort 掉并登记移除。
+    /// </summary>
+    private static async Task SendFrameAsync(WebSocket ws, ArraySegment<byte> segment,
+        List<WebSocket> dead, object deadLock)
+    {
+        try
+        {
+            using var sendCts = new CancellationTokenSource(SendTimeoutMs);
+            await ws.SendAsync(segment, WebSocketMessageType.Text, true, sendCts.Token);
+        }
+        catch (Exception ex)
+        {
+            lock (deadLock) dead.Add(ws);
+            try { ws.Abort(); } catch { }   // 立即断开，不等关闭握手（否则可能再挂一次）
+            AppLog.Write("Telemetry", $"WS 客户端推送失败（{ex.GetType().Name}），已断开该连接");
+        }
+    }
+
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         _log.LogInformation("[Telemetry] 后台遥测服务已启动 (HealthWatchdog enabled)");
 
         // 冷启动预热：等待驱动和 EC 寄存器稳定（开机自启时 inpoutx64 可能刚加载完成）
@@ -187,28 +216,26 @@ public class TelemetryBackgroundService : BackgroundService
                 byte[] bytes = Encoding.UTF8.GetBytes(payload);
                 var segment = new ArraySegment<byte>(bytes);
 
-                // 在锁内拍快照，锁外 await 发送
+                // 在锁内拍快照，锁外并发发送
                 WebSocket[] snapshot;
                 lock (_clientLock) snapshot = _clients.ToArray();
 
                 List<WebSocket> deadClients = new();
+                var deadLock = new object();
+                var sends = new List<Task>();
                 foreach (var ws in snapshot)
                 {
-                    try
-                    {
-                        if (ws.State == WebSocketState.Open)
-                            await ws.SendAsync(segment, WebSocketMessageType.Text,
-                                true, ct);
-                        else
-                            deadClients.Add(ws);
-                    }
-                    catch
-                    {
-                        deadClients.Add(ws);
-                    }
+                    if (ws.State != WebSocketState.Open) { deadClients.Add(ws); continue; }
+                    sends.Add(SendFrameAsync(ws, segment, deadClients, deadLock));
                 }
+                await Task.WhenAll(sends);
 
-                // 清理断线客户端
+                // 首帧延迟诊断：冷启动首帧包含驱动预热 + 首轮硬件读取，是"前端等很久才有数据"的关键指标
+                if (Interlocked.Exchange(ref _firstFrameLogged, 1) == 0)
+                    _log.LogInformation("[Telemetry] 首帧已推送（距服务启动 {Elapsed} ms，客户端 {Clients} 个）",
+                        sw.ElapsedMilliseconds, snapshot.Length);
+
+                // 清理断线/僵死客户端
                 if (deadClients.Count > 0)
                 {
                     lock (_clientLock)
@@ -216,6 +243,7 @@ public class TelemetryBackgroundService : BackgroundService
                         foreach (var dead in deadClients)
                             _clients.Remove(dead);
                     }
+                    _log.LogWarning("[Telemetry] 清理僵死 WebSocket 客户端 {Count} 个", deadClients.Count);
                 }
             }
             catch (OperationCanceledException)
