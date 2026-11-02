@@ -57,7 +57,15 @@ public static class AppLog
             try
             {
                 if (_size > MaxSize) Rotate();
-                File.AppendAllText(_logFile, line);
+                // ★ 必须 FileShare.ReadWrite：File.AppendAllText 用的是 FileShare.Read，
+                //   会排斥其它进程写入 —— 安装版实例在写日志时，第二个实例（开发实例/维护助手）
+                //   的日志会被静默吞掉并降级到控制台，导致"日志凭空消失"。
+                using (var fs = new FileStream(_logFile, FileMode.Append, FileAccess.Write,
+                                                FileShare.ReadWrite | FileShare.Delete))
+                using (var sw = new StreamWriter(fs, new System.Text.UTF8Encoding(false)))
+                {
+                    sw.Write(line);
+                }
                 _size += line.Length;
             }
             catch
