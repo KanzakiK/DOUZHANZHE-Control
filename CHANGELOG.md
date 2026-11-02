@@ -5,9 +5,12 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
-## [2.0.2-pre.1] — 2026-10-30
+## [2.0.2-pre.1] — 2026-11-02
 
-整合发布版本：本版本无独立变更，作为 2.0.2 系列的首个发布包。完整内容见 GitHub Release 说明（2.0.1-pre.2 – pre.20 的整合稿），下方 2.0.1 系列各条目保持原样存档。
+壁纸网络轮换「看不见」修复：后端一直按 interval 换图，但前端从不重新拉取。
+
+### 🛠 修复
+- **壁纸轮换在 UI 上不可见**：BackgroundRotationService 按 interval 默默替换 config/background.*，但前端只在挂载时读一次 `/api/background` 写进 CSS 变量、无刷新机制，磁盘图已换而屏幕上看不见；窗口最小化到托盘后永不重载，观感上像停止轮换。改为在 250ms 遥测 WS 帧中携带 `bgLastRotated`（Unix 秒），前端检测戳变化即用 `/api/background?t=<戳>` 重新套用背景图——零新增流量、延迟 ≤250ms、托盘态（WS 常开、JS 照跑）同样生效；`/api/background-opts` 同步返回 `lastRotated` 做 REST 兜底。注意仅 `source=network` 模式会轮换，`local` 单张固定图设计上不轮换。
 
 ## [2.0.1-pre.20] — 2026-10-30
 
