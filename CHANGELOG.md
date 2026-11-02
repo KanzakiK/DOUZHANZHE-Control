@@ -5,6 +5,14 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
+## [2.0.2-pre.9] — 2026-11-02
+
+日志多写入方安全（多实例并存时日志不再静默丢失）。
+
+### 🛠 修复
+
+- **多实例并存时日志凭空消失**：`AppLog.Write` 用 `File.AppendAllText`，其打开方式是 `FileShare.Read` —— **允许别人读、不允许别人写**。因此当安装版实例正在写日志时，第二个实例（开发实例 / `--maintenance` 维护助手）的日志会抛"文件被占用"、被 catch 吞掉并降级到 `Console.WriteLine`（看不见）→ **整段日志静默丢失**。改为 `FileStream` + `FileShare.ReadWrite | FileShare.Delete`，多进程可并发追加。实测：安装版实例 + 两个测试实例同时写 `app.log`，三方日志均完整保留。
+
 ## [2.0.2-pre.8] — 2026-11-02
 
 遥测显示异常（GPU 温度恒 0、内存 0/0GB）+ 托盘双击窗口透明（WebView2 被自己杀掉）。
