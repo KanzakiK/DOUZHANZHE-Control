@@ -5,6 +5,19 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
+## [2.0.2-pre.5] — 2026-11-02
+
+子进程回收兜底 + 安装过程静默清理（消除安装时一闪而过的控制台窗口）。
+
+### 🛠 修复
+
+- **Shell 被强杀会留下孤儿进程**：Shell 被 `taskkill /f`（安装升级就是这么做）、任务管理器结束或崩溃时，它拉起的 API 与 WebView2 渲染进程不会退出，堆积成孤儿（历史上一次异常退出残留了 30+ 个 WebView2 渲染进程）。现把自身与全部子进程放进带 `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` 的 **Job Object**（`ProcessJob.cs`）：无论正常退出、被强杀还是崩溃，Windows 都会连带结束这些子进程，不再产生孤儿。
+- **启动时清理历史遗留**：Shell 启动时（本次 WebView2 启动之前）按**命令行含本应用专属 user-data-dir**（`…\Douzhanzhe Console\WebView2`）精确匹配并结束遗留的 WebView2 渲染进程 —— 只清我们自己的，绝不误伤其它应用或 Windows 组件（SearchHost / CBS 更新客户端等）的 WebView2。
+- **安装过程不再闪控制台窗口**：原先安装器里散落着 6 处 `taskkill` / `sc` / `schtasks` 外部命令（`SW_HIDE` 对控制台程序只是"先建后藏"，仍会一闪而过）。现把这些清理全部收进应用自己的 **`Douzhanzhe.API.exe --maintenance`** 模式（结束旧实例、清理遗留 WebView2、停删旧驱动服务、删旧驱动文件、删旧计划任务）与 `--autostart` 模式（创建开机自启任务），由 API 改为 **WinExe**（自身无控制台窗口）并用 `CreateNoWindow` 调子进程，全程零窗口闪现。安装器里对应的 12 处外部命令调用全部移除。
+
+### 🔧 诊断
+- 遥测首帧逐项耗时日志（`首帧已推送…| 明细: CpuFrequency=…, CpuFreq=2ms, …`），一眼定位是哪一项在拖后腿；API 侧记录"进程启动 → 端口已监听"耗时，Shell 侧记录 WebView2 初始化 / 后端就绪 / `Form1_Load` 总耗时。
+
 ## [2.0.2-pre.4] — 2026-11-02
 
 启动提速的第三轮：前端"等好久才有数据"的根因（遥测首帧被硬件读取阻塞 30+ 秒）与 WebSocket 推送卡死。
