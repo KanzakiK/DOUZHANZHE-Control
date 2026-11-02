@@ -5,6 +5,17 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
+## [2.0.2-pre.8] — 2026-11-02
+
+遥测显示异常（GPU 温度恒 0、内存 0/0GB）+ 托盘双击窗口透明（WebView2 被自己杀掉）。
+
+### 🛠 修复
+
+- **托盘双击出来是透明窗口**：`Form1_Load` 里"清理遗留 WebView2"的护栏用了 `ManagementObject["CreationDate"] is DateTime` 判断"进程是否早于本次启动"，但**该属性取出来是 DMTF 字符串**（如 `"20261030135715.359014+480"`）而非 `DateTime` → 类型判断**静默失效** → 护栏被跳过 → **把本次运行自己刚起的 WebView2 也杀了** → 页面空白、窗口透明。护栏改为「启动早期用 `Process.GetProcessesByName` 记录已存在的 PID 集合，只清理集合内且命令行匹配本应用 user-data-dir 的进程」——本次新起的 WebView2 根本不在集合里，天然安全。
+- **内存恒显示 0.0 / 0 GB、频率 0 MHz**：内存采集走 `PowerShell + Get-CimInstance`，**实测单次要 15.8 秒**（机器负载高时更久），放在遥测热路径上必然被超时杀掉 → 缓存永远为 0。改为**总量与占用率走内核 `GlobalMemoryStatusEx`**（微秒级），**内存频率**单独走慢路径（30s 超时、10 分钟刷一次）。现显示 `31 GB / 5200 MHz` 正常值。
+- **GPU 温度恒为 0°C**：原先为温度**单独再起一次 `nvidia-smi`**（查询温度），在负载下必然超时 → 永远取不到。改为**并入已有的 GPU 统计查询**（一次 `nvidia-smi` 拿全部字段）；另该查询返回的温度**带小数**（如 `60.28`），原先用 `byte.TryParse` 解析必然失败 → 改按 `float` 解析再取整。现显示 `58°C` 正常值。
+- 子进程超时放宽：`nvidia-smi` 3s→15s、磁盘 `Get-Disk` 10s→20s、CPU 基频 3s→10s。
+
 ## [2.0.2-pre.7] — 2026-11-02
 
 修复启动被 WMI 进程枚举拖慢到 12 秒的问题（孤儿扫描挪到后台 + 护栏）。
