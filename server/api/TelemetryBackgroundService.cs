@@ -232,8 +232,11 @@ public class TelemetryBackgroundService : BackgroundService
 
                 // 首帧延迟诊断：冷启动首帧包含驱动预热 + 首轮硬件读取，是"前端等很久才有数据"的关键指标
                 if (Interlocked.Exchange(ref _firstFrameLogged, 1) == 0)
+                {
+                    AppLog.Write("Telemetry", $"首帧已推送（距服务启动 {sw.ElapsedMilliseconds} ms，客户端 {snapshot.Length} 个）");
                     _log.LogInformation("[Telemetry] 首帧已推送（距服务启动 {Elapsed} ms，客户端 {Clients} 个）",
                         sw.ElapsedMilliseconds, snapshot.Length);
+                }
 
                 // 清理断线/僵死客户端
                 if (deadClients.Count > 0)

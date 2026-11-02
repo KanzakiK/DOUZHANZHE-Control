@@ -13,6 +13,7 @@
 using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 
 namespace Douzhanzhe.HAL;
 
@@ -38,6 +39,19 @@ public sealed class HardwareAbstractionLayer : IDisposable
     private DateTime _sgMemTime = DateTime.MinValue;
     private int _sgDiskUsage, _sgDiskTotal, _sgDiskFree;
     private DateTime _sgDiskTime = DateTime.MinValue;
+
+    // 异步刷新状态：遥测热路径只读缓存，子进程采集放后台。
+    // nvidia-smi 单次启动 0.3~3s、PowerShell+CIM/Get-Disk 可达 5~15s，
+    // 放在属性读取路径会把 250ms 的遥测循环拖成数秒~数十秒一轮，
+    // 前端因此长时间停在"暂无实时数据"。
+    private readonly object _sgGpuTempLock = new();
+    private bool _sgGpuTempBusy;
+    private readonly object _sgGpuLock = new();
+    private bool _sgGpuBusy;
+    private readonly object _sgMemLock = new();
+    private bool _sgMemBusy;
+    private readonly object _sgDiskLock = new();
+    private bool _sgDiskBusy;
 
     private string _sysModel = "";
     private string _cpuName = "";
@@ -165,14 +179,31 @@ public sealed class HardwareAbstractionLayer : IDisposable
         }
     }
 
-    /// <summary>GPU 温度 (摄氏度) — nvidia-smi</summary>
+    /// <summary>GPU 温度 (摄氏度) — 后台 nvidia-smi 采集，读取只取缓存（不阻塞调用方）</summary>
     public byte GpuTemperature
     {
         get
         {
-            if ((DateTime.UtcNow - _lastGpuTempTime).TotalSeconds < 2 && _lastGpuTemp > 0)
-                return _lastGpuTemp;
+            RefreshGpuTemp();
+            return _lastGpuTemp;
+        }
+    }
 
+    /// <summary>
+    /// GPU 温度采集：nvidia-smi 单次启动需 0.3~3s，放在属性读取路径会拖慢整个遥测循环，
+    /// 改为后台采集、读取只取缓存。
+    /// </summary>
+    private void RefreshGpuTemp()
+    {
+        if ((DateTime.UtcNow - _lastGpuTempTime).TotalSeconds < 2 && _lastGpuTemp > 0) return;
+        lock (_sgGpuTempLock)
+        {
+            if (_sgGpuTempBusy) return;
+            if ((DateTime.UtcNow - _lastGpuTempTime).TotalSeconds < 2 && _lastGpuTemp > 0) return;
+            _sgGpuTempBusy = true;
+        }
+        _ = Task.Run(() =>
+        {
             try
             {
                 var psi = new ProcessStartInfo("nvidia-smi",
@@ -189,13 +220,11 @@ public sealed class HardwareAbstractionLayer : IDisposable
                 {
                     _lastGpuTemp = temp;
                     _lastGpuTempTime = DateTime.UtcNow;
-                    return temp;
                 }
             }
             catch { /* nvidia-smi 不可用 */ }
-
-            return 0;
-        }
+            finally { lock (_sgGpuTempLock) _sgGpuTempBusy = false; }
+        });
     }
 
     /// <summary>CPU 风扇转速 (RPM) — EC IO 协议 (PawnIO LpcACPIEC.bin)</summary>
@@ -700,6 +729,23 @@ public sealed class HardwareAbstractionLayer : IDisposable
     private void RefreshGpu()
     {
         if ((DateTime.UtcNow - _sgGpuTime).TotalSeconds < 2) return;
+        lock (_sgGpuLock)
+        {
+            if (_sgGpuBusy) return;
+            if ((DateTime.UtcNow - _sgGpuTime).TotalSeconds < 2) return;
+            _sgGpuBusy = true;
+        }
+        // nvidia-smi 采集放后台：单次 0.3~3s，放读取路径会拖慢遥测循环
+        _ = Task.Run(() =>
+        {
+            try { RefreshGpuCore(); }
+            finally { lock (_sgGpuLock) _sgGpuBusy = false; }
+        });
+    }
+
+    /// <summary>GPU 统计采集（实际执行体，耗时较长，由 RefreshGpu 放到后台线程调用）</summary>
+    private void RefreshGpuCore()
+    {
         try
         {
             using var p = new Process
@@ -739,6 +785,23 @@ public sealed class HardwareAbstractionLayer : IDisposable
     private void RefreshMem()
     {
         if ((DateTime.UtcNow - _sgMemTime).TotalSeconds < 2) return;
+        lock (_sgMemLock)
+        {
+            if (_sgMemBusy) return;
+            if ((DateTime.UtcNow - _sgMemTime).TotalSeconds < 2) return;
+            _sgMemBusy = true;
+        }
+        // PowerShell + CIM 采集放后台：冷启动可达 1~3s
+        _ = Task.Run(() =>
+        {
+            try { RefreshMemCore(); }
+            finally { lock (_sgMemLock) _sgMemBusy = false; }
+        });
+    }
+
+    /// <summary>内存信息采集（实际执行体，耗时较长，由 RefreshMem 放到后台线程调用）</summary>
+    private void RefreshMemCore()
+    {
         try
         {
             var psi = new ProcessStartInfo("powershell",
@@ -770,6 +833,23 @@ public sealed class HardwareAbstractionLayer : IDisposable
     private void RefreshDisk()
     {
         if ((DateTime.UtcNow - _sgDiskTime).TotalSeconds < 5) return;
+        lock (_sgDiskLock)
+        {
+            if (_sgDiskBusy) return;
+            if ((DateTime.UtcNow - _sgDiskTime).TotalSeconds < 5) return;
+            _sgDiskBusy = true;
+        }
+        // 采集放后台：Get-Disk + WMI ASSOCIATORS 冷启动可达 5~15s
+        _ = Task.Run(() =>
+        {
+            try { RefreshDiskCore(); }
+            finally { lock (_sgDiskLock) _sgDiskBusy = false; }
+        });
+    }
+
+    /// <summary>磁盘容量采集（实际执行体，耗时较长，由 RefreshDisk 放到后台线程调用）</summary>
+    private void RefreshDiskCore()
+    {
         try
         {
             long total = 0, used = 0;
