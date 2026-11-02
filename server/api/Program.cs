@@ -624,8 +624,8 @@ _ = System.Threading.Tasks.Task.Run(() =>
                 continue;
             }
 
-            // 读取固件当前 GPU mode
-            byte firmware = wmiStartup.GetGpuMode();
+            // 读取固件当前 GPU mode（必须实时值，走 Fresh 绕过缓存）
+            byte firmware = wmiStartup.GetGpuModeFresh();
             Log($"[Startup] Firmware GPU mode={firmware}, saved={( hasSaved ? mode.ToString() : "none" )}");
 
             // 有存档且有效 → 恢复到存档值（尊重用户选择，包括 iGPU-only）
@@ -644,7 +644,7 @@ _ = System.Threading.Tasks.Task.Run(() =>
                     System.Threading.Thread.Sleep(2000);
                     continue;
                 }
-                byte current = wmiStartup.GetGpuMode();
+                byte current = wmiStartup.GetGpuModeFresh();
                 if (current == mode)
                 {
                     Log($"[Startup] GPU mode restored to {mode} (verified)");
