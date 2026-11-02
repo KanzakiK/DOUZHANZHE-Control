@@ -638,32 +638,50 @@ public sealed class HardwareAbstractionLayer : IDisposable
         {
             // ProcessorInformation 需要按处理器数量精确分配缓冲区（每个逻辑处理器一份结构），
             // 尺寸不符会返回 STATUS_INVALID_PARAMETER(0xC000000D)。
-            // 用 GetActiveProcessorCount(ALL_PROCESSOR_GROUPS) 取真实值，
-            // Environment.ProcessorCount 受进程亲和性/组影响可能偏小。
-            int maxProcs = GetActiveProcessorCountSafe();
+            // 不同 Windows 版本/处理器组布局对"处理器数量"的取法不一致，这里多试几档。
+            int cands = 0;
+            foreach (var n in new[] { GetActiveProcessorCountSafe(), GetActiveProcessorCountSafe() + 1, Environment.ProcessorCount, 8, 16, 32, 64 })
+            {
+                if (n <= 0) continue;
+                cands++;
+                var (ok, ghz) = TryCallNtPower(ProcessorInformationLevel, n);
+                if (ok && ghz > 0)
+                {
+                    if (cands > 1) AppLog.Write("HAL", $"CallNtPowerInformation 命中：level=1 处理器数={n} → {ghz:F2} GHz");
+                    return ghz;
+                }
+                if (cands == 1) AppLog.Write("HAL", "CallNtPowerInformation(level=1) 失败，尝试其它尺寸");
+            }
+        }
+        catch { }
+        return 0;
+    }
+
+    /// <summary>按给定的处理器数量调用 CallNtPowerInformation，返回 (成功, GHz)。</summary>
+    private static (bool ok, float ghz) TryCallNtPower(int level, int procCount)
+    {
+        try
+        {
             int structSize = Marshal.SizeOf<ProcessorPowerInfo>();
-            int size = structSize * maxProcs;
+            int size = structSize * procCount;
             IntPtr buf = Marshal.AllocHGlobal(size);
             try
             {
-                if (CallNtPowerInformation(ProcessorInformationLevel, size, IntPtr.Zero, 0, buf, size) == 0)
+                if (CallNtPowerInformation(level, size, IntPtr.Zero, 0, buf, size) == 0)
                 {
-                    float best = 0;
-                    for (int i = 0; i < maxProcs; i++)
+                    for (int i = 0; i < procCount; i++)
                     {
                         var r = Marshal.PtrToStructure<ProcessorPowerInfo>(buf + i * structSize);
                         // CurrentMhz 偶尔为 0（低功耗态），退用 MaxMhz（标称频率）
                         uint mhz = r.CurrentMhz > 0 ? r.CurrentMhz : r.MaxMhz;
-                        if (mhz > 0) { best = mhz / 1000f; break; }
+                        if (mhz > 0) return (true, mhz / 1000f);
                     }
-                    if (best > 0) return best;
                 }
-                // 调用失败（如缓冲区尺寸与系统不匹配）→ 静默退回调用方兜底值
             }
             finally { Marshal.FreeHGlobal(buf); }
         }
         catch { }
-        return 0;
+        return (false, 0f);
     }
 
     private float GetCpuFreqDirect()
