@@ -617,18 +617,48 @@ public sealed class HardwareAbstractionLayer : IDisposable
         try { return GetCpuStatic().Item2; } catch { return 0; }
     }
 
+    /// <summary>
+    /// 查找"处理器信息"计数器集中的目标计数器。
+    /// ★ 不能硬编码英文名：Windows 性能计数器名是本地化的，
+    ///   .NET 的 PerformanceCounter 用英文名在本机会取不到值（恒 0），
+    ///   而 Get-Counter 却能取到 —— 必须用 .NET 枚举出本地化名称再复用。
+    /// </summary>
+    private static PerformanceCounter? FindCpuCounter(string keywordEn, string keywordZh)
+    {
+        try
+        {
+            foreach (var cat in PerformanceCounterCategory.GetCategories())
+            {
+                var cn = cat.CategoryName;
+                if (!cn.Contains("Processor Information") && !cn.Contains("处理器信息")
+                    && !cn.Contains("处理器") && !cn.Contains("Processor")) continue;
+                PerformanceCounter[] counters;
+                try { counters = cat.GetCounters(); } catch { continue; }
+                foreach (var c in counters)
+                {
+                    var n = c.CounterName;
+                    if (n.Contains(keywordEn) || n.Contains(keywordZh)) return c;
+                }
+            }
+        }
+        catch { }
+        return null;
+    }
+
     private float GetCpuFreqDirect()
     {
         try
         {
-            // 首选 "Processor Frequency" 计数器：直接给 Hz，无需基频换算
+            // 首选"处理器频率"（直接给当前频率，无需基频换算）
             if (_cpuFreqHzCounter == null)
             {
-                _cpuFreqHzCounter = new PerformanceCounter("Processor Information", "Processor Frequency", "_Total");
+                _cpuFreqHzCounter = FindCpuCounter("Processor Frequency", "处理器频率");
+                if (_cpuFreqHzCounter == null)
+                    _cpuFreqHzCounter = new PerformanceCounter("Processor Information", "Processor Frequency", "_Total");
                 _cpuFreqHzCounter.NextValue(); // 建立基线
                 Thread.Sleep(1000);           // 等一个采样间隔
-            }            // "Processor Frequency" 的 CookedValue 需要基线之后再采 2 个样本才有值，
-            // 只采 1 个会一直是 0 → 频率长期显示兜底值。这里最多连采 4 次（每次间隔 1s）。
+            }
+            // CookedValue 需要基线之后再采 2 个样本才有值，最多连采 4 次
             double ghz = 0;
             for (int i = 0; i < 4 && ghz <= 0; i++)
             {
@@ -639,7 +669,7 @@ public sealed class HardwareAbstractionLayer : IDisposable
             if (!_cpuFreqDiagLogged)
             {
                 _cpuFreqDiagLogged = true;
-                try { File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "cpu-freq-diag.txt"), $"raw/ghz={ghz:F3}\n"); } catch { }
+                try { File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "cpu-freq-diag.txt"), $"频率计数器 ghz={ghz:F3}\n"); } catch { }
             }
             if (ghz > 0.2 && ghz < 10)
             {
@@ -648,10 +678,12 @@ public sealed class HardwareAbstractionLayer : IDisposable
                 return _cpuFreqCache;
             }
 
-            // 回退："% Processor Performance" 比例值 × 标称基频
+            // 回退："% 处理器性能" 比例值 × 标称基频
             if (_cpuFreqCounter == null)
             {
-                _cpuFreqCounter = new PerformanceCounter("Processor Information", "% Processor Performance", "_Total");
+                _cpuFreqCounter = FindCpuCounter("% Processor Performance", "处理器性能");
+                if (_cpuFreqCounter == null)
+                    _cpuFreqCounter = new PerformanceCounter("Processor Information", "% Processor Performance", "_Total");
                 _cpuFreqCounter.NextValue();
                 Thread.Sleep(1000);
             }
@@ -664,7 +696,7 @@ public sealed class HardwareAbstractionLayer : IDisposable
                     baseMhz = GetCpuBaseFreqMHz();
                     if (baseMhz > 0) Volatile.Write(ref _cpuBaseFreqMhz, baseMhz);
                 }
-                if (baseMhz <= 0) baseMhz = 4400;  // 最终兜底（8940HX 标称基频量级）
+                if (baseMhz <= 0) baseMhz = 2400;  // 最终兜底（本机基频量级）
 
                 _cpuBaseFreqGhz = baseMhz / 1000f;
                 _cpuFreqCache = (float)(_cpuBaseFreqGhz * (pct / 100.0));
