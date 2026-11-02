@@ -673,9 +673,16 @@ public sealed class HardwareAbstractionLayer : IDisposable
                     for (int i = 0; i < maxProcs; i++)
                     {
                         var r = Marshal.PtrToStructure<ProcessorPowerInfo>(buf + i * structSize);
-                        if (r.CurrentMhz > 0) { best = r.CurrentMhz / 1000f; break; }
+                        // CurrentMhz 偶尔为 0（低功耗态），退用 MaxMhz（标称频率）
+                        uint mhz = r.CurrentMhz > 0 ? r.CurrentMhz : r.MaxMhz;
+                        if (mhz > 0) { best = mhz / 1000f; break; }
                     }
                     if (best > 0) return best;
+                    AppLog.Write("HAL", "CallNtPowerInformation 未返回有效频率（CurrentMhz/MaxMhz 均为 0）");
+                }
+                else
+                {
+                    AppLog.Write("HAL", $"CallNtPowerInformation 调用失败，状态码 0x{CallNtPowerInformation(ProcessorInformationLevel, size, IntPtr.Zero, 0, buf, size):X8}");
                 }
             }
             finally { Marshal.FreeHGlobal(buf); }
