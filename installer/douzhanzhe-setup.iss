@@ -224,44 +224,17 @@ end;
 // ----------------------------------------------------------
 function CreateAutoStartTask(): Boolean;
 var
-  XmlPath: String;
-  AppPath: String;
-  TaskXml: String;
+  HelperPath: String;
   ResultCode: Integer;
 begin
   Result := False;
-  AppPath := ExpandConstant('{app}\{#MyAppExeName}');
-  XmlPath := ExpandConstant('{tmp}\douzhanzhe_task.xml');
-
-  // 构建 Task Scheduler XML（双单引号 '' 在 Pascal 字符串中表示一个单引号）
-  TaskXml := '<?xml version="1.0" encoding="UTF-16"?>' + #13#10 +
-    '<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">' + #13#10 +
-    '  <Triggers>' + #13#10 +
-    '    <LogonTrigger><Enabled>true</Enabled></LogonTrigger>' + #13#10 +
-    '  </Triggers>' + #13#10 +
-    '  <Settings>' + #13#10 +
-    '    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>' + #13#10 +
-    '    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>' + #13#10 +
-    '    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>' + #13#10 +
-    '  </Settings>' + #13#10 +
-    '  <Actions Context="Author">' + #13#10 +
-    '    <Exec>' + #13#10 +
-    '      <Command>"' + AppPath + '"</Command>' + #13#10 +
-    '      <Arguments>--minimized</Arguments>' + #13#10 +
-    '    </Exec>' + #13#10 +
-    '  </Actions>' + #13#10 +
-    '  <Principals>' + #13#10 +
-    '    <Principal>' + #13#10 +
-    '      <RunLevel>HighestAvailable</RunLevel>' + #13#10 +
-    '    </Principal>' + #13#10 +
-    '  </Principals>' + #13#10 +
-    '</Task>';
-
-  if SaveStringToFile(XmlPath, TaskXml, False) then
+  // 用本应用自己的 API（WinExe，无控制台窗口）创建开机自启任务，
+  // 等价于原先 schtasks /XML 的做法，但不再闪控制台窗口
+  HelperPath := ExpandConstant('{app}\{#MyAppApiExeName}');
+  if FileExists(HelperPath) then
   begin
-    if Exec('schtasks', '/Create /TN "DouzhanzheControl" /XML "' + XmlPath + '" /F', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+    if Exec(HelperPath, '--autostart', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
       Result := (ResultCode = 0);
-    DeleteFile(XmlPath);
   end;
 end;
 
@@ -276,15 +249,15 @@ var
   StartupLink: String;
   WebView2Dir: String;
 begin
-  // 安装前：先关闭正在运行的程序 + 卸载内核驱动（覆盖安装时防止文件被锁）
+  // 安装前：结束正在运行的旧实例 + 清理旧驱动/旧任务/遗留 WebView2
+  // （覆盖安装时防止 exe 文件被锁）
+  // 全部交给本应用自己的 API 以 --maintenance 模式一次做完：
+  // 它是 WinExe（无控制台窗口），内部用 API 直接结束进程/停服务/删任务，
+  // 不再调 taskkill / sc / schtasks / cmd —— 安装时不会再闪控制台黑框。
   if CurStep = ssInstall then
   begin
-    Exec('taskkill', '/f /im {#MyAppExeName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-    Exec('taskkill', '/f /im {#MyAppApiExeName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-    // WinRing0x64.sys 是内核驱动，进程退出后驱动服务仍在运行，必须停止服务才能释放文件
-    Exec('sc', 'stop WinRing0_1_2_0', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-    Exec('sc', 'delete WinRing0_1_2_0', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-    Sleep(1000);
+    Exec(ExpandConstant('{app}\{#MyAppApiExeName}'), '--maintenance', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Sleep(500);
 
     // 清理旧的前端 JS bundle（覆盖安装时 Vite hash 文件名变化，旧 bundle 不会被删除，
     // 导致后端版本号检测用 FirstOrDefault 取到旧版本，从而误报更新）
@@ -321,8 +294,7 @@ begin
     if FileExists(StartupLink) then
       DeleteFile(StartupLink);
 
-    // 先删除已有计划任务（升级场景）
-    Exec('schtasks', '/Delete /TN "DouzhanzheControl" /F', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    // 先删除已有计划任务（升级场景）—— 由 --maintenance 模式在安装前统一处理，无需再调 schtasks
 
     if WizardIsTaskSelected('autostart') then
     begin
@@ -355,18 +327,10 @@ var
   ResultCode: Integer;
 begin
   Result := True;
-  Exec('taskkill', '/f /im {#MyAppExeName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-  Exec('taskkill', '/f /im {#MyAppApiExeName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  // 关闭正在运行的程序 + 停止驱动服务 + 删除计划任务 + 清理遗留 WebView2
+  // 统一交给本应用自己的 API（WinExe，无控制台窗口）：卸载时不再闪黑框
+  Exec(ExpandConstant('{app}\{#MyAppApiExeName}'), '--maintenance', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Sleep(500);
-
-  // 停止 WinRing0x64 内核驱动服务（否则 .sys 文件被锁定无法删除）
-  Exec('sc', 'stop WinRing0_1_2_0', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-  Exec('sc', 'delete WinRing0_1_2_0', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-
-  // 删除开机自启计划任务
-  Exec('schtasks', '/Delete /TN "DouzhanzheControl" /F', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-
-  Sleep(300);
 end;
 
 // ----------------------------------------------------------
@@ -418,14 +382,9 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 ; 安装 PawnIO 内核驱动（静默，不重启）
 Filename: "{app}\PawnIO_setup.exe"; Parameters: "-install -silent"; \
   StatusMsg: "正在安装 PawnIO 内核驱动..."; Flags: runascurrentuser; Check: IsAdminLoggedOn
-; 清理旧版驱动（已由 PawnIO 替代）
-Filename: "{sys}\sc.exe"; Parameters: "stop inpoutx64"; Flags: runascurrentuser skipifsilent; Check: IsAdminLoggedOn
-Filename: "{sys}\sc.exe"; Parameters: "delete inpoutx64"; Flags: runascurrentuser skipifsilent; Check: IsAdminLoggedOn
-Filename: "{sys}\sc.exe"; Parameters: "stop WinRing0_1_2_0"; Flags: runascurrentuser skipifsilent; Check: IsAdminLoggedOn
-Filename: "{sys}\sc.exe"; Parameters: "delete WinRing0_1_2_0"; Flags: runascurrentuser skipifsilent; Check: IsAdminLoggedOn
-Filename: "{sys}\cmd.exe"; Parameters: "/c del /q ""{app}\inpoutx64.dll"" 2>nul"; Flags: runascurrentuser skipifsilent; Check: IsAdminLoggedOn
-Filename: "{sys}\cmd.exe"; Parameters: "/c del /q ""{app}\WinRing0x64.*"" 2>nul"; Flags: runascurrentuser skipifsilent; Check: IsAdminLoggedOn
-Filename: "{sys}\cmd.exe"; Parameters: "/c del /q ""{app}\ryzenadj.exe"" 2>nul"; Flags: runascurrentuser skipifsilent; Check: IsAdminLoggedOn
+; 旧版驱动服务/文件、旧开机自启任务、遗留 WebView2 的清理
+; 已在安装前由 {app}\Douzhanzhe.API.exe --maintenance 静默完成（无控制台窗口闪现），
+; 故此处不再调用 sc.exe / cmd.exe。
 ; 安装完成后启动程序（继承安装程序的管理员权限，避免双重 UAC 弹窗）
 Filename: "{app}\{#MyAppExeName}"; Description: "启动 {#MyAppName}"; \
   Flags: nowait postinstall skipifsilent runascurrentuser
