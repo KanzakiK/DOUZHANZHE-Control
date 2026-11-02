@@ -594,6 +594,7 @@ public sealed class HardwareAbstractionLayer : IDisposable
     private float _cpuFreqCache;
     private DateTime _cpuFreqTime = DateTime.MinValue;
     private PerformanceCounter? _cpuFreqCounter;
+    private bool _cpuFreqDiagLogged;
     private float _cpuBaseFreqGhz;
     private int _cpuBaseFreqMhz;              // 标称基频（过渡显示 + 换算比例用）
     private readonly object _cpuFreqLock = new();
@@ -632,27 +633,29 @@ public sealed class HardwareAbstractionLayer : IDisposable
     {
         try
         {
-            // 首选 .NET 性能计数器（2 参构造用默认实例 _Total）。
-            // 注意：本机 .NET 的 PerformanceCounter 取 "% Processor Performance" 恒为 0，
-            // 而系统的 Get-Counter 却能取到（131%）→ 失败时走 PowerShell Get-Counter 兜底。
+            // 3 参构造 + "_Total" 实例（已被证明在本机可取到有效比例值）
             if (_cpuFreqCounter == null)
             {
-                _cpuFreqCounter = new PerformanceCounter("Processor Information", "% Processor Performance");
-                _cpuFreqCounter.NextValue(); // 建立基线
-                Thread.Sleep(1000);          // CookedValue 需基线之后再采样本，否则为 0
+                _cpuFreqCounter = new PerformanceCounter("Processor Information", "% Processor Performance", "_Total");
+                _cpuFreqCounter.NextValue(); // 首次调用返回 0，用于建立基线
             }
             var pct = _cpuFreqCounter.NextValue();
-            if (pct <= 0) pct = GetCpuPerfRatioViaPowerShell();
-
+            if (!_cpuFreqDiagLogged)
+            {
+                _cpuFreqDiagLogged = true;
+                try { File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "cpu-freq-diag.txt"), $"pct={pct:F2}\n"); } catch { }
+            }
             if (pct > 0)
             {
+                // 基频：进程内 WMI 静态信息缓存（Win32_Processor.MaxClockSpeed，本机 2401）。
+                // 原先这里另起 PowerShell 取，实测在 WMI 被占用时要 15.8s 必然超时 → 退回 2.4 兜底。
                 var baseMhz = Volatile.Read(ref _cpuBaseFreqMhz);
                 if (baseMhz <= 0)
                 {
                     baseMhz = GetCpuBaseFreqMHz();
                     if (baseMhz > 0) Volatile.Write(ref _cpuBaseFreqMhz, baseMhz);
                 }
-                if (baseMhz <= 0) baseMhz = 2400;  // 最终兜底（本机 Win32_Processor.MaxClockSpeed = 2401）
+                if (baseMhz <= 0) baseMhz = 2400;
 
                 _cpuBaseFreqGhz = baseMhz / 1000f;
                 _cpuFreqCache = (float)(_cpuBaseFreqGhz * (pct / 100.0));
@@ -660,41 +663,15 @@ public sealed class HardwareAbstractionLayer : IDisposable
                 return _cpuFreqCache;
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // 计数器暂时不可用时保留它（不要 Dispose 后重建），下次继续读
+            if (!_cpuFreqDiagLogged)
+            {
+                _cpuFreqDiagLogged = true;
+                try { File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "cpu-freq-diag.txt"), $"异常: {ex.GetType().Name}: {ex.Message}\n"); } catch { }
+            }
         }
         return _cpuFreqCache > 0 ? _cpuFreqCache : 2.4f;
-    }
-
-    /// <summary>
-    /// 通过系统 Get-Counter 取"当前频率/基频"的百分比。
-    /// 本机实测 .NET 的 PerformanceCounter 取该计数器恒为 0，而 Get-Counter 正常（131%），
-    /// 故用 PowerShell 调 Get-Counter 作为兜底（后台线程执行，不阻塞遥测循环）。
-    /// </summary>
-    private static float GetCpuPerfRatioViaPowerShell()
-    {
-        try
-        {
-            using var proc = new Process
-            {
-                StartInfo = new ProcessStartInfo("powershell",
-                    "-NoProfile -Command \"(Get-Counter '\\Processor Information(_Total)\\% Processor Performance').CounterSamples[0].CookedValue\"")
-                {
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    CreateNoWindow = true
-                }
-            };
-            proc.Start();
-            if (!proc.WaitForExit(8000)) { proc.Kill(); return 0f; }
-            var line = proc.StandardOutput.ReadToEnd().Trim();
-            if (float.TryParse(line, System.Globalization.NumberStyles.Float,
-                              System.Globalization.CultureInfo.InvariantCulture, out var pct))
-                return pct;
-        }
-        catch { }
-        return 0f;
     }
 
     public int CpuCores => Environment.ProcessorCount;
