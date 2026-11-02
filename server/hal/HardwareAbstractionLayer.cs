@@ -632,14 +632,18 @@ public sealed class HardwareAbstractionLayer : IDisposable
     {
         try
         {
-            // "% Processor Performance" = 当前频率 / 基频 的百分比（英文名在本机可用，已验证）
+            // 首选 .NET 性能计数器（2 参构造用默认实例 _Total）。
+            // 注意：本机 .NET 的 PerformanceCounter 取 "% Processor Performance" 恒为 0，
+            // 而系统的 Get-Counter 却能取到（131%）→ 失败时走 PowerShell Get-Counter 兜底。
             if (_cpuFreqCounter == null)
             {
-                _cpuFreqCounter = new PerformanceCounter("Processor Information", "% Processor Performance", "_Total");
+                _cpuFreqCounter = new PerformanceCounter("Processor Information", "% Processor Performance");
                 _cpuFreqCounter.NextValue(); // 建立基线
                 Thread.Sleep(1000);          // CookedValue 需基线之后再采样本，否则为 0
             }
             var pct = _cpuFreqCounter.NextValue();
+            if (pct <= 0) pct = GetCpuPerfRatioViaPowerShell();
+
             if (pct > 0)
             {
                 var baseMhz = Volatile.Read(ref _cpuBaseFreqMhz);
@@ -661,6 +665,36 @@ public sealed class HardwareAbstractionLayer : IDisposable
             // 计数器暂时不可用时保留它（不要 Dispose 后重建），下次继续读
         }
         return _cpuFreqCache > 0 ? _cpuFreqCache : 2.4f;
+    }
+
+    /// <summary>
+    /// 通过系统 Get-Counter 取"当前频率/基频"的百分比。
+    /// 本机实测 .NET 的 PerformanceCounter 取该计数器恒为 0，而 Get-Counter 正常（131%），
+    /// 故用 PowerShell 调 Get-Counter 作为兜底（后台线程执行，不阻塞遥测循环）。
+    /// </summary>
+    private static float GetCpuPerfRatioViaPowerShell()
+    {
+        try
+        {
+            using var proc = new Process
+            {
+                StartInfo = new ProcessStartInfo("powershell",
+                    "-NoProfile -Command \"(Get-Counter '\\Processor Information(_Total)\\% Processor Performance').CounterSamples[0].CookedValue\"")
+                {
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    CreateNoWindow = true
+                }
+            };
+            proc.Start();
+            if (!proc.WaitForExit(8000)) { proc.Kill(); return 0f; }
+            var line = proc.StandardOutput.ReadToEnd().Trim();
+            if (float.TryParse(line, System.Globalization.NumberStyles.Float,
+                              System.Globalization.CultureInfo.InvariantCulture, out var pct))
+                return pct;
+        }
+        catch { }
+        return 0f;
     }
 
     public int CpuCores => Environment.ProcessorCount;
