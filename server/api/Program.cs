@@ -31,7 +31,16 @@ var _logDir = Path.Combine(
 // 开发实例与正式版分文件写（app-dev.log / app.log），避免两边日志互相覆盖
 AppLog.Init(_logDir, Douzhanzhe.Shared.InstanceIdentity.LogSuffix);
 
-// ---- 开发实例与正式版互斥检测 ----
+// 安装/升级期的静默维护模式（--maintenance / --autostart）：
+// 结束旧实例、清理遗留 WebView2、停删旧驱动服务与旧计划任务。
+// 全部在进程内完成，安装器无需再调 taskkill/sc/schtasks/cmd，因而不闪任何控制台窗口。
+//
+// ★ 必须先于下面的互斥检测处理：它的职责恰恰是"清理占着 3100 的正式版"。
+//   若先做互斥检测，正式版在跑时维护助手会自己先退出 → 安装时的静默清理完全失效
+//   （日志里一条 [Maintenance] 记录都没有）。
+if (MaintenanceMode.TryRun(args)) return;
+
+// 开发实例与正式版互斥检测
 // 正式版固定监听 3100；开发实例（3101）与正式版会争抢同一套硬件
 //（EC/SMU 写、风扇控制、PawnIO）和 WMI 服务，必须互斥。
 // 这里由代码自己检测并拒绝启动，而不是靠人工去关正式版。
@@ -48,11 +57,6 @@ if (!Douzhanzhe.Shared.InstanceIdentity.IsInstalled)
         return;
     }
 }
-
-// 安装/升级期的静默维护模式（--maintenance）：
-// 结束旧实例、清理遗留 WebView2、停删旧驱动服务与旧计划任务。
-// 全部在进程内完成，安装器无需再调 taskkill/sc/schtasks/cmd，因而不闪任何控制台窗口。
-if (MaintenanceMode.TryRun(args)) return;
 
 // 启动耗时基准：用于诊断"端口 3100 何时可用"
 // （此前 ProcessMonitorService 构造函数里同步建立 WMI 订阅，把就绪拖到 ~20s）
