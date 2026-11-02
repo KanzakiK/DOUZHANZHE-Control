@@ -26,13 +26,16 @@ public static class AppLog
     /// 初始化日志目录。必须在所有 AppLog.Write 之前调用。
     /// 建议位置: Program.cs 启动流程最前面（服务注册之前）。
     /// </summary>
-    public static void Init(string logDir)
+    /// <param name="logDir">日志目录</param>
+    /// <param name="fileSuffix">日志文件名后缀。正式安装版传空（app.log）；
+    /// 开发实例传 "-dev"（app-dev.log）—— 开发/正式必须分文件写，否则两边日志互相覆盖。</param>
+    public static void Init(string logDir, string fileSuffix = "")
     {
         lock (_lock)
         {
             _logDir = logDir;
             Directory.CreateDirectory(logDir);
-            _logFile = Path.Combine(logDir, "app.log");
+            _logFile = Path.Combine(logDir, $"app{fileSuffix}.log");
             _size = File.Exists(_logFile) ? new FileInfo(_logFile).Length : 0;
             _initialized = true;
         }

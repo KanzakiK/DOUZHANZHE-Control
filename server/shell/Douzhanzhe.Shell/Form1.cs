@@ -520,11 +520,13 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
         catch { }
     }
 
-    // ---- 统一日志: 写入 logs/app.log，与后端 AppLog 同文件 ----
+    // ---- 统一日志: 与后端 AppLog 同目录、按实例隔离 ----
+    // 正式安装版写 app.log；开发实例写 app-dev.log（不与正式版抢同一个文件）。
     private static readonly string _logDir = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "Douzhanzhe Console", "logs");
-    private static readonly string _appLogPath = Path.Combine(_logDir, "app.log");
+    private static readonly string _appLogPath =
+        Douzhanzhe.Shared.InstanceIdentity.LogFilePath(_logDir);
 
     internal static void AppLog(string tag, string msg)
     {
@@ -698,7 +700,18 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
 
     private void StartApiIfNotRunning()
     {
-        if (IsPortListening(3100)) return;
+        if (IsPortListening(3100))
+        {
+            // 3100 已被占用：只有"正式安装目录下的那个 API"才是我们自己的后端，可以复用；
+            // 若是开发实例占了 3100，正式版直接复用会连到开发后端上（行为/配置都不对）→ 拒绝启动。
+            var owner = Douzhanzhe.Shared.InstanceIdentity.GetPortOwnerExePath(3100);
+            if (owner != null && !Douzhanzhe.Shared.InstanceIdentity.IsInstalledPath(owner))
+            {
+                AppLog("API-Startup", $"ERROR: 端口 3100 被非正式安装目录的 API 占用（{owner}）。" +
+                                     "正式版不能复用开发实例的后端，请先关闭开发实例。");
+            }
+            return;
+        }
 
         var baseDir = AppContext.BaseDirectory;
         var apiExe = Path.Combine(baseDir, "Douzhanzhe.API.exe");

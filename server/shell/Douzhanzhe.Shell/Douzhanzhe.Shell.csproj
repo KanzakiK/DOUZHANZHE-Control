@@ -18,4 +18,9 @@
     <PackageReference Include="System.Management" Version="*" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- 共用：区分正式安装版 / 开发实例（日志隔离、互斥检测） -->
+    <Compile Include="..\shared\InstanceIdentity.cs" Link="InstanceIdentity.cs" />
+  </ItemGroup>
+
 </Project>

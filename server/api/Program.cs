@@ -28,7 +28,26 @@ Lazy<IntelPowerController?> _intelSmu = new(() =>
 var _logDir = Path.Combine(
     Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
     "Douzhanzhe Console", "logs");
-AppLog.Init(_logDir);
+// 开发实例与正式版分文件写（app-dev.log / app.log），避免两边日志互相覆盖
+AppLog.Init(_logDir, Douzhanzhe.Shared.InstanceIdentity.LogSuffix);
+
+// ---- 开发实例与正式版互斥检测 ----
+// 正式版固定监听 3100；开发实例（3101）与正式版会争抢同一套硬件
+//（EC/SMU 写、风扇控制、PawnIO）和 WMI 服务，必须互斥。
+// 这里由代码自己检测并拒绝启动，而不是靠人工去关正式版。
+if (!Douzhanzhe.Shared.InstanceIdentity.IsInstalled)
+{
+    var installedRunning = Douzhanzhe.Shared.InstanceIdentity.IsPortInUse(3100);
+    if (installedRunning)
+    {
+        var msg = "检测到正式安装版后端正在运行（端口 3100 被占用）。" +
+                  "开发实例与正式版会争抢同一套硬件（EC/SMU 写、风扇控制）与 WMI 服务，" +
+                  "请先退出正式版（托盘图标 → 退出）再启动开发实例。";
+        AppLog.Write("Startup", msg);
+        Console.Error.WriteLine(msg);
+        return;
+    }
+}
 
 // 安装/升级期的静默维护模式（--maintenance）：
 // 结束旧实例、清理遗留 WebView2、停删旧驱动服务与旧计划任务。
