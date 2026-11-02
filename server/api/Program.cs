@@ -30,6 +30,11 @@ var _logDir = Path.Combine(
     "Douzhanzhe Console", "logs");
 AppLog.Init(_logDir);
 
+// 安装/升级期的静默维护模式（--maintenance）：
+// 结束旧实例、清理遗留 WebView2、停删旧驱动服务与旧计划任务。
+// 全部在进程内完成，安装器无需再调 taskkill/sc/schtasks/cmd，因而不闪任何控制台窗口。
+if (MaintenanceMode.TryRun(args)) return;
+
 // 启动耗时基准：用于诊断"端口 3100 何时可用"
 // （此前 ProcessMonitorService 构造函数里同步建立 WMI 订阅，把就绪拖到 ~20s）
 var _procStartUtc = DateTime.UtcNow;

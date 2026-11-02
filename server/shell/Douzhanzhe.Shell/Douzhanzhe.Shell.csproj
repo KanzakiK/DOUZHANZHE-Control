@@ -14,6 +14,8 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3967.48" />
     <PackageReference Include="TaskScheduler" Version="2.11.0" />
+    <!-- 用于按命令行精确识别并清理本应用遗留的 WebView2 渲染进程 -->
+    <PackageReference Include="System.Management" Version="*" />
   </ItemGroup>
 
 </Project>

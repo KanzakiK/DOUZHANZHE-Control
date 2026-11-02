@@ -1,0 +1,253 @@
+// SPDX-License-Identifier: MIT
+//
+// MaintenanceMode — 安装/升级期的静默维护模式
+// ===================================================
+// 由安装器调用：Douzhanzhe.API.exe --maintenance
+//
+// 目的：原先安装器里散落着 taskkill / sc / schtasks / cmd 六处外部命令，
+//       每个都会弹一个一闪而过的控制台窗口（实测安装时闪 6 个）。
+//       这里把清理逻辑全部收进本程序内部直接完成：
+//         - 结束旧 Shell / 旧 API 实例（Shell.exe 被占用会导致覆盖安装失败）
+//         - 结束本应用遗留的孤儿 WebView2 渲染进程
+//         - 停止并删除旧版内核驱动服务（inpoutx64 / WinRing0_1_2_0）
+//         - 删除旧版驱动文件
+//         - 删除旧版开机自启计划任务
+//       子进程一律用 CreateNoWindow 启动，全程无任何窗口闪现。
+
+using System.Diagnostics;
+using System.Management;
+using Douzhanzhe.HAL;
+using Microsoft.Win32.TaskScheduler;
+
+namespace Douzhanzhe.API;
+
+public static class MaintenanceMode
+{
+    private const string TaskName = "DouzhanzheControl";
+    private const string WebView2UserDataMarker = "Douzhanzhe Console";
+
+    private static readonly string[] LegacyServices = { "inpoutx64", "WinRing0_1_2_0" };
+
+    private static readonly string[] LegacyFiles =
+    {
+        "inpoutx64.dll", "WinRing0x64.dll", "WinRing0x64.sys",
+        "WinRing0x64.cat", "ryzenadj.exe"
+    };
+
+    /// <summary>命令行含 --maintenance 时执行维护并返回 true（调用方据此直接退出）。</summary>
+    public static bool TryRun(string[] args)
+    {
+        bool maintenance = args.Any(a => a.Equals("--maintenance", StringComparison.OrdinalIgnoreCase));
+        bool autostart = args.Any(a => a.Equals("--autostart", StringComparison.OrdinalIgnoreCase));
+        if (!maintenance && !autostart) return false;
+
+        try
+        {
+            if (maintenance) Run();
+            if (autostart) CreateAutoStartTask();
+        }
+        catch (Exception ex) { AppLog.Write("Maintenance", $"执行失败: {ex.GetType().Name}: {ex.Message}"); }
+        return true;
+    }
+
+    private static void Run()
+    {
+        var appDir = AppContext.BaseDirectory;
+        AppLog.Write("Maintenance", $"开始静默维护（目录 {appDir}）");
+
+        // 1) 结束旧 Shell（不结束自身）
+        KillProcessesByName("Douzhanzhe.Shell", skipSelf: true);
+        // 2) 结束其它旧 API 实例（安装器调起的这个就是当前的）
+        KillProcessesByName("Douzhanzhe.API", skipSelf: true);
+        // 3) 结束本应用遗留的孤儿 WebView2 渲染进程
+        KillOrphanWebView2();
+        // 4) 停止并删除旧版内核驱动服务
+        StopAndDeleteLegacyServices();
+        // 5) 删除旧版驱动文件
+        DeleteLegacyFiles(appDir);
+        // 6) 删除旧版开机自启计划任务
+        DeleteScheduledTask();
+
+        AppLog.Write("Maintenance", "静默维护完成");
+    }
+
+    /// <summary>按进程名结束进程（跳过自身）。</summary>
+    private static void KillProcessesByName(string name, bool skipSelf)
+    {
+        try
+        {
+            var self = Process.GetCurrentProcess().Id;
+            var targets = Process.GetProcessesByName(name);
+            int killed = 0;
+            foreach (var p in targets)
+            {
+                try
+                {
+                    if (skipSelf && p.Id == self) continue;
+                    p.Kill();
+                    killed++;
+                    AppLog.Write("Maintenance", $"已结束进程 {name} (PID {p.Id})");
+                }
+                catch { }
+                finally { try { p.Dispose(); } catch { } }
+            }
+            if (killed > 0) WaitForExit(name, 3000);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Write("Maintenance", $"结束 {name} 失败: {ex.Message}");
+        }
+    }
+
+    private static void WaitForExit(string name, int timeoutMs)
+    {
+        var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
+        while (DateTime.UtcNow < deadline)
+        {
+            try { if (Process.GetProcessesByName(name).Length == 0) return; }
+            catch { return; }
+            Thread.Sleep(100);
+        }
+    }
+
+    /// <summary>
+    /// 结束本应用遗留的孤儿 WebView2 渲染进程。
+    /// 判定依据：命令行里含我们专属的 user-data-dir 路径（…\Douzhanzhe Console\WebView2），
+    /// 因此绝不会误伤其它应用或 Windows 自身组件的 WebView2。
+    /// </summary>
+    private static void KillOrphanWebView2()
+    {
+        try
+        {
+            using var searcher = new ManagementObjectSearcher("SELECT ProcessId, CommandLine FROM Win32_Process WHERE Name='msedgewebview2.exe'");
+            var pids = new List<int>();
+            foreach (ManagementObject obj in searcher.Get())
+            {
+                using (obj)
+                {
+                    var cmd = obj["CommandLine"]?.ToString() ?? "";
+                    if (cmd.Contains(WebView2UserDataMarker, StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (int.TryParse(obj["ProcessId"]?.ToString(), out var pid)) pids.Add(pid);
+                    }
+                }
+            }
+            foreach (var pid in pids)
+            {
+                try
+                {
+                    using var p = Process.GetProcessById(pid);
+                    p.Kill();
+                    AppLog.Write("Maintenance", $"已结束遗留 WebView2 (PID {pid})");
+                }
+                catch { }
+            }
+            if (pids.Count > 0) Thread.Sleep(500);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Write("Maintenance", $"清理遗留 WebView2 失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>停止并删除旧版内核驱动服务（用 CreateNoWindow 调用 sc.exe，全程无窗口）。</summary>
+    private static void StopAndDeleteLegacyServices()
+    {
+        foreach (var svc in LegacyServices)
+        {
+            RunSilently("sc.exe", $"stop \"{svc}\"");
+            RunSilently("sc.exe", $"delete \"{svc}\"");
+        }
+    }
+
+    private static void DeleteLegacyFiles(string appDir)
+    {
+        foreach (var f in LegacyFiles)
+        {
+            try
+            {
+                var path = Path.Combine(appDir, f);
+                if (File.Exists(path))
+                {
+                    File.Delete(path);
+                    AppLog.Write("Maintenance", $"已删除旧版文件 {f}");
+                }
+            }
+            catch { }
+        }
+    }
+
+    private static void DeleteScheduledTask()
+    {
+        try
+        {
+            using var service = new TaskService();
+            var task = service.GetTask(TaskName);
+            if (task != null)
+            {
+                service.RootFolder.DeleteTask(TaskName, false);
+                AppLog.Write("Maintenance", $"已删除旧版计划任务 {TaskName}");
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLog.Write("Maintenance", $"删除计划任务失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 创建/更新开机自启计划任务（等价于原先安装器用 schtasks /XML 做的事，
+    /// 但改走 Task Scheduler API，不再弹控制台窗口）。
+    /// </summary>
+    private static void CreateAutoStartTask()
+    {
+        try
+        {
+            var appDir = AppContext.BaseDirectory;
+            var shellExe = Path.Combine(appDir, "Douzhanzhe.Shell.exe");
+            if (!File.Exists(shellExe)) return;
+
+            using var service = new TaskService();
+            var existing = service.RootFolder.AllTasks.FirstOrDefault(t => t.Name == TaskName);
+            if (existing != null) service.RootFolder.DeleteTask(TaskName, false);
+
+            var td = service.NewTask();
+            td.Principal.RunLevel = TaskRunLevel.Highest;
+            td.Settings.DisallowStartIfOnBatteries = false;
+            td.Settings.StopIfGoingOnBatteries = false;
+            td.Settings.ExecutionTimeLimit = TimeSpan.Zero;   // PT0S：避免 72h 硬终止 bug
+            td.Settings.AllowHardTerminate = true;
+            td.Settings.StartWhenAvailable = true;
+
+            td.Triggers.Add(new LogonTrigger());
+            td.Actions.Add(new ExecAction(shellExe, "--minimized", appDir));
+
+            service.RootFolder.RegisterTaskDefinition(TaskName, td);
+            AppLog.Write("Maintenance", $"已创建开机自启任务 {TaskName}（{shellExe} --minimized）");
+        }
+        catch (Exception ex)
+        {
+            AppLog.Write("Maintenance", $"创建开机自启任务失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>以无窗口方式执行一条命令（CREATE_NO_WINDOW，不闪控制台）。</summary>
+    private static void RunSilently(string file, string args)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo(file, args)
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                WindowStyle = ProcessWindowStyle.Hidden
+            };
+            using var p = Process.Start(psi);
+            if (p == null) return;
+            p.WaitForExit(5000);
+        }
+        catch { }
+    }
+}

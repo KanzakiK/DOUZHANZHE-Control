@@ -228,6 +228,11 @@ public partial class Form1 : Form
         // 仅在版本变化时清理 WebView2 磁盘缓存（防前端更新后缓存旧版本），平时启动跳过
         EnsureWebView2CachePurged(userDataDir);
 
+        // 清理上次异常退出遗留的 WebView2 渲染进程（必须在本次 WebView2 启动之前）
+        var orphanCount = OrphanCleanup.KillOrphanWebView2();
+        if (orphanCount > 0)
+            ShellLog($"已清理遗留 WebView2 进程 {orphanCount} 个");
+
         // —— 并行：WebView2 初始化 与 后端就绪探测 ——
         // 后端启动与 WebView2 冷启动重叠，避免串行堆叠挤爆 30s 就绪窗口
         var webViewTask = InitWebView2Async(userDataDir);

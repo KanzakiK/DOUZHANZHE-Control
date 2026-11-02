@@ -106,6 +106,12 @@ static class Program
         // ── 4. 创建全局单实例互斥锁 ──
         using var mutex = new Mutex(true, MutexName);
 
+        // ── 5. 子进程回收兜底 ──
+        // 把自身与后续拉起的 API / WebView2 放进 KILL_ON_JOB_CLOSE 的 Job：
+        // 无论正常退出、被 taskkill 强杀还是崩溃，系统都会连带结束这些子进程，
+        // 不再产生孤儿（WebView2 渲染进程堆积曾泄漏约 1GB 内存）。
+        ProcessJob.EnableKillOnClose();
+
         Application.Run(new Form1());
     }
 
