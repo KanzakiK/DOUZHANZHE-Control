@@ -118,6 +118,9 @@ public partial class Form1 : Form
     private System.Windows.Forms.Timer? _healthTimer;
     private bool _backendWasDown = false;
     private int _healthFailCount = 0;
+    private bool _initialApiFailed = false;   // 初始就绪失败：HealthTimer 恢复时需导航到应用
+
+    private const string AppUri = "http://127.0.0.1:3100/";
 
     private static readonly string _winStatePath = Path.Combine(AppContext.BaseDirectory, "config", "window-state.json");
 
@@ -212,65 +215,29 @@ public partial class Form1 : Form
         // 上报权限状态，API 端 /api/platform/info 优先读取该文件
         ReportElevationStatus();
 
-        // 启动后端 API（如果尚未运行）
+        // 启动后端 API（如果尚未运行）—— 非阻塞，立即返回
         StartApiIfNotRunning();
 
-        // 初始化 WebView2 — 用户数据目录放在 %LOCALAPPDATA% 下，避免 Program Files 写入权限问题
+        // 用户数据目录放在 %LOCALAPPDATA% 下，避免 Program Files 写入权限问题
         var userDataDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "Douzhanzhe Console", "WebView2");
 
-        // 启动时仅清除 HTTP/GPU/ServiceWorker 缓存（防止前端更新后缓存旧版本）
-        // 保留 Local Storage / IndexedDB — 页面路由与 UI 状态缓存（配置以后端为唯一权威源）
-        // index.html 已由后端设置 Cache-Control: no-cache，新 bundle 不会被 HTTP 缓存
-        string[] cacheDirs = { "EBWebView\\Default\\Cache", "EBWebView\\Default\\Code Cache", "EBWebView\\Default\\GPUCache",
-                               "EBWebView\\Default\\Service Worker", "EBWebView\\GrShaderCache", "EBWebView\\ShaderCache" };
-        foreach (var sub in cacheDirs)
-        {
-            try
-            {
-                var path = Path.Combine(userDataDir, sub);
-                if (Directory.Exists(path))
-                    Directory.Delete(path, true);
-            }
-            catch { /* 单个缓存目录清除失败不影响启动 */ }
-        }
+        // 仅在版本变化时清理 WebView2 磁盘缓存（防前端更新后缓存旧版本），平时启动跳过
+        EnsureWebView2CachePurged(userDataDir);
 
-        bool webViewOk = false;
-        string webViewError = "";
-        try
-        {
-            var envTask = CoreWebView2Environment.CreateAsync(null, userDataDir);
-            // 15 秒超时，防止初始化卡死
-            if (await System.Threading.Tasks.Task.WhenAny(envTask, System.Threading.Tasks.Task.Delay(15000)) == envTask)
-            {
-                var env = await envTask;
-                var initTask = _webView.EnsureCoreWebView2Async(env);
-                if (await System.Threading.Tasks.Task.WhenAny(initTask, System.Threading.Tasks.Task.Delay(15000)) == initTask)
-                {
-                    await initTask; // 传播可能的异常
-                    webViewOk = true;
-                }
-                else
-                {
-                    webViewError = "WebView2 EnsureCoreWebView2Async 超时 (15s)";
-                }
-            }
-            else
-            {
-                webViewError = "WebView2 CreateAsync 超时 (15s)";
-            }
-        }
-        catch (Exception ex)
-        {
-            webViewError = $"{ex.GetType().Name}: {ex.Message}";
-        }
+        // —— 并行：WebView2 初始化 与 后端就绪探测 ——
+        // 后端启动（约 16s）与 WebView2 冷启动（约 16s）重叠，避免串行堆叠挤爆 30s 就绪窗口
+        var webViewTask = InitWebView2Async(userDataDir);
+        var apiReadyTask = WaitForApiReadyAsync(30);
+        await Task.WhenAll(webViewTask, apiReadyTask);
+
+        bool webViewOk = webViewTask.Result;
+        bool apiReady = apiReadyTask.Result;
 
         if (!webViewOk)
         {
-            AppLog("Shell", $"WebView2 init failed: {webViewError}");
-
-            // 用 WinForms Label 显示错误
+            // WebView2 引擎不可用：显示说明标签（保持原有行为），不进入后续流程
             _webView.Dispose();
             var lbl = new Label
             {
@@ -283,71 +250,32 @@ public partial class Form1 : Form
                 Text = "界面引擎初始化失败\n\n" +
                        "请确认已安装 Microsoft Edge WebView2 Runtime：\n" +
                        "https://developer.microsoft.com/zh-cn/microsoft-edge/webview2/\n\n" +
-                       $"错误详情：{webViewError}"
+                       "可尝试删除缓存目录后重试：\n" +
+                       $"{userDataDir}"
             };
             Controls.Add(lbl);
             if (_isStartupMinimized) { WindowState = FormWindowState.Minimized; Hide(); }
             return;
         }
 
-        // 等待后端 API 就绪（最多 30 秒）
-        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(2) };
-        bool apiReady = false;
-        for (int i = 0; i < 30; i++)
-        {
-            try
-            {
-                var resp = await http.GetAsync("http://127.0.0.1:3100/");
-                if (resp.IsSuccessStatusCode)
-                {
-                    apiReady = true;
-                    break;
-                }
-            }
-            catch { }
-            await Task.Delay(1000);
-        }
-
-        if (!apiReady)
-        {
-            // 读取 API 启动日志
-            var logContent = "";
-            try
-            {
-                var logPath = _appLogPath;
-                if (File.Exists(logPath))
-                {
-                    // 只读最后 50 行，避免页面太长
-                    var lines = File.ReadAllLines(logPath);
-                    var tail = lines.Skip(Math.Max(0, lines.Length - 50));
-                    logContent = System.Net.WebUtility.HtmlEncode(string.Join("\n", tail));
-                }
-            }
-            catch { }
-
-            // API 未响应 — 显示错误页面
-            var errorHtml = $@"<!DOCTYPE html><html><head><meta charset='utf-8'><title>Error</title>
-<style>body{{background:#0d1117;color:#c9d1d9;font:16px/1.6 system-ui;padding:40px;max-width:700px;margin:0 auto}}
-h1{{color:#f85149;font-size:20px}}p{{color:#8b949e}}code{{background:#161b22;padding:2px 8px;border-radius:4px}}
-a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:16px;overflow:auto;color:#f0883e;font-size:13px;margin-top:16px}}</style></head><body>
-<h1>后端服务未响应</h1>
-<p>斗战者控制台后端 API 在 30 秒内未能启动。请检查：</p>
-<p>1. 安装目录下的 <code>Douzhanzhe.API.exe</code> 是否存在<br>
-2. 端口 3100 是否被其他程序占用<br>
-3. 是否已安装 <a href='https://dotnet.microsoft.com/download/dotnet/8.0'>.NET 8 Desktop Runtime</a></p>
-{(string.IsNullOrEmpty(logContent) ? "" : $"<p style='color:#c9d1d9;margin-top:24px'>启动日志（请截图反馈）：</p><pre>{logContent}</pre>")}
-</body></html>";
-            _webView.NavigateToString(errorHtml);
-            if (_isStartupMinimized) { WindowState = FormWindowState.Minimized; Hide(); }
-            return;
-        }
-
-        _webView.Source = new Uri("http://127.0.0.1:3100/");
-
-        // 启动后端健康守护：每 8 秒检查一次，连续 2 次失败则重启后端
+        // 启动后端健康守护：每 8 秒检查一次，连续 2 次失败则重启后端。
+        // 关键：无论初始是否就绪都启动，保证后端自愈（含从诊断页恢复）。
         _healthTimer = new System.Windows.Forms.Timer { Interval = 8000 };
         _healthTimer.Tick += HealthTimer_Tick;
         _healthTimer.Start();
+
+        if (apiReady)
+        {
+            _webView.Source = new Uri(AppUri);
+        }
+        else
+        {
+            // 后端未在 30s 内就绪：显示诊断页（含日志），但实例不冻结——
+            // HealthTimer 会在后端恢复时导航到真实应用（见 _initialApiFailed）
+            _initialApiFailed = true;
+            ShellLog("后端未在 30s 内就绪，显示诊断页；健康守护将持续尝试恢复");
+            _webView.NavigateToString(BuildApiErrorHtml());
+        }
 
         // 异步初始化（WebView2、API 轮询）期间 WinForms 可能隐式重新显示了窗口
         // 在所有初始化完成后再次确保窗口隐藏到托盘
@@ -357,9 +285,123 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
             Hide();
         }
 
-        // ---- 全局热键初始化 ----
+        // ---- 全局热键初始化（无论后端是否就绪都注册，避免失败路径漏注册）----
         RegisterHotkeysFromConfig();
         StartHotkeyWatcher();
+    }
+
+    /// <summary>初始化 WebView2 环境（带 15s×2 超时保护），成功返回 true。</summary>
+    private async Task<bool> InitWebView2Async(string userDataDir)
+    {
+        string webViewError = "";
+        try
+        {
+            var envTask = CoreWebView2Environment.CreateAsync(null, userDataDir);
+            // 15 秒超时，防止初始化卡死
+            if (await System.Threading.Tasks.Task.WhenAny(envTask, System.Threading.Tasks.Task.Delay(15000)) == envTask)
+            {
+                var env = await envTask;
+                var initTask = _webView.EnsureCoreWebView2Async(env);
+                if (await System.Threading.Tasks.Task.WhenAny(initTask, System.Threading.Tasks.Task.Delay(15000)) == initTask)
+                {
+                    await initTask; // 传播可能的异常
+                    return true;
+                }
+                webViewError = "WebView2 EnsureCoreWebView2Async 超时 (15s)";
+            }
+            else
+            {
+                webViewError = "WebView2 CreateAsync 超时 (15s)";
+            }
+        }
+        catch (Exception ex)
+        {
+            webViewError = $"{ex.GetType().Name}: {ex.Message}";
+        }
+
+        AppLog("Shell", $"WebView2 init failed: {webViewError}");
+        return false;
+    }
+
+    /// <summary>轮询后端根路径，最多等待 seconds 秒，就绪返回 true。</summary>
+    private async Task<bool> WaitForApiReadyAsync(int seconds)
+    {
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(2) };
+        for (int i = 0; i < seconds; i++)
+        {
+            try
+            {
+                var resp = await http.GetAsync("http://127.0.0.1:3100/");
+                if (resp.IsSuccessStatusCode) return true;
+            }
+            catch { }
+            await Task.Delay(1000);
+        }
+        return false;
+    }
+
+    /// <summary>构建后端未就绪的诊断页（含最近日志尾，便于截图反馈）。</summary>
+    private string BuildApiErrorHtml()
+    {
+        var logContent = "";
+        try
+        {
+            var logPath = _appLogPath;
+            if (File.Exists(logPath))
+            {
+                // 只读最后 50 行，避免页面太长
+                var lines = File.ReadAllLines(logPath);
+                var tail = lines.Skip(Math.Max(0, lines.Length - 50));
+                logContent = System.Net.WebUtility.HtmlEncode(string.Join("\n", tail));
+            }
+        }
+        catch { }
+
+        return $@"<!DOCTYPE html><html><head><meta charset='utf-8'><title>Error</title>
+<style>body{{background:#0d1117;color:#c9d1d9;font:16px/1.6 system-ui;padding:40px;max-width:700px;margin:0 auto}}
+h1{{color:#f85149;font-size:20px}}p{{color:#8b949e}}code{{background:#161b22;padding:2px 8px;border-radius:4px}}
+a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:16px;overflow:auto;color:#f0883e;font-size:13px;margin-top:16px}}</style></head><body>
+<h1>后端服务未响应</h1>
+<p>斗战者控制台后端 API 在 30 秒内未能启动，正在尝试自动恢复…</p>
+<p>1. 安装目录下的 <code>Douzhanzhe.API.exe</code> 是否存在<br>
+2. 端口 3100 是否被其他程序占用<br>
+3. 是否已安装 <a href='https://dotnet.microsoft.com/download/dotnet/8.0'>.NET 8 Desktop Runtime</a></p>
+{(string.IsNullOrEmpty(logContent) ? "" : $"<p style='color:#c9d1d9;margin-top:24px'>启动日志（请截图反馈）：</p><pre>{logContent}</pre>")}
+</body></html>";
+    }
+
+    /// <summary>
+    /// 仅在版本变化时清理 WebView2 磁盘缓存，避免每次启动都做无谓的目录删除。
+    /// 用 userDataDir/cachestamp.txt 记录上次清理时的程序版本。
+    /// </summary>
+    private void EnsureWebView2CachePurged(string userDataDir)
+    {
+        string[] cacheDirs = { "EBWebView\\Default\\Cache", "EBWebView\\Default\\Code Cache", "EBWebView\\Default\\GPUCache",
+                               "EBWebView\\Default\\Service Worker", "EBWebView\\GrShaderCache", "EBWebView\\ShaderCache" };
+        try
+        {
+            string stampFile = Path.Combine(userDataDir, "cachestamp.txt");
+            string curVer = Application.ProductVersion ?? "0";
+            bool needPurge = true;
+            if (File.Exists(stampFile))
+            {
+                try { needPurge = File.ReadAllText(stampFile).Trim() != curVer; } catch { needPurge = true; }
+            }
+            if (!needPurge) return;
+
+            foreach (var sub in cacheDirs)
+            {
+                try
+                {
+                    var path = Path.Combine(userDataDir, sub);
+                    if (Directory.Exists(path))
+                        Directory.Delete(path, true);
+                }
+                catch { /* 单个缓存目录清除失败不影响启动 */ }
+            }
+            try { Directory.CreateDirectory(userDataDir); File.WriteAllText(stampFile, curVer); } catch { }
+        }
+        catch { /* 整体失败不影响启动 */ }
     }
 
     private void Form1_FormClosing(object? sender, FormClosingEventArgs e)
@@ -471,12 +513,13 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
         if (alive)
         {
             _healthFailCount = 0;
-            // 后端从宕机恢复后，刷新 WebView2
-            if (_backendWasDown)
+            // 后端恢复（宕机恢复 或 初始就绪失败后的恢复）：导航到真实应用界面
+            if (_backendWasDown || _initialApiFailed)
             {
                 _backendWasDown = false;
-                ShellLog("后端已恢复，刷新 WebView2");
-                try { _webView.Reload(); } catch { }
+                _initialApiFailed = false;
+                ShellLog("后端已恢复，加载应用界面");
+                try { _webView.Source = new Uri(AppUri); } catch { }
             }
         }
         else
@@ -503,9 +546,10 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
                         var resp = await http.GetAsync("http://127.0.0.1:3100/");
                         if (resp.IsSuccessStatusCode)
                         {
-                            ShellLog($"后端重启成功 ({i + 1}s)，刷新 WebView2");
-                            try { _webView.Reload(); } catch { }
+                            ShellLog($"后端重启成功 ({i + 1}s)，加载应用界面");
+                            try { _webView.Source = new Uri(AppUri); } catch { }
                             _backendWasDown = false;
+                            _initialApiFailed = false;
                             recovered = true;
                             break;
                         }
@@ -558,24 +602,17 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
     {
         try
         {
-            var psi = new ProcessStartInfo("netstat", "-ano")
+            using var tcp = new System.Net.Sockets.TcpClient();
+            var connectTask = tcp.ConnectAsync("127.0.0.1", port);
+            // 500ms 超时：连得上即视为监听中；超时或被拒即未就绪（不 spawn 进程，比 netstat 更快更稳）
+            if (System.Threading.Tasks.Task.WhenAny(connectTask, System.Threading.Tasks.Task.Delay(500)).GetAwaiter().GetResult() == connectTask)
             {
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-            using var p = Process.Start(psi);
-            if (p == null) return false;
-            var output = p.StandardOutput.ReadToEnd();
-            p.WaitForExit();
-            foreach (var line in output.Split('\n'))
-            {
-                if (line.Contains($":{port}") && line.Contains("LISTENING"))
-                    return true;
+                try { connectTask.GetAwaiter().GetResult(); return true; }
+                catch { return false; }
             }
+            return false;
         }
-        catch { }
-        return false;
+        catch { return false; }
     }
 
     private string SharedConfigDir()
@@ -657,8 +694,7 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
             }
             AppLog("API-Startup", $"PID: {proc.Id}");
 
-            // 等 2 秒检查进程是否立即崩溃
-            Thread.Sleep(2000);
+            // 立即检查进程是否已退出（无需 sleep：若已崩溃则立即记录，否则视为运行中）
             if (proc.HasExited)
             {
                 AppLog("API-Startup", $"ERROR: Process exited immediately with code {proc.ExitCode}");
