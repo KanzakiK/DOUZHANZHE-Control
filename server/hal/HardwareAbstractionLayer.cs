@@ -672,13 +672,13 @@ public sealed class HardwareAbstractionLayer : IDisposable
                 return _cpuFreqCache;
             }
         }
-        catch
+        catch (Exception ex)
         {
             // 计数器暂时不可用时保留它（不要 Dispose 后重建），下次继续读
             if (!_cpuFreqDiagLogged)
             {
                 _cpuFreqDiagLogged = true;
-                AppLog.Write("HAL", "[CPU频率诊断] 性能计数器读取异常（计数器集未就绪或不受支持）");
+                try { File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "cpu-freq-diag.txt"), $"异常: {ex.GetType().Name}: {ex.Message}\n"); } catch { }
             }
         }
         return _cpuFreqCache > 0 ? _cpuFreqCache : 2.4f;
