@@ -660,8 +660,9 @@ public sealed class HardwareAbstractionLayer : IDisposable
     {
         try
         {
-            // ProcessorInformation 需要按处理器数量分配缓冲区（每个处理器一份结构）
-            const int maxProcs = 128;
+            // ProcessorInformation 需要按处理器数量精确分配缓冲区（每个逻辑处理器一份结构），
+            // 尺寸不符会返回 STATUS_INVALID_PARAMETER(0xC000000D)
+            int maxProcs = Math.Max(1, Environment.ProcessorCount);
             int structSize = Marshal.SizeOf<ProcessorPowerInfo>();
             int size = structSize * maxProcs;
             IntPtr buf = Marshal.AllocHGlobal(size);
