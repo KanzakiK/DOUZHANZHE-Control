@@ -5,6 +5,23 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
+## [2.0.2-pre.4] — 2026-11-02
+
+启动提速的第三轮：前端"等好久才有数据"的根因（遥测首帧被硬件读取阻塞 30+ 秒）与 WebSocket 推送卡死。
+
+### 🛠 修复
+
+- **前端迟迟没有数据（真凶：遥测首帧要等 34 秒）**：250ms 一轮的遥测循环里夹着大量重活——`CpuFreq` 的 `PerformanceCounter` 首次读取要初始化 PerfLib（**实测 33 秒**）、GPU 温度/统计各 spawn 一次 `nvidia-smi`、内存/磁盘各 spawn 一次 PowerShell+CIM（`Get-Disk` + WMI `ASSOCIATORS` 冷启动可达 15 秒）、外加 4 个**每次调用都真发一次 WMI 方法调用**的 `WmiInterface` 读（散热模式 / GPU 模式 / Fn 锁 / 触摸板锁）。这些全在**读取路径上同步执行**，一轮遥测要几十秒。实测：首帧 `距服务启动 35539 ms`。现改为：
+  - `CpuFreq` 改后台刷新缓存（不再阻塞），并加内核快速查询 `CallNtPowerInformation` 作为首帧即时值；
+  - GPU 温度 / GPU 统计 / 内存 / 磁盘 四项采集全部移到后台线程，属性只读缓存；
+  - `WmiInterface` 四个读接口加 2 秒缓存 + 后台刷新，启动 GPU 模式恢复另走 `GetGpuModeFresh()` 拿实时值。
+  - **实测首帧从 35539 ms 降到 2482 ms**，WebSocket 客户端接入后 **~200 ms** 收到第一帧，后续稳定 ~450ms/帧。
+- **WebSocket 推送被僵死连接卡死**：`SendAsync(..., CancellationToken.None)` 没有超时——客户端进程被杀/半开时 socket 仍报 `Open`，发送缓冲区写满后 `SendAsync` 永久挂起，**整个推送循环卡死**，所有前端都收不到遥测（表现为"后端未连接"且迟迟不自愈）。改为每客户端独立 1.5 秒发送超时 + 并发发送 + 超时即 `Abort` 并移除；自动切换通知 `NotifyModeSwitch` 的无上限 `.Wait()` 同样改为带超时。
+- **WebView2 缓存版本戳失效**：上一轮引入的缓存清理按 `Application.ProductVersion` 判断版本，但 Shell 的 csproj 未设 `Version` 属性，该值恒为 `1.0.0.0` → 版本戳永不变化 → 升级后磁盘缓存不再清理（回归了原本要防的"前端更新后缓存旧版本"）。改读安装目录下的 `version.txt`（构建会同步真实版本号）。
+
+### 🔧 诊断
+- 遥测首帧逐项耗时日志（`首帧已推送…| 明细: CpuTemperature(EC)=31ms, CpuFreq=2ms, …`），一眼定位是哪一项在拖后腿；API 侧记录"进程启动 → 端口已监听"耗时，Shell 侧记录 WebView2 初始化 / 后端就绪 / `Form1_Load` 总耗时。
+
 ## [2.0.2-pre.3] — 2026-11-02
 
 启动慢（黑屏 ~18s）+ 前端误报"后端未连接" + 默认配置名显示成内部 id 的修复。
