@@ -627,12 +627,18 @@ public sealed class HardwareAbstractionLayer : IDisposable
                 _cpuFreqHzCounter.NextValue(); // 建立基线
                 Thread.Sleep(1000);           // 等一个采样间隔
             }
-            var hz = _cpuFreqHzCounter.NextValue();
-            if (hz > 1_000_000)   // 至少 1MHz，排除 0/无效值
+            var raw = _cpuFreqHzCounter.NextValue();
+            if (raw > 0)
             {
-                _cpuFreqCache = (float)(hz / 1_000_000_000.0);
-                _cpuFreqTime = DateTime.UtcNow;
-                return _cpuFreqCache;
+                // "Processor Frequency" 的单位在不同 Windows / 区域设置下可能是 Hz 或 MHz
+                // （本机实测返回 MHz，如 2163），按数量级自动判定，避免把有效值误判为无效。
+                double ghz = raw > 100_000 ? raw / 1_000_000_000.0 : raw / 1_000_000.0;
+                if (ghz > 0.2 && ghz < 10)
+                {
+                    _cpuFreqCache = (float)ghz;
+                    _cpuFreqTime = DateTime.UtcNow;
+                    return _cpuFreqCache;
+                }
             }
 
             // 回退："% Processor Performance" 比例值 × 标称基频
