@@ -831,7 +831,13 @@ public sealed class HardwareAbstractionLayer : IDisposable
                 if (float.TryParse(parts[3].Trim(), out var u)) _sgGpuVramUsed = (float)(u / 1024.0);
                 if (parts.Length >= 5 && int.TryParse(parts[4].Trim(), out var mm)) _sgGpuMemMhz = mm;
                 if (parts.Length >= 6 && float.TryParse(parts[5].Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var pw)) _sgGpuPowerDrawW = pw;
-                if (parts.Length >= 7 && byte.TryParse(parts[6].Trim(), out var gt) && gt > 0) _sgGpuTemp = gt;
+                // 温度：nvidia-smi 返回带小数（如 60.28），必须按 float 解析再取整，
+                // 否则 byte.TryParse 失败 → GPU 温度恒为 0
+                if (parts.Length >= 7
+                    && float.TryParse(parts[6].Trim(), System.Globalization.NumberStyles.Float,
+                                      System.Globalization.CultureInfo.InvariantCulture, out var gt)
+                    && gt > 0)
+                    _sgGpuTemp = (byte)Math.Clamp(Math.Round(gt), 0, 255);
                 _sgGpuTime = DateTime.UtcNow;
             }
         }
