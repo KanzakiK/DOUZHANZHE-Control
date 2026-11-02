@@ -599,8 +599,15 @@ public sealed class HardwareAbstractionLayer : IDisposable
     {
         get
         {
-            if ((DateTime.UtcNow - _cpuFreqTime).TotalSeconds < 0.5 && _cpuFreqCache > 0) return _cpuFreqCache;
-            return GetCpuFreqDirect();
+            EnsureCpuFreqRefresh();
+            lock (_cpuFreqLock)
+            {
+                if (_cpuFreqCache > 0) return _cpuFreqCache;
+            }
+            // 缓存还没就绪（PerformanceCounter 首次读要初始化 PerfLib，冷启动实测 30s+）：
+            // 用内核快速查询给出即时值，避免前端长时间拿不到频率
+            var fast = QueryCpuFreqFast();
+            return fast > 0 ? fast : 2.4f;
         }
     }
 
@@ -608,6 +615,66 @@ public sealed class HardwareAbstractionLayer : IDisposable
     private DateTime _cpuFreqTime = DateTime.MinValue;
     private PerformanceCounter? _cpuFreqCounter;
     private float _cpuBaseFreqGhz;
+    private readonly object _cpuFreqLock = new();
+    private bool _cpuFreqBusy;
+
+    /// <summary>后台刷新 CPU 频率缓存（PerformanceCounter 首次初始化极慢，必须放后台）</summary>
+    private void EnsureCpuFreqRefresh()
+    {
+        if ((DateTime.UtcNow - _cpuFreqTime).TotalSeconds < 0.5 && _cpuFreqCache > 0) return;
+        lock (_cpuFreqLock)
+        {
+            if (_cpuFreqBusy) return;
+            if ((DateTime.UtcNow - _cpuFreqTime).TotalSeconds < 0.5 && _cpuFreqCache > 0) return;
+            _cpuFreqBusy = true;
+        }
+        _ = Task.Run(() =>
+        {
+            try { GetCpuFreqDirect(); }
+            catch { }
+            finally { lock (_cpuFreqLock) _cpuFreqBusy = false; }
+        });
+    }
+
+    // ---- 内核快速查询当前 CPU 频率（powrprof.dll）----
+    private const int ProcessorInformationLevel = 11;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ProcessorPowerInfo
+    {
+        public uint MaxMhz;
+        public uint CurrentMhz;
+        public uint MhzLimit;
+        public uint MaxIdleState;
+        public uint CurrentIdleState;
+    }
+
+    [DllImport("powrprof.dll", SetLastError = true)]
+    private static extern uint CallNtPowerInformation(
+        int informationLevel, int bufferLength, IntPtr inputBuffer, int inputBufferLength,
+        IntPtr outputBuffer, int outputBufferLength);
+
+    /// <summary>内核查询当前 CPU 频率（GHz），失败返回 0</summary>
+    private static float QueryCpuFreqFast()
+    {
+        try
+        {
+            int size = Marshal.SizeOf<ProcessorPowerInfo>();
+            IntPtr buf = Marshal.AllocHGlobal(size);
+            try
+            {
+                if (CallNtPowerInformation(ProcessorInformationLevel, size, IntPtr.Zero, 0, buf, size) == 0)
+                {
+                    var r = Marshal.PtrToStructure<ProcessorPowerInfo>(buf);
+                    if (r.CurrentMhz > 0) return r.CurrentMhz / 1000f;
+                }
+            }
+            finally { Marshal.FreeHGlobal(buf); }
+        }
+        catch { }
+        return 0;
+    }
+
     private float GetCpuFreqDirect()
     {
         try
