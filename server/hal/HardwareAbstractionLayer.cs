@@ -582,6 +582,7 @@ public sealed class HardwareAbstractionLayer : IDisposable
     private DateTime _cpuFreqTime = DateTime.MinValue;
     private PerformanceCounter? _cpuFreqCounter;
     private PerformanceCounter? _cpuFreqHzCounter;
+    private bool _cpuFreqDiagLogged;
     private float _cpuBaseFreqGhz;
     private int _cpuBaseFreqMhz;              // 标称基频（过渡显示 + 换算比例用）
     private readonly object _cpuFreqLock = new();
@@ -628,6 +629,11 @@ public sealed class HardwareAbstractionLayer : IDisposable
                 Thread.Sleep(1000);           // 等一个采样间隔
             }
             var raw = _cpuFreqHzCounter.NextValue();
+            if (!_cpuFreqDiagLogged)
+            {
+                _cpuFreqDiagLogged = true;
+                AppLog.Write("HAL", $"[CPU频率诊断] Processor Frequency 原始值={raw}（>100000 视为 Hz，否则 MHz）");
+            }
             if (raw > 0)
             {
                 // "Processor Frequency" 的单位在不同 Windows / 区域设置下可能是 Hz 或 MHz
@@ -668,6 +674,11 @@ public sealed class HardwareAbstractionLayer : IDisposable
         catch
         {
             // 计数器暂时不可用时保留它（不要 Dispose 后重建），下次继续读
+            if (!_cpuFreqDiagLogged)
+            {
+                _cpuFreqDiagLogged = true;
+                AppLog.Write("HAL", "[CPU频率诊断] 性能计数器读取异常（计数器集未就绪或不受支持）");
+            }
         }
         return _cpuFreqCache > 0 ? _cpuFreqCache : 2.4f;
     }
