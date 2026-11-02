@@ -205,6 +205,8 @@ public partial class Form1 : Form
 
     private async void Form1_Load(object? sender, EventArgs e)
     {
+        var loadSw = System.Diagnostics.Stopwatch.StartNew();
+
         // 开机自启最小化：立即隐藏窗口（构造函数已预设状态）
         if (_isStartupMinimized)
         {
@@ -227,13 +229,16 @@ public partial class Form1 : Form
         EnsureWebView2CachePurged(userDataDir);
 
         // —— 并行：WebView2 初始化 与 后端就绪探测 ——
-        // 后端启动（约 16s）与 WebView2 冷启动（约 16s）重叠，避免串行堆叠挤爆 30s 就绪窗口
+        // 后端启动与 WebView2 冷启动重叠，避免串行堆叠挤爆 30s 就绪窗口
         var webViewTask = InitWebView2Async(userDataDir);
         var apiReadyTask = WaitForApiReadyAsync(30);
         await Task.WhenAll(webViewTask, apiReadyTask);
 
         bool webViewOk = webViewTask.Result;
         bool apiReady = apiReadyTask.Result;
+
+        // 启动耗时分解：定位黑屏到底卡在 WebView2 还是后端
+        ShellLog($"启动耗时：Form1_Load 合计 {loadSw.ElapsedMilliseconds}ms | webViewOk={webViewOk} | apiReady={apiReady}");
 
         if (!webViewOk)
         {
@@ -293,6 +298,7 @@ public partial class Form1 : Form
     /// <summary>初始化 WebView2 环境（带 15s×2 超时保护），成功返回 true。</summary>
     private async Task<bool> InitWebView2Async(string userDataDir)
     {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         string webViewError = "";
         try
         {
@@ -305,6 +311,7 @@ public partial class Form1 : Form
                 if (await System.Threading.Tasks.Task.WhenAny(initTask, System.Threading.Tasks.Task.Delay(15000)) == initTask)
                 {
                     await initTask; // 传播可能的异常
+                    ShellLog($"WebView2 初始化完成：{sw.ElapsedMilliseconds}ms");
                     return true;
                 }
                 webViewError = "WebView2 EnsureCoreWebView2Async 超时 (15s)";
@@ -319,24 +326,30 @@ public partial class Form1 : Form
             webViewError = $"{ex.GetType().Name}: {ex.Message}";
         }
 
-        AppLog("Shell", $"WebView2 init failed: {webViewError}");
+        AppLog("Shell", $"WebView2 init failed ({sw.ElapsedMilliseconds}ms): {webViewError}");
         return false;
     }
 
     /// <summary>轮询后端根路径，最多等待 seconds 秒，就绪返回 true。</summary>
     private async Task<bool> WaitForApiReadyAsync(int seconds)
     {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(2) };
         for (int i = 0; i < seconds; i++)
         {
             try
             {
                 var resp = await http.GetAsync("http://127.0.0.1:3100/");
-                if (resp.IsSuccessStatusCode) return true;
+                if (resp.IsSuccessStatusCode)
+                {
+                    ShellLog($"后端就绪：{sw.ElapsedMilliseconds}ms（第 {i + 1} 次探测）");
+                    return true;
+                }
             }
             catch { }
             await Task.Delay(1000);
         }
+        ShellLog($"后端就绪超时：{sw.ElapsedMilliseconds}ms（{seconds}s 内未就绪）");
         return false;
     }
 

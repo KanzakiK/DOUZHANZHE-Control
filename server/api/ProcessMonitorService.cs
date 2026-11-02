@@ -29,6 +29,8 @@ public sealed class ProcessMonitorService : IDisposable
     private ManagementEventWatcher? _stopWatcher;
     // watcher 断开自愈：0=空闲 1=重建中（Stop()/Dispose() 也会触发 Stopped，需防重入）
     private int _resubscribing;
+    // 订阅字段的互斥锁：订阅建立放在后台线程（见构造函数），Dispose 需与之串行
+    private readonly object _watcherLock = new();
 
     // 活跃游戏列表
     private readonly List<(int Pid, string ExeName, string TargetMode)> _activeGames = new();
@@ -80,9 +82,19 @@ public sealed class ProcessMonitorService : IDisposable
         if (currentConfig != null) _currentConfig = currentConfig;
         if (resolveThermal != null) _resolveThermal = resolveThermal;
 
-        SubscribeWmiEvents();
-
         AppLog.Write("ProcessMonitor", "Service started");
+
+        // WMI 事件订阅建立极慢：__InstanceCreationEvent / __InstanceDeletionEvent 需要先做
+        // 进程基线枚举，实测本机每个 watcher 的 Start() 约 10s、合计约 20s。
+        // 此前在构造函数里同步建立，而本服务在 Program.cs 顶层（app.Run() 之前）就被解析，
+        // 导致端口 3100 要等 ~20s 才监听 → Shell 就绪检测一直等待（启动黑屏 ~20s），
+        // 且前端页面加载时后端仍在启动 → 误报"后端未连接"。
+        // 改为后台线程建立：端口立即可用，游戏自动切换功能稍后就绪。
+        _ = Task.Run(() =>
+        {
+            try { SubscribeWmiEvents(); }
+            catch (Exception ex) { AppLog.Write("ProcessMonitor", $"async subscribe failed: {ex.Message}"); }
+        });
     }
 
     /// <summary>启动后注入配置解析依赖（指向 last-mode.json 与配置→性能模式解包点）</summary>
@@ -135,17 +147,30 @@ public sealed class ProcessMonitorService : IDisposable
         {
             // 使用 __InstanceCreationEvent 替代 Win32_ProcessStartTrace
             // Win32_ProcessStartTrace 需要管理员权限，__InstanceCreationEvent 不需要
-            _startWatcher = new ManagementEventWatcher(
+            var startWatcher = new ManagementEventWatcher(
                 new WqlEventQuery("SELECT * FROM __InstanceCreationEvent WITHIN 2 WHERE TargetInstance ISA 'Win32_Process'"));
-            _startWatcher.EventArrived += OnProcessStarted;
-            _startWatcher.Stopped += OnWatcherStopped;
-            _startWatcher.Start();
+            startWatcher.EventArrived += OnProcessStarted;
+            startWatcher.Stopped += OnWatcherStopped;
+            startWatcher.Start();
 
-            _stopWatcher = new ManagementEventWatcher(
+            var stopWatcher = new ManagementEventWatcher(
                 new WqlEventQuery("SELECT * FROM __InstanceDeletionEvent WITHIN 2 WHERE TargetInstance ISA 'Win32_Process'"));
-            _stopWatcher.EventArrived += OnProcessStopped;
-            _stopWatcher.Stopped += OnWatcherStopped;
-            _stopWatcher.Start();
+            stopWatcher.EventArrived += OnProcessStopped;
+            stopWatcher.Stopped += OnWatcherStopped;
+            stopWatcher.Start();
+
+            lock (_watcherLock)
+            {
+                if (_disposed)
+                {
+                    // 建立订阅期间已被 Dispose：立即停掉，避免泄漏
+                    try { startWatcher.Stop(); startWatcher.Dispose(); } catch { }
+                    try { stopWatcher.Stop(); stopWatcher.Dispose(); } catch { }
+                    return;
+                }
+                _startWatcher = startWatcher;
+                _stopWatcher = stopWatcher;
+            }
 
             AppLog.Write("ProcessMonitor", "WMI event subscriptions created");
         }
@@ -157,15 +182,29 @@ public sealed class ProcessMonitorService : IDisposable
 
     private void UnsubscribeWmiEvents()
     {
+        ManagementEventWatcher? start;
+        ManagementEventWatcher? stop;
+        lock (_watcherLock)
+        {
+            start = _startWatcher;
+            stop = _stopWatcher;
+            _startWatcher = null;
+            _stopWatcher = null;
+        }
+        // Stop() 可能同步触发 Stopped 回调 → 放在锁外，避免与自愈路径互锁
         try
         {
-            _startWatcher?.Stop();
-            _startWatcher?.Dispose();
-            _startWatcher = null;
-
-            _stopWatcher?.Stop();
-            _stopWatcher?.Dispose();
-            _stopWatcher = null;
+            start?.Stop();
+            start?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            AppLog.Write("ProcessMonitor", $"WMI unsubscribe failed: {ex.Message}");
+        }
+        try
+        {
+            stop?.Stop();
+            stop?.Dispose();
         }
         catch (Exception ex)
         {

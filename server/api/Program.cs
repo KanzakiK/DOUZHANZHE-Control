@@ -30,6 +30,10 @@ var _logDir = Path.Combine(
     "Douzhanzhe Console", "logs");
 AppLog.Init(_logDir);
 
+// 启动耗时基准：用于诊断"端口 3100 何时可用"
+// （此前 ProcessMonitorService 构造函数里同步建立 WMI 订阅，把就绪拖到 ~20s）
+var _procStartUtc = DateTime.UtcNow;
+
 // 提升进程与主线程优先级，确保在游戏满载时遥测采样与风扇控制仍能及时响应
 var proc = Process.GetCurrentProcess();
 proc.PriorityClass = ProcessPriorityClass.High;
@@ -3244,10 +3248,16 @@ app.MapPost("/api/profiles/{id}/thermal-mode", async (string id, HttpContext ctx
 // ---- SPA fallback (必须在所有 API 路由之后) ----
 app.MapFallbackToFile("index.html");
 
+// ---- 端口就绪时刻（Shell 的就绪检测依赖端口可连，此处用于诊断）----
+app.Lifetime.ApplicationStarted.Register(() =>
+{
+    Log($"[Startup] 端口 3100 已监听 (启动耗时 {(DateTime.UtcNow - _procStartUtc).TotalMilliseconds:F0} ms)");
+});
+
 // ---- Start server ----
 try
 {
-    Log("Starting server");
+    Log($"Starting server (启动耗时 {(DateTime.UtcNow - _procStartUtc).TotalMilliseconds:F0} ms)");
     app.Run();
 }
 catch (Exception ex)
