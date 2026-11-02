@@ -2266,11 +2266,14 @@ app.MapGet("/api/background-opts", () =>
             var interval = root.TryGetProperty("interval", out var iv) && iv.ValueKind == JsonValueKind.String ? iv.GetString() ?? "1h" : "1h";
             var apiUrl = root.TryGetProperty("apiUrl", out var av) && av.ValueKind == JsonValueKind.String ? av.GetString() ?? "" : "";
             var hasImage = BgImageFiles().Length > 0;
-            return Results.Json(new { enabled, opacity, blur, maskColor, source, interval, apiUrl, hasImage });
+            var lastRotated = BackgroundRotationService.LastRotatedUtc.HasValue
+                ? (long)(BackgroundRotationService.LastRotatedUtc.Value - DateTime.UnixEpoch).TotalSeconds
+                : 0;
+            return Results.Json(new { enabled, opacity, blur, maskColor, source, interval, apiUrl, hasImage, lastRotated });
         }
-        return Results.Json(new { enabled = false, opacity = 50, blur = 45, maskColor = "black", source = "local", interval = "1h", apiUrl = "", hasImage = false });
+        return Results.Json(new { enabled = false, opacity = 50, blur = 45, maskColor = "black", source = "local", interval = "1h", apiUrl = "", hasImage = false, lastRotated = 0 });
     }
-    catch { return Results.Json(new { enabled = false, opacity = 50, blur = 45, maskColor = "black", source = "local", interval = "1h", apiUrl = "", hasImage = false }); }
+    catch { return Results.Json(new { enabled = false, opacity = 50, blur = 45, maskColor = "black", source = "local", interval = "1h", apiUrl = "", hasImage = false, lastRotated = 0 }); }
 });
 
 app.MapPost("/api/background-opts", async (HttpContext ctx) =>

@@ -780,6 +780,18 @@ export function applyWallpaperCss(opts) {
   root.style.setProperty("--wallpaper-image", show ? `url("${opts.url}")` : "none");
 }
 
+// 壁纸自动轮换：后端把 bgLastRotated（Unix 秒）塞进遥测 WS 帧，前端检测到变化后调用本函数。
+// 重新读取背景配置，并以缓存戳 (?t=) 套用 /api/background，保证拿到轮换后的新图
+// （接口本身 Cache-Control: no-store，配合 URL 变化必然重新拉取）。
+export async function refreshWallpaperOnRotate(rotatedStamp) {
+  try {
+    const res = await fetch("/api/background-opts");
+    const d = await res.json();
+    const url = d.hasImage ? `/api/background?t=${rotatedStamp}` : null;
+    applyWallpaperCss({ ...d, enabled: !!d.enabled, hasImage: !!d.hasImage, url });
+  } catch { /* 后端离线时忽略 */ }
+}
+
 export async function fetchProfiles() {
   const res = await fetch("/api/profiles");
   if (!res.ok) throw new Error("profiles fetch failed");

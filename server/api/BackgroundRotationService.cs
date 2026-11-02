@@ -22,6 +22,9 @@ public class BackgroundRotationService : BackgroundService
     private readonly SemaphoreSlim _busy = new(1, 1);
     private readonly Random _rng = new();
 
+    /// <summary>最近一次成功轮换的 UTC 时间戳；供遥测 WS 帧携带，前端据此刷新背景图。</summary>
+    public static DateTime? LastRotatedUtc { get; private set; } = null;
+
     public BackgroundRotationService(string configDir)
     {
         _configDir = configDir;
@@ -186,6 +189,7 @@ public class BackgroundRotationService : BackgroundService
             var ext = DetectExt(media, imageUrl ?? apiUrl);
             await ReplaceImageAsync(bytes, ext, imageUrl ?? apiUrl, ct);
             _lastRotation = DateTime.UtcNow;
+            LastRotatedUtc = DateTime.UtcNow;
             AppLog.Write("Background", $"网络轮换: ✓ {ext} ← {imageUrl}");
             return "ok:" + imageUrl;
         }

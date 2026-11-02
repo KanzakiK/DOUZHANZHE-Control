@@ -8,7 +8,11 @@ import {
   clearOverrides,
   setMaxCoresForPercent,
   resolvePerfMode,
+  refreshWallpaperOnRotate,
 } from "../services/uxtuAdapter";
+
+// 壁纸轮换：记录已处理的 bgLastRotated 戳，避免遥测帧（250ms）重复触发刷新
+let _bgLastRotatedSeen = 0;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 共享 store：把原本「每次组件挂载各自实例化一份」的 useControlState
@@ -267,6 +271,12 @@ function connectSocket() {
 
         // 处理遥测数据
         setState(prev => ({ ...prev, telemetry: { ...prev.telemetry, ...data } }));
+
+        // 壁纸自动轮换：后端在遥测帧里携带 bgLastRotated（Unix 秒），变化即刷新背景图
+        if (typeof data.bgLastRotated === "number" && data.bgLastRotated > 0 && data.bgLastRotated !== _bgLastRotatedSeen) {
+          _bgLastRotatedSeen = data.bgLastRotated;
+          refreshWallpaperOnRotate(data.bgLastRotated);
+        }
         // 自动同步 dGpuDirect 与实际 GPU mode（mode 1=独显→true，0/2→false）
         if (data.gpuMode != null) {
           const gpuMode = parseInt(data.gpuMode);

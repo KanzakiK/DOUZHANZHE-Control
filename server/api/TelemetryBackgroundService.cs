@@ -176,6 +176,10 @@ public class TelemetryBackgroundService : BackgroundService
                     touchpadLock = _wmi.Available ? _wmi.GetTouchpadLock() == 1 : _hal.TouchpadLocked,
                     gpuMode = _wmi.Available ? _wmi.GetGpuMode().ToString() : null,
                     savedGpuMode = GetSavedGpuMode(),
+                    // 壁纸自动轮换：把最近一次轮换时间戳塞进遥测帧（Unix 秒），前端发现变化即刷新背景图
+                    bgLastRotated = BackgroundRotationService.LastRotatedUtc.HasValue
+                        ? (long)(BackgroundRotationService.LastRotatedUtc.Value - DateTime.UnixEpoch).TotalSeconds
+                        : 0,
                     timestamp = DateTime.Now.ToString("HH:mm:ss"),
                 }, _jsonOpt);
 
