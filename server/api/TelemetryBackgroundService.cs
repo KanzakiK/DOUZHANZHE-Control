@@ -104,6 +104,9 @@ public class TelemetryBackgroundService : BackgroundService
     /// <summary>首帧是否已记录（用于首帧延迟诊断日志）</summary>
     private int _firstFrameLogged;
 
+    /// <summary>本帧是否做逐项计时（仅首帧）</summary>
+    private int _profileThisFrame;
+
     /// <summary>
     /// 向单个客户端推送一帧。
     /// 必须带发送超时：客户端进程被杀 / 半开时 socket 仍报 Open，SendAsync 会一直挂起
@@ -141,10 +144,22 @@ public class TelemetryBackgroundService : BackgroundService
                 await Task.Delay(250, ct);
 
                 // ── 读取遥测 ──
-                var cpuTemp = _hal.CpuTemperature;
-                var gpuTemp = _hal.GpuTemperature;
-                var cpuFan = _hal.CpuFanRpm;
-                var gpuFan = _hal.GpuFanRpm;
+                // 首帧逐项计时：定位"首帧延迟 30s+"到底卡在哪一项（仅第一帧开销）
+                bool profiling = Interlocked.CompareExchange(ref _profileThisFrame, 1, 0) == 0;
+                var prof = profiling ? new Dictionary<string, long>() : null;
+                long mark = sw.ElapsedMilliseconds;
+                void Mark(string key)
+                {
+                    if (prof == null) return;
+                    long now = sw.ElapsedMilliseconds;
+                    prof[key] = now - mark;
+                    mark = now;
+                }
+
+                var cpuTemp = _hal.CpuTemperature; Mark("CpuTemperature(EC)");
+                var gpuTemp = _hal.GpuTemperature; Mark("GpuTemperature(nvidia-smi)");
+                var cpuFan = _hal.CpuFanRpm; Mark("CpuFanRpm(EC)");
+                var gpuFan = _hal.GpuFanRpm; Mark("GpuFanRpm(EC)");
 
                 // ── HealthWatchdog: Last Known Good 更新 ──
                 if (cpuTemp > 0) _lkgCpuTemp = cpuTemp;
@@ -172,38 +187,52 @@ public class TelemetryBackgroundService : BackgroundService
                 if (cpuFan == 0 && _lkgCpuFan > 0) cpuFan = _lkgCpuFan;
                 if (gpuFan == 0 && _lkgGpuFan > 0) gpuFan = _lkgGpuFan;
 
+                // 逐组读取并计时（首帧诊断用）
+                var cpuUsage = _hal.CpuUsage; Mark("CpuUsage");
+                var cpuFreq = _hal.CpuFreq; Mark("CpuFreq");
+                var gpuStats = (_hal.GpuUsage, _hal.GpuFreq, _hal.GpuVram, _hal.GpuVramUsed, _hal.GpuMemMhz, _hal.GpuPowerDrawW);
+                Mark("GpuStats");
+                var memStats = (_hal.MemoryUsage, _hal.MemoryTotalGB, _hal.MemoryFreq); Mark("Memory");
+                var diskStats = (_hal.DiskUsage, _hal.DiskTotalGB, _hal.DiskFreeGB); Mark("Disk");
+                var kbBrightness = _hal.KeyboardBrightness; Mark("KeyboardBrightness");
+                var fnLockV = _wmi.Available ? _wmi.GetFnLock() == 1 : _hal.FnLock; Mark("Wmi.FnLock");
+                var thermalModeV = _wmi.Available ? _wmi.GetThermalMode() : _hal.ThermalMode; Mark("Wmi.ThermalMode");
+                var touchpadV = _wmi.Available ? _wmi.GetTouchpadLock() == 1 : _hal.TouchpadLocked; Mark("Wmi.TouchpadLock");
+                var gpuModeV = _wmi.Available ? _wmi.GetGpuMode().ToString() : null; Mark("Wmi.GpuMode");
+                var locks = (_hal.NumLock, _hal.CapsLock, _hal.PowerPlan); Mark("Locks/PowerPlan");
+
                 // 构建 JSON 负载（全量遥测）
                 var payload = JsonSerializer.Serialize(new
                 {
-                    cpuUsage = _hal.CpuUsage,
+                    cpuUsage,
                     cpuTemp,
-                    cpuFreq = Math.Round(_hal.CpuFreq, 2),
+                    cpuFreq = Math.Round(cpuFreq, 2),
                     cpuCores = _hal.CpuCores,
-                    gpuUsage = _hal.GpuUsage,
+                    gpuUsage = gpuStats.Item1,
                     gpuTemp,
-                    gpuFreq = Math.Round(_hal.GpuFreq, 2),
-                    gpuVram = _hal.GpuVram,
-                    gpuVramUsed = _hal.GpuVramUsed,
-                    gpuMemMhz = _hal.GpuMemMhz,
-                    gpuPowerDrawW = _hal.GpuPowerDrawW,
+                    gpuFreq = Math.Round(gpuStats.Item2, 2),
+                    gpuVram = gpuStats.Item3,
+                    gpuVramUsed = gpuStats.Item4,
+                    gpuMemMhz = gpuStats.Item5,
+                    gpuPowerDrawW = gpuStats.Item6,
                     fanLargeRpm = cpuFan,
                     fanSmallRpm = gpuFan,
                     fanLargeMax = HardwareAbstractionLayer.FanLargeMax,
                     fanSmallMax = HardwareAbstractionLayer.FanSmallMax,
-                    memoryUsage = _hal.MemoryUsage,
-                    memoryTotalGB = _hal.MemoryTotalGB,
-                    memoryFreq = _hal.MemoryFreq,
-                    diskUsage = _hal.DiskUsage,
-                    diskTotalGB = _hal.DiskTotalGB,
-                    diskFreeGB = _hal.DiskFreeGB,
-                    kbBrightness = _hal.KeyboardBrightness,
-                    fnLock = _wmi.Available ? _wmi.GetFnLock() == 1 : _hal.FnLock,
-                    numLock = _hal.NumLock,
-                    capsLock = _hal.CapsLock,
-                    thermalMode = _wmi.Available ? _wmi.GetThermalMode() : _hal.ThermalMode,
-                    powerPlan = _hal.PowerPlan,
-                    touchpadLock = _wmi.Available ? _wmi.GetTouchpadLock() == 1 : _hal.TouchpadLocked,
-                    gpuMode = _wmi.Available ? _wmi.GetGpuMode().ToString() : null,
+                    memoryUsage = memStats.Item1,
+                    memoryTotalGB = memStats.Item2,
+                    memoryFreq = memStats.Item3,
+                    diskUsage = diskStats.Item1,
+                    diskTotalGB = diskStats.Item2,
+                    diskFreeGB = diskStats.Item3,
+                    kbBrightness,
+                    fnLock = fnLockV,
+                    numLock = locks.Item1,
+                    capsLock = locks.Item2,
+                    thermalMode = thermalModeV,
+                    powerPlan = locks.Item3,
+                    touchpadLock = touchpadV,
+                    gpuMode = gpuModeV,
                     savedGpuMode = GetSavedGpuMode(),
                     // 壁纸自动轮换：把最近一次轮换时间戳塞进遥测帧（Unix 秒），前端发现变化即刷新背景图
                     bgLastRotated = BackgroundRotationService.LastRotatedUtc.HasValue
@@ -211,6 +240,7 @@ public class TelemetryBackgroundService : BackgroundService
                         : 0,
                     timestamp = DateTime.Now.ToString("HH:mm:ss"),
                 }, _jsonOpt);
+                Mark("Serialize");
 
                 // 推送给所有 WebSocket 客户端
                 byte[] bytes = Encoding.UTF8.GetBytes(payload);
@@ -233,7 +263,8 @@ public class TelemetryBackgroundService : BackgroundService
                 // 首帧延迟诊断：冷启动首帧包含驱动预热 + 首轮硬件读取，是"前端等很久才有数据"的关键指标
                 if (Interlocked.Exchange(ref _firstFrameLogged, 1) == 0)
                 {
-                    AppLog.Write("Telemetry", $"首帧已推送（距服务启动 {sw.ElapsedMilliseconds} ms，客户端 {snapshot.Length} 个）");
+                    var detail = prof == null ? "" : string.Join(", ", prof.Select(kv => $"{kv.Key}={kv.Value}ms"));
+                    AppLog.Write("Telemetry", $"首帧已推送（距服务启动 {sw.ElapsedMilliseconds} ms，客户端 {snapshot.Length} 个）| 明细: {detail}");
                     _log.LogInformation("[Telemetry] 首帧已推送（距服务启动 {Elapsed} ms，客户端 {Clients} 个）",
                         sw.ElapsedMilliseconds, snapshot.Length);
                 }
