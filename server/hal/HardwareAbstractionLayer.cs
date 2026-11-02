@@ -637,7 +637,8 @@ public sealed class HardwareAbstractionLayer : IDisposable
     }
 
     // ---- 内核快速查询当前 CPU 频率（powrprof.dll）----
-    private const int ProcessorInformationLevel = 11;
+    // POWER_INFORMATION_LEVEL: ProcessorInformation = 1
+    private const int ProcessorInformationLevel = 1;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct ProcessorPowerInfo
