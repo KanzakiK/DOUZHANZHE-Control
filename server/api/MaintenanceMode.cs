@@ -119,17 +119,14 @@ public static class MaintenanceMode
     {
         try
         {
-            using var searcher = new ManagementObjectSearcher("SELECT ProcessId, CommandLine FROM Win32_Process WHERE Name='msedgewebview2.exe'");
+            using var searcher = new ManagementObjectSearcher(
+                "SELECT ProcessId FROM Win32_Process WHERE Name='msedgewebview2.exe' AND CommandLine LIKE '%Douzhanzhe Console%'");
             var pids = new List<int>();
             foreach (ManagementObject obj in searcher.Get())
             {
                 using (obj)
                 {
-                    var cmd = obj["CommandLine"]?.ToString() ?? "";
-                    if (cmd.Contains(WebView2UserDataMarker, StringComparison.OrdinalIgnoreCase))
-                    {
-                        if (int.TryParse(obj["ProcessId"]?.ToString(), out var pid)) pids.Add(pid);
-                    }
+                    if (int.TryParse(obj["ProcessId"]?.ToString(), out var pid)) pids.Add(pid);
                 }
             }
             foreach (var pid in pids)

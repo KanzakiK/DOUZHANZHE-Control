@@ -28,15 +28,13 @@ internal static class OrphanCleanup
         {
             var pids = new List<int>();
             using (var searcher = new ManagementObjectSearcher(
-                "SELECT ProcessId, CommandLine FROM Win32_Process WHERE Name='msedgewebview2.exe'"))
+                "SELECT ProcessId FROM Win32_Process WHERE Name='msedgewebview2.exe' AND CommandLine LIKE '%Douzhanzhe Console%'"))
             {
                 foreach (ManagementObject obj in searcher.Get())
                 {
                     using (obj)
                     {
-                        var cmd = obj["CommandLine"]?.ToString() ?? "";
-                        if (cmd.Contains(UserDataMarker, StringComparison.OrdinalIgnoreCase)
-                            && int.TryParse(obj["ProcessId"]?.ToString(), out var pid))
+                        if (int.TryParse(obj["ProcessId"]?.ToString(), out var pid))
                         {
                             pids.Add(pid);
                         }
