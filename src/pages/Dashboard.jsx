@@ -92,7 +92,7 @@ export default function Dashboard({ onNavigate }) {
   const isBellator = platformInfo.oem === 'Bellator';
   const hasAnyTelemetry = !!telemetry && Object.keys(telemetry).length > 0;
   const stalled = useStall(!hasAnyTelemetry);
-  const isOffline = useStall(!backendOnline, 1500);
+  const isOffline = useStall(backendOnline === false, 1500);
 
   const builtinProfiles = sortBuiltinProfiles(profiles.filter(p => p.builtIn));
 

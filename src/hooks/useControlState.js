@@ -50,7 +50,9 @@ function makeInitialState() {
     uxtuParams: { ...FULL_PARAMS, ...fanDefaults },
     overrides: {},
     switching: false,
-    backendOnline: false,
+    // 三态：null=未知（启动中/尚未确认），true=在线，false=明确离线。
+    // 原为 false —— 前端一加载 1.5s 后必弹"后端服务未连接"，哪怕后端完全正常
+    backendOnline: null,
     profiles: [],
     currentProfile: null,
     platformInfo: { oem: 'Unknown', vendor: '', model: '', isElevated: null },
@@ -299,8 +301,9 @@ function connectSocket() {
 
 // ── Mock 模拟（后端不可用时，原 useEffect 逻辑）──
 function watchTelemetryMock() {
-  const tick = () => {
-    if (state.backendOnline) return;
+    const tick = () => {
+        // 仅在"明确离线"时才用模拟数据兜底；未知态（启动中）保持空数据，避免展示假数据
+        if (state.backendOnline !== false) return;
     if (_lastTick === null) _lastTick = Date.now();
     const now = Date.now();
     const dt = Math.max(0.5, Math.min(3, (now - (_lastTick || Date.now())) / 1000));

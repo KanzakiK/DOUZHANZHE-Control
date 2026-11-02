@@ -20,7 +20,16 @@ export default function ConfigBar({
     return () => document.removeEventListener('mousedown', h);
   }, []);
 
-  const profileName = currentProfile?.name || settings.mode;
+  // 配置列表尚未加载完成时（启动初期），currentProfile 为空，
+  // 直接回退到 settings.mode 会把内部 id 暴露给用户（如 "cfg-office"）。
+  // 内置配置 id 形如 cfg-<性能模式>，据此推导展示名；用户自建配置 id 即其名称。
+  const fallbackProfileName = (id) => {
+    if (!id) return '';
+    const mode = String(id).replace(/^cfg-/, '');
+    return MODE_LABELS[mode] || id;
+  };
+
+  const profileName = currentProfile?.name || fallbackProfileName(settings.mode);
   const isBuiltIn = currentProfile?.builtIn ?? true;
   // 绑定的性能模式裸名：从当前配置的 thermalMode 取（配置 id ≠ 性能模式名）
   const boundMode = currentProfile?.thermalMode || 'office';

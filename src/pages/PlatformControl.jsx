@@ -89,7 +89,7 @@ export default function PlatformControl() {
     { id: 1, label: "独显", desc: "高性能" },
   ];
 
-  const isOffline = useStall(!backendOnline, 1500);
+  const isOffline = useStall(backendOnline === false, 1500);
   const hasAnyTelemetry = !!telemetry && Object.keys(telemetry).length > 0;
   const hasControlData = !!telemetry && (
     telemetry.kbBrightness != null ||
