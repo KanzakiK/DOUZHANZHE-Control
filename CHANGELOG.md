@@ -5,15 +5,19 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
+## [2.0.2-pre.2] — 2026-11-02
+
+启动流程加固：关闭再重启后偶发"后端服务未响应/未启动"且永久卡死的修复（见下方 🛠 修复）。
+
+### 🛠 修复
+- **启动后偶发"后端服务未响应/未启动"且永久卡死**：Shell 端启动容错过脆，关闭再重启后易踩。根因有三：①`Form1_Load` 串行堆叠——后端进程启动(≈16s)与 WebView2 冷启动(≈16s)先后执行，再把 30s 就绪窗口推到最后，时序余量极窄；②就绪失败直接 `NavigateToString(errorHtml); return;`，既不导航到应用、也不启动健康守护、连热键都不注册，实例冻结；③单实例互斥会把已冻死的旧窗口顶到前台复现错误页。修复：后端就绪探测与 WebView2 初始化改 `Task.WhenAll` 并行（时序余量从 ≈32s 降到 ≈16s）；就绪失败不再死胡同——始终启动 HealthTimer、注册热键，仅把诊断页当临时态并置 `_initialApiFailed`，由健康守护在后端恢复时导航到应用；`IsPortListening` 由 netstat 进程解析改为 `TcpClient` 500ms 连接探针（更快更稳、去掉 UI 线程 `Thread.Sleep(2000)`）；WebView2 缓存清理改为按 `Application.ProductVersion` 版本门控（仅版本变化时清 6 个缓存目录，平时跳过）。`Program.cs` 互斥逻辑不动——自愈做好后复用的旧窗口也会自动恢复。仅改 `server/shell/Douzhanzhe.Shell/Form1.cs`。`dotnet build -c Release` 0 新增错误/警告（既有 MSB3277 WebView2/WPF 引用冲突、CS8600 在 WndProc 处，均与本次无关）。
+
 ## [2.0.2-pre.1] — 2026-11-02
 
 壁纸网络轮换「看不见」修复：后端一直按 interval 换图，但前端从不重新拉取。
 
 ### 🛠 修复
 - **壁纸轮换在 UI 上不可见**：BackgroundRotationService 按 interval 默默替换 config/background.*，但前端只在挂载时读一次 `/api/background` 写进 CSS 变量、无刷新机制，磁盘图已换而屏幕上看不见；窗口最小化到托盘后永不重载，观感上像停止轮换。改为在 250ms 遥测 WS 帧中携带 `bgLastRotated`（Unix 秒），前端检测戳变化即用 `/api/background?t=<戳>` 重新套用背景图——零新增流量、延迟 ≤250ms、托盘态（WS 常开、JS 照跑）同样生效；`/api/background-opts` 同步返回 `lastRotated` 做 REST 兜底。注意仅 `source=network` 模式会轮换，`local` 单张固定图设计上不轮换。
-
-### 🛠 修复（启动流程加固）
-- **启动后偶发"后端服务未响应/未启动"且永久卡死**：Shell 端启动容错过脆，关闭再重启后易踩。根因有三：①`Form1_Load` 串行堆叠——后端进程启动(≈16s)与 WebView2 冷启动(≈16s)先后执行，再把 30s 就绪窗口推到最后，时序余量极窄；②就绪失败直接 `NavigateToString(errorHtml); return;`，既不导航到应用、也不启动健康守护、连热键都不注册，实例冻结；③单实例互斥会把已冻死的旧窗口顶到前台复现错误页。修复：后端就绪探测与 WebView2 初始化改 `Task.WhenAll` 并行（时序余量从 ≈32s 降到 ≈16s）；就绪失败不再死胡同——始终启动 HealthTimer、注册热键，仅把诊断页当临时态并置 `_initialApiFailed`，由健康守护在后端恢复时导航到应用；`IsPortListening` 由 netstat 进程解析改为 `TcpClient` 500ms 连接探针（更快更稳、去掉 UI 线程 `Thread.Sleep(2000)`）；WebView2 缓存清理改为按 `Application.ProductVersion` 版本门控（仅版本变化时清 6 个缓存目录，平时跳过）。`Program.cs` 互斥逻辑不动——自愈做好后复用的旧窗口也会自动恢复。仅改 `server/shell/Douzhanzhe.Shell/Form1.cs`。`dotnet build -c Release` 0 新增错误/警告（既有 MSB3277 WebView2/WPF 引用冲突、CS8600 在 WndProc 处，均与本次无关）。
 
 ## [2.0.1-pre.20] — 2026-10-30
 
