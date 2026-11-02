@@ -660,14 +660,22 @@ public sealed class HardwareAbstractionLayer : IDisposable
     {
         try
         {
-            int size = Marshal.SizeOf<ProcessorPowerInfo>();
+            // ProcessorInformation 需要按处理器数量分配缓冲区（每个处理器一份结构）
+            const int maxProcs = 128;
+            int structSize = Marshal.SizeOf<ProcessorPowerInfo>();
+            int size = structSize * maxProcs;
             IntPtr buf = Marshal.AllocHGlobal(size);
             try
             {
                 if (CallNtPowerInformation(ProcessorInformationLevel, size, IntPtr.Zero, 0, buf, size) == 0)
                 {
-                    var r = Marshal.PtrToStructure<ProcessorPowerInfo>(buf);
-                    if (r.CurrentMhz > 0) return r.CurrentMhz / 1000f;
+                    float best = 0;
+                    for (int i = 0; i < maxProcs; i++)
+                    {
+                        var r = Marshal.PtrToStructure<ProcessorPowerInfo>(buf + i * structSize);
+                        if (r.CurrentMhz > 0) { best = r.CurrentMhz / 1000f; break; }
+                    }
+                    if (best > 0) return best;
                 }
             }
             finally { Marshal.FreeHGlobal(buf); }
