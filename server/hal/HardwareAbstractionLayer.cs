@@ -30,6 +30,7 @@ public sealed class HardwareAbstractionLayer : IDisposable
     private float _sgGpuVramUsed;
     private int _sgGpuMemMhz;
     private float _sgGpuPowerDrawW;
+    private byte _sgGpuTemp;
     private DateTime _sgGpuTime = DateTime.MinValue;
     private int _sgCpuPct;
     private DateTime _sgCpuTime = DateTime.MinValue;
@@ -179,52 +180,14 @@ public sealed class HardwareAbstractionLayer : IDisposable
         }
     }
 
-    /// <summary>GPU 温度 (摄氏度) — 后台 nvidia-smi 采集，读取只取缓存（不阻塞调用方）</summary>
+    /// <summary>GPU 温度 (摄氏度) — 随 GPU 统计一并采集（同一个 nvidia-smi 查询），读取只取缓存</summary>
     public byte GpuTemperature
     {
         get
         {
-            RefreshGpuTemp();
-            return _lastGpuTemp;
+            RefreshGpu();
+            return _sgGpuTemp;
         }
-    }
-
-    /// <summary>
-    /// GPU 温度采集：nvidia-smi 单次启动需 0.3~3s，放在属性读取路径会拖慢整个遥测循环，
-    /// 改为后台采集、读取只取缓存。
-    /// </summary>
-    private void RefreshGpuTemp()
-    {
-        if ((DateTime.UtcNow - _lastGpuTempTime).TotalSeconds < 2 && _lastGpuTemp > 0) return;
-        lock (_sgGpuTempLock)
-        {
-            if (_sgGpuTempBusy) return;
-            if ((DateTime.UtcNow - _lastGpuTempTime).TotalSeconds < 2 && _lastGpuTemp > 0) return;
-            _sgGpuTempBusy = true;
-        }
-        _ = Task.Run(() =>
-        {
-            try
-            {
-                var psi = new ProcessStartInfo("nvidia-smi",
-                    "--query-gpu=temperature.gpu --format=csv,noheader,nounits")
-                {
-                    RedirectStandardOutput = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                };
-                using var proc = Process.Start(psi)!;
-                proc.WaitForExit(3000);
-                var line = proc.StandardOutput.ReadToEnd().Trim();
-                if (byte.TryParse(line, out var temp) && temp > 0)
-                {
-                    _lastGpuTemp = temp;
-                    _lastGpuTempTime = DateTime.UtcNow;
-                }
-            }
-            catch { /* nvidia-smi 不可用 */ }
-            finally { lock (_sgGpuTempLock) _sgGpuTempBusy = false; }
-        });
     }
 
     /// <summary>CPU 风扇转速 (RPM) — EC IO 协议 (PawnIO LpcACPIEC.bin)</summary>
@@ -736,7 +699,7 @@ public sealed class HardwareAbstractionLayer : IDisposable
                             }
                         };
                         proc.Start();
-                        if (proc.WaitForExit(3000))
+                        if (proc.WaitForExit(10000))
                         {
                             var line = proc.StandardOutput.ReadToEnd().Trim();
                             if (int.TryParse(line, out var mhz) && mhz > 0)
@@ -851,14 +814,15 @@ public sealed class HardwareAbstractionLayer : IDisposable
                 StartInfo = new ProcessStartInfo
                 {
                     FileName = "nvidia-smi",
-                    Arguments = "--query-gpu=utilization.gpu,clocks.current.graphics,memory.total,memory.used,clocks.current.memory,power.draw --format=csv,noheader,nounits",
+                    // 温度一并查询：单独再起一次 nvidia-smi 必然超时（此前 GPU 温度恒为 0）
+                    Arguments = "--query-gpu=utilization.gpu,clocks.current.graphics,memory.total,memory.used,clocks.current.memory,power.draw,temperature.gpu --format=csv,noheader,nounits",
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
                     CreateNoWindow = true
                 }
             };
             p.Start();
-            if (!p.WaitForExit(3000)) { p.Kill(); return; }
+            if (!p.WaitForExit(8000)) { p.Kill(); return; }
             var parts = p.StandardOutput.ReadToEnd().Trim().Split(',');
             if (parts.Length >= 4)
             {
@@ -870,6 +834,7 @@ public sealed class HardwareAbstractionLayer : IDisposable
                 if (float.TryParse(parts[3].Trim(), out var u)) _sgGpuVramUsed = (float)(u / 1024.0);
                 if (parts.Length >= 5 && int.TryParse(parts[4].Trim(), out var mm)) _sgGpuMemMhz = mm;
                 if (parts.Length >= 6 && float.TryParse(parts[5].Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var pw)) _sgGpuPowerDrawW = pw;
+                if (parts.Length >= 7 && byte.TryParse(parts[6].Trim(), out var gt) && gt > 0) _sgGpuTemp = gt;
                 _sgGpuTime = DateTime.UtcNow;
             }
         }
@@ -910,7 +875,7 @@ public sealed class HardwareAbstractionLayer : IDisposable
                 CreateNoWindow = true
             };
             using var p = Process.Start(psi);
-            if (p == null || !p.WaitForExit(3000)) { p?.Kill(); return; }
+            if (p == null || !p.WaitForExit(10000)) { p?.Kill(); return; }
             var parts = p.StandardOutput.ReadToEnd().Trim().Split(',');
             if (parts.Length >= 3 && long.TryParse(parts[0], out var total) && total > 0)
             {
@@ -966,7 +931,7 @@ public sealed class HardwareAbstractionLayer : IDisposable
             })
             {
                 p.Start();
-                if (!p.WaitForExit(5000)) { p.Kill(); return; }
+                if (!p.WaitForExit(10000)) { p.Kill(); return; }
                 var reader = p.StandardOutput.ReadToEnd();
                 foreach (var line in reader.Split(new[] { '\r', '\n' }, System.StringSplitOptions.RemoveEmptyEntries))
                 {
