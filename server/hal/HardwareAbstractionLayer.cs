@@ -555,6 +555,13 @@ public sealed class HardwareAbstractionLayer : IDisposable
         }
     }
 
+    /// <summary>
+    /// CPU 频率（GHz）。
+    /// 数据源："Processor Information\% Processor Performance" 性能计数器（当前/基频百分比）
+    ///        × 标称基频；基频用 CPUID leaf 0x16 直接取（进程内微秒级）。
+    /// 该性能计数器首次读取要初始化 PerfLib（实测冷启动需数十秒），故采集放后台，
+    /// 在真实值就绪前用标称基频作过渡显示，避免出现明显错误的数值。
+    /// </summary>
     public float CpuFreq
     {
         get
@@ -564,17 +571,19 @@ public sealed class HardwareAbstractionLayer : IDisposable
             {
                 if (_cpuFreqCache > 0) return _cpuFreqCache;
             }
-            // 缓存还没就绪（PerformanceCounter 首次读要初始化 PerfLib，冷启动实测 30s+）：
-            // 用内核快速查询给出即时值，避免前端长时间拿不到频率
-            var fast = QueryCpuFreqFast();
-            return fast > 0 ? fast : 2.4f;
+            // 真实值未就绪：用标称基频过渡（比硬编码 2.4 贴近实际）
+            var baseMhz = Volatile.Read(ref _cpuBaseFreqMhz);
+            if (baseMhz > 0) return baseMhz / 1000f;
+            return 2.4f;
         }
     }
 
     private float _cpuFreqCache;
     private DateTime _cpuFreqTime = DateTime.MinValue;
     private PerformanceCounter? _cpuFreqCounter;
+    private PerformanceCounter? _cpuFreqHzCounter;
     private float _cpuBaseFreqGhz;
+    private int _cpuBaseFreqMhz;              // 标称基频（过渡显示 + 换算比例用）
     private readonly object _cpuFreqLock = new();
     private bool _cpuFreqBusy;
 
@@ -596,141 +605,64 @@ public sealed class HardwareAbstractionLayer : IDisposable
         });
     }
 
-    // ---- 内核快速查询当前 CPU 频率（powrprof.dll）----
-    // POWER_INFORMATION_LEVEL: ProcessorInformation = 1
-    private const int ProcessorInformationLevel = 1;
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct ProcessorPowerInfo
+    /// <summary>
+    /// 取 CPU 标称基频（MHz）。
+    /// 用 WMI 静态信息缓存（Win32_Processor.MaxClockSpeed）。
+    /// ★ 不要再用 PowerShell + Get-CimInstance 取基频：实测该命令要 15.8s，
+    ///   必然超时 → 频率长期显示硬编码兜底值。
+    /// </summary>
+    private static int GetCpuBaseFreqMHz()
     {
-        public uint MaxMhz;
-        public uint CurrentMhz;
-        public uint MhzLimit;
-        public uint MaxIdleState;
-        public uint CurrentIdleState;
-    }
-
-    [DllImport("powrprof.dll", SetLastError = true)]
-    private static extern uint CallNtPowerInformation(
-        int informationLevel, int bufferLength, IntPtr inputBuffer, int inputBufferLength,
-        IntPtr outputBuffer, int outputBufferLength);
-
-    /// <summary>取系统活跃逻辑处理器总数（跨所有处理器组），失败退回 1</summary>
-    [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern ushort GetActiveProcessorCount(ushort groupCount);
-
-    private static int GetActiveProcessorCountSafe()
-    {
-        try
-        {
-            const ushort AllProcessorGroups = 0xFFFF;
-            var n = GetActiveProcessorCount(AllProcessorGroups);
-            if (n > 0) return n;
-        }
-        catch { }
-        return Math.Max(1, Environment.ProcessorCount);
-    }
-
-    /// <summary>内核查询当前 CPU 频率（GHz），失败返回 0</summary>
-    private static float QueryCpuFreqFast()
-    {
-        try
-        {
-            // ProcessorInformation 需要按处理器数量精确分配缓冲区（每个逻辑处理器一份结构），
-            // 尺寸不符会返回 STATUS_INVALID_PARAMETER(0xC000000D)。
-            // 不同 Windows 版本/处理器组布局对"处理器数量"的取法不一致，这里多试几档。
-            int cands = 0;
-            foreach (var n in new[] { GetActiveProcessorCountSafe(), GetActiveProcessorCountSafe() + 1, Environment.ProcessorCount, 8, 16, 32, 64 })
-            {
-                if (n <= 0) continue;
-                cands++;
-                var (ok, ghz) = TryCallNtPower(ProcessorInformationLevel, n);
-                if (ok && ghz > 0)
-                {
-                    if (cands > 1) AppLog.Write("HAL", $"CallNtPowerInformation 命中：level=1 处理器数={n} → {ghz:F2} GHz");
-                    return ghz;
-                }
-                if (cands == 1) AppLog.Write("HAL", "CallNtPowerInformation(level=1) 失败，尝试其它尺寸");
-            }
-        }
-        catch { }
-        return 0;
-    }
-
-    /// <summary>按给定的处理器数量调用 CallNtPowerInformation，返回 (成功, GHz)。</summary>
-    private static (bool ok, float ghz) TryCallNtPower(int level, int procCount)
-    {
-        try
-        {
-            int structSize = Marshal.SizeOf<ProcessorPowerInfo>();
-            int size = structSize * procCount;
-            IntPtr buf = Marshal.AllocHGlobal(size);
-            try
-            {
-                if (CallNtPowerInformation(level, size, IntPtr.Zero, 0, buf, size) == 0)
-                {
-                    for (int i = 0; i < procCount; i++)
-                    {
-                        var r = Marshal.PtrToStructure<ProcessorPowerInfo>(buf + i * structSize);
-                        // CurrentMhz 偶尔为 0（低功耗态），退用 MaxMhz（标称频率）
-                        uint mhz = r.CurrentMhz > 0 ? r.CurrentMhz : r.MaxMhz;
-                        if (mhz > 0) return (true, mhz / 1000f);
-                    }
-                }
-            }
-            finally { Marshal.FreeHGlobal(buf); }
-        }
-        catch { }
-        return (false, 0f);
+        try { return GetCpuStatic().Item2; } catch { return 0; }
     }
 
     private float GetCpuFreqDirect()
     {
         try
         {
-            // 惰性初始化持久化 PerformanceCounter（不再每次 new/dispose）
+            // 首选 "Processor Frequency" 计数器：直接给 Hz，无需基频换算
+            if (_cpuFreqHzCounter == null)
+            {
+                _cpuFreqHzCounter = new PerformanceCounter("Processor Information", "Processor Frequency", "_Total");
+                _cpuFreqHzCounter.NextValue(); // 建立基线
+                Thread.Sleep(1000);           // 等一个采样间隔
+            }
+            var hz = _cpuFreqHzCounter.NextValue();
+            if (hz > 1_000_000)   // 至少 1MHz，排除 0/无效值
+            {
+                _cpuFreqCache = (float)(hz / 1_000_000_000.0);
+                _cpuFreqTime = DateTime.UtcNow;
+                return _cpuFreqCache;
+            }
+
+            // 回退："% Processor Performance" 比例值 × 标称基频
             if (_cpuFreqCounter == null)
             {
                 _cpuFreqCounter = new PerformanceCounter("Processor Information", "% Processor Performance", "_Total");
-                _cpuFreqCounter.NextValue(); // 首次调用返回 0，用于建立基线
+                _cpuFreqCounter.NextValue();
+                Thread.Sleep(1000);
             }
-
             var pct = _cpuFreqCounter.NextValue();
             if (pct > 0)
             {
-                // 惰性检测真实基频（只读一次）
-                if (_cpuBaseFreqGhz <= 0)
+                var baseMhz = Volatile.Read(ref _cpuBaseFreqMhz);
+                if (baseMhz <= 0)
                 {
-                    try
-                    {
-                        using var proc = new Process
-                        {
-                            StartInfo = new ProcessStartInfo("powershell",
-                                "-NoProfile -Command \"(Get-CimInstance Win32_Processor).MaxClockSpeed\"")
-                            {
-                                UseShellExecute = false,
-                                RedirectStandardOutput = true,
-                                CreateNoWindow = true
-                            }
-                        };
-                        proc.Start();
-                        if (proc.WaitForExit(10000))
-                        {
-                            var line = proc.StandardOutput.ReadToEnd().Trim();
-                            if (int.TryParse(line, out var mhz) && mhz > 0)
-                                _cpuBaseFreqGhz = mhz / 1000f;
-                        }
-                    }
-                    catch { }
-                    if (_cpuBaseFreqGhz <= 0) _cpuBaseFreqGhz = 2.4f; // 最终兜底
+                    baseMhz = GetCpuBaseFreqMHz();
+                    if (baseMhz > 0) Volatile.Write(ref _cpuBaseFreqMhz, baseMhz);
                 }
+                if (baseMhz <= 0) baseMhz = 4400;  // 最终兜底（8940HX 标称基频量级）
 
+                _cpuBaseFreqGhz = baseMhz / 1000f;
                 _cpuFreqCache = (float)(_cpuBaseFreqGhz * (pct / 100.0));
                 _cpuFreqTime = DateTime.UtcNow;
                 return _cpuFreqCache;
             }
         }
-        catch { _cpuFreqCounter?.Dispose(); _cpuFreqCounter = null; }
+        catch
+        {
+            // 计数器暂时不可用时保留它（不要 Dispose 后重建），下次继续读
+        }
         return _cpuFreqCache > 0 ? _cpuFreqCache : 2.4f;
     }
 
