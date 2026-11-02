@@ -20,8 +20,6 @@ namespace Douzhanzhe.HAL;
 public sealed class HardwareAbstractionLayer : IDisposable
 {
     private readonly DriverBridge _io;
-    private byte _lastGpuTemp;
-    private DateTime _lastGpuTempTime = DateTime.MinValue;
 
     // System telemetry cache fields
     private byte _sgGpuUsage;
@@ -45,8 +43,6 @@ public sealed class HardwareAbstractionLayer : IDisposable
     // nvidia-smi 单次启动 0.3~3s、PowerShell+CIM/Get-Disk 可达 5~15s，
     // 放在属性读取路径会把 250ms 的遥测循环拖成数秒~数十秒一轮，
     // 前端因此长时间停在"暂无实时数据"。
-    private readonly object _sgGpuTempLock = new();
-    private bool _sgGpuTempBusy;
     private readonly object _sgGpuLock = new();
     private bool _sgGpuBusy;
     private readonly object _sgMemLock = new();
