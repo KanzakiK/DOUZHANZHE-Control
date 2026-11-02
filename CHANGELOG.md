@@ -5,6 +5,14 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
+## [2.0.2-pre.6] — 2026-11-02
+
+修复 2.0.2-pre.5 的安装卡死（安装器把 `--maintenance` 传给了不认识该参数的旧版 API）。
+
+### 🛠 修复
+
+- **安装卡在"正在安装"不动**：`2.0.2-pre.5` 的安装器在 `ssInstall` 阶段调用 `{app}\Douzhanzhe.API.exe --maintenance` 来静默清理旧实例 —— 但 `{app}` 里**当前已安装的可能是老版本 API**，它不认识 `--maintenance`，会把它当成普通启动参数直接跑成服务端常驻，安装器用 `ewWaitUntilTerminated` 等它退出 → **永远等下去，整个安装卡死**。现按**已安装版本**分流：已装 ≥ `2.0.2-pre.5`（支持该能力）才用本应用自己的助手静默清理，否则退回 `taskkill` 结束旧实例（老版本本就是控制台程序，一闪而过可接受）。卸载路径同样加了该保护。
+
 ## [2.0.2-pre.5] — 2026-11-02
 
 子进程回收兜底 + 安装过程静默清理（消除安装时一闪而过的控制台窗口）。

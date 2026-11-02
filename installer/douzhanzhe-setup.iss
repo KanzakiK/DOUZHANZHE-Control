@@ -241,6 +241,57 @@ end;
 // ----------------------------------------------------------
 // 安装后：创建计划任务实现开机自启（与后端 API 使用同一机制）
 // ----------------------------------------------------------
+// ----------------------------------------------------------
+// 判断"已安装版本"是否支持 --maintenance 静默维护（2.0.2-pre.5 起）
+// ----------------------------------------------------------
+// 重要：{app} 里当前装着的 API 可能是老版本，它不认识 --maintenance 参数，
+//       会把它当成普通启动参数直接跑成服务端常驻 → 安装器 ewWaitUntilTerminated
+//       会永远等下去，整个安装卡死。所以必须先判断版本再决定用哪种方式。
+function InstalledVersionSupportsMaintenance(): Boolean;
+var
+  VerFile: String;
+  VerText: String;
+  PrePos: Integer;
+  PreNum: Integer;
+begin
+  Result := False;
+  VerFile := ExpandConstant('{app}\version.txt');
+  if not FileExists(VerFile) then Exit;
+  VerText := Trim(LoadStringFromFile(VerFile));
+  if VerText = '' then Exit;
+  // 主版本必须是 2.0.2
+  if CompareText(Copy(VerText, 1, 5), '2.0.2') <> 0 then Exit;
+  PrePos := Pos('-pre.', VerText);
+  if PrePos = 0 then Exit;                       // 稳定版 2.0.2 不含该能力
+  PreNum := StrToIntDef(Trim(Copy(VerText, PrePos + 5, 10)), 0);
+  Result := (PreNum >= 5);
+end;
+
+// ----------------------------------------------------------
+// 安装前：结束正在运行的旧实例 + 清理旧驱动/旧任务/遗留 WebView2
+// （覆盖安装时防止 exe 文件被锁）
+// ----------------------------------------------------------
+procedure StopOldInstances();
+var
+  ResultCode: Integer;
+  HelperPath: String;
+begin
+  HelperPath := ExpandConstant('{app}\{#MyAppApiExeName}');
+
+  if InstalledVersionSupportsMaintenance() and FileExists(HelperPath) then
+  begin
+    // 新版：交给本应用自己的助手静默清理（它是 WinExe，无控制台窗口，且会自行退出）
+    Exec(HelperPath, '--maintenance', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  end
+  else
+  begin
+    // 老版：不认识 --maintenance，必须用 taskkill 结束（老版本本就是控制台程序，会一闪而过）
+    Exec('taskkill', '/f /im {#MyAppExeName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Exec('taskkill', '/f /im {#MyAppApiExeName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  end;
+  Sleep(1000);
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   ResultCode: Integer;
@@ -251,13 +302,14 @@ var
 begin
   // 安装前：结束正在运行的旧实例 + 清理旧驱动/旧任务/遗留 WebView2
   // （覆盖安装时防止 exe 文件被锁）
-  // 全部交给本应用自己的 API 以 --maintenance 模式一次做完：
+  // 新版（已装 >= 2.0.2-pre.5）交给本应用自己的 API 以 --maintenance 模式一次做完：
   // 它是 WinExe（无控制台窗口），内部用 API 直接结束进程/停服务/删任务，
   // 不再调 taskkill / sc / schtasks / cmd —— 安装时不会再闪控制台黑框。
+  // 老版本不认识 --maintenance（会当成普通启动跑成服务端常驻，导致安装卡死），
+  // 故由 StopOldInstances() 按已装版本判断并退回 taskkill。
   if CurStep = ssInstall then
   begin
-    Exec(ExpandConstant('{app}\{#MyAppApiExeName}'), '--maintenance', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-    Sleep(500);
+    StopOldInstances();
 
     // 清理旧的前端 JS bundle（覆盖安装时 Vite hash 文件名变化，旧 bundle 不会被删除，
     // 导致后端版本号检测用 FirstOrDefault 取到旧版本，从而误报更新）
@@ -328,8 +380,15 @@ var
 begin
   Result := True;
   // 关闭正在运行的程序 + 停止驱动服务 + 删除计划任务 + 清理遗留 WebView2
-  // 统一交给本应用自己的 API（WinExe，无控制台窗口）：卸载时不再闪黑框
-  Exec(ExpandConstant('{app}\{#MyAppApiExeName}'), '--maintenance', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  // 新版用本应用自己的助手静默完成；老版本不认识 --maintenance，必须用 taskkill
+  if InstalledVersionSupportsMaintenance() and
+     FileExists(ExpandConstant('{app}\{#MyAppApiExeName}')) then
+    Exec(ExpandConstant('{app}\{#MyAppApiExeName}'), '--maintenance', '', SW_HIDE, ewWaitUntilTerminated, ResultCode)
+  else
+  begin
+    Exec('taskkill', '/f /im {#MyAppExeName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Exec('taskkill', '/f /im {#MyAppApiExeName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  end;
   Sleep(500);
 end;
 
