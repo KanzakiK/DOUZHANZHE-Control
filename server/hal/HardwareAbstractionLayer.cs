@@ -697,12 +697,8 @@ public sealed class HardwareAbstractionLayer : IDisposable
                         if (mhz > 0) { best = mhz / 1000f; break; }
                     }
                     if (best > 0) return best;
-                    AppLog.Write("HAL", "CallNtPowerInformation 未返回有效频率（CurrentMhz/MaxMhz 均为 0）");
                 }
-                else
-                {
-                    AppLog.Write("HAL", $"CallNtPowerInformation 调用失败，状态码 0x{CallNtPowerInformation(ProcessorInformationLevel, size, IntPtr.Zero, 0, buf, size):X8}");
-                }
+                // 调用失败（如缓冲区尺寸与系统不匹配）→ 静默退回调用方兜底值
             }
             finally { Marshal.FreeHGlobal(buf); }
         }
