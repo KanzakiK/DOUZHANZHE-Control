@@ -250,6 +250,7 @@ end;
 function InstalledVersionSupportsMaintenance(): Boolean;
 var
   VerFile: String;
+  Lines: TArrayOfString;
   VerText: String;
   PrePos: Integer;
   PreNum: Integer;
@@ -257,7 +258,9 @@ begin
   Result := False;
   VerFile := ExpandConstant('{app}\version.txt');
   if not FileExists(VerFile) then Exit;
-  VerText := Trim(LoadStringFromFile(VerFile));
+  if not LoadStringsFromFile(VerFile, Lines) then Exit;
+  if Length(Lines) = 0 then Exit;
+  VerText := Trim(Lines[0]);
   if VerText = '' then Exit;
   // 主版本必须是 2.0.2
   if CompareText(Copy(VerText, 1, 5), '2.0.2') <> 0 then Exit;
