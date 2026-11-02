@@ -627,24 +627,25 @@ public sealed class HardwareAbstractionLayer : IDisposable
                 _cpuFreqHzCounter = new PerformanceCounter("Processor Information", "Processor Frequency", "_Total");
                 _cpuFreqHzCounter.NextValue(); // 建立基线
                 Thread.Sleep(1000);           // 等一个采样间隔
+            }            // "Processor Frequency" 的 CookedValue 需要基线之后再采 2 个样本才有值，
+            // 只采 1 个会一直是 0 → 频率长期显示兜底值。这里最多连采 4 次（每次间隔 1s）。
+            double ghz = 0;
+            for (int i = 0; i < 4 && ghz <= 0; i++)
+            {
+                var raw = _cpuFreqHzCounter.NextValue();
+                if (raw > 0) ghz = raw > 100_000 ? raw / 1_000_000_000.0 : raw / 1_000.0;
+                if (ghz <= 0) Thread.Sleep(1000);
             }
-            var raw = _cpuFreqHzCounter.NextValue();
             if (!_cpuFreqDiagLogged)
             {
                 _cpuFreqDiagLogged = true;
-                AppLog.Write("HAL", $"[CPU频率诊断] Processor Frequency 原始值={raw}（>100000 视为 Hz，否则 MHz）");
+                try { File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "cpu-freq-diag.txt"), $"raw/ghz={ghz:F3}\n"); } catch { }
             }
-            if (raw > 0)
+            if (ghz > 0.2 && ghz < 10)
             {
-                // "Processor Frequency" 的单位在不同 Windows / 区域设置下可能是 Hz 或 MHz
-                // （本机实测返回 MHz，如 2163），按数量级自动判定，避免把有效值误判为无效。
-                double ghz = raw > 100_000 ? raw / 1_000_000_000.0 : raw / 1_000.0;
-                if (ghz > 0.2 && ghz < 10)
-                {
-                    _cpuFreqCache = (float)ghz;
-                    _cpuFreqTime = DateTime.UtcNow;
-                    return _cpuFreqCache;
-                }
+                _cpuFreqCache = (float)ghz;
+                _cpuFreqTime = DateTime.UtcNow;
+                return _cpuFreqCache;
             }
 
             // 回退："% Processor Performance" 比例值 × 标称基频
