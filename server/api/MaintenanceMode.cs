@@ -84,11 +84,26 @@ public static class MaintenanceMode
                 try
                 {
                     if (skipSelf && p.Id == self) continue;
+                    // 0 线程 = 进程已死透、只剩句柄未释放（被外部提权进程持有）。
+                    // 这种对象 Kill()/TerminateProcess 都无效（没有线程可终止），
+                    // 只能等持句柄者释放它（通常是重启系统）。
+                    if (p.Threads.Count == 0)
+                    {
+                        AppLog.Write("Maintenance",
+                            $"{name} (PID {p.Id}) 是 0 线程的残留进程对象（进程早已终止，仅剩句柄被外部提权进程持有）。" +
+                            "TerminateProcess 对它无效（无线程可终止），只能等持句柄者释放（通常重启系统后消失）。" +
+                            "该对象不占端口/互斥锁/内存，不影响使用。");
+                        continue;
+                    }
                     p.Kill();
                     killed++;
                     AppLog.Write("Maintenance", $"已结束进程 {name} (PID {p.Id})");
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    // ★ 失败必须记录：此前全部静默吞掉，导致"没清干净"完全不可见
+                    AppLog.Write("Maintenance", $"结束 {name} (PID {p.Id}) 失败: {ex.GetType().Name}: {ex.Message}");
+                }
                 finally { try { p.Dispose(); } catch { } }
             }
             if (killed > 0) WaitForExit(name, 3000);
