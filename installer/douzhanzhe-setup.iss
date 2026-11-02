@@ -344,6 +344,10 @@ begin
   // 安装后：创建计划任务 + 清理旧版快捷方式
   if CurStep = ssPostInstall then
   begin
+    // 新版 API（WinExe）此时已就位：用它做一次静默清理
+    // —— 清掉历史遗留的本应用 WebView2 渲染进程、旧驱动服务与旧计划任务，全程无窗口闪现。
+    // （安装前的清理受"已装版本是否支持 --maintenance"限制，见 StopOldInstances）
+    Exec(ExpandConstant('{app}\{#MyAppApiExeName}'), '--maintenance', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     // 清理旧版启动文件夹快捷方式（从旧版升级时）
     StartupLink := ExpandConstant('{userstartup}\{#MyAppName}.lnk');
     if FileExists(StartupLink) then

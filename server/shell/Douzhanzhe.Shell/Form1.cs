@@ -228,10 +228,17 @@ public partial class Form1 : Form
         // 仅在版本变化时清理 WebView2 磁盘缓存（防前端更新后缓存旧版本），平时启动跳过
         EnsureWebView2CachePurged(userDataDir);
 
-        // 清理上次异常退出遗留的 WebView2 渲染进程（必须在本次 WebView2 启动之前）
-        var orphanCount = OrphanCleanup.KillOrphanWebView2();
-        if (orphanCount > 0)
-            ShellLog($"已清理遗留 WebView2 进程 {orphanCount} 个");
+        // 清理上次异常退出遗留的 WebView2 渲染进程。
+        // 必须放到后台：WMI 的 Win32_Process 枚举很慢（实测可达 ~12s，且会与后端的
+        // WMI 事件订阅初始化抢同一个 WMI 服务），放在关键路径上会把启动拖到十几秒。
+        // 护栏：只结束"本次启动之前创建"的进程，不会误杀本次刚起的 WebView2。
+        var shellStartTime = DateTime.Now;
+        _ = Task.Run(() =>
+        {
+            var orphanCount = OrphanCleanup.KillOrphanWebView2(shellStartTime);
+            if (orphanCount > 0)
+                ShellLog($"已清理遗留 WebView2 进程 {orphanCount} 个");
+        });
 
         // —— 并行：WebView2 初始化 与 后端就绪探测 ——
         // 后端启动与 WebView2 冷启动重叠，避免串行堆叠挤爆 30s 就绪窗口

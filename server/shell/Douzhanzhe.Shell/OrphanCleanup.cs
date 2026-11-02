@@ -20,24 +20,29 @@ internal static class OrphanCleanup
 {
     private const string UserDataMarker = "Douzhanzhe Console";
 
-    /// <summary>结束遗留的本应用 WebView2 进程，返回结束数量。</summary>
-    public static int KillOrphanWebView2()
+    /// <summary>
+    /// 结束遗留的本应用 WebView2 进程，返回结束数量。
+    /// <paramref name="notBefore"/> 为护栏：只结束"在该时刻之前创建"的进程，
+    /// 因此绝不会误杀本次运行刚启动的 WebView2。
+    /// </summary>
+    public static int KillOrphanWebView2(DateTime notBefore)
     {
         int killed = 0;
         try
         {
             var pids = new List<int>();
             using (var searcher = new ManagementObjectSearcher(
-                "SELECT ProcessId FROM Win32_Process WHERE Name='msedgewebview2.exe' AND CommandLine LIKE '%Douzhanzhe Console%'"))
+                "SELECT ProcessId, CreationDate FROM Win32_Process WHERE Name='msedgewebview2.exe' AND CommandLine LIKE '%Douzhanzhe Console%'"))
             {
                 foreach (ManagementObject obj in searcher.Get())
                 {
                     using (obj)
                     {
-                        if (int.TryParse(obj["ProcessId"]?.ToString(), out var pid))
-                        {
-                            pids.Add(pid);
-                        }
+                        if (!int.TryParse(obj["ProcessId"]?.ToString(), out var pid)) continue;
+                        // 护栏：本次启动之后创建的属于当前实例，不动
+                        var created = obj["CreationDate"] is DateTime dt ? dt : DateTime.MinValue;
+                        if (created != DateTime.MinValue && created >= notBefore) continue;
+                        pids.Add(pid);
                     }
                 }
             }
