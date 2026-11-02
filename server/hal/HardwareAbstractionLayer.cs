@@ -655,14 +655,32 @@ public sealed class HardwareAbstractionLayer : IDisposable
         int informationLevel, int bufferLength, IntPtr inputBuffer, int inputBufferLength,
         IntPtr outputBuffer, int outputBufferLength);
 
+    /// <summary>取系统活跃逻辑处理器总数（跨所有处理器组），失败退回 1</summary>
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern ushort GetActiveProcessorCount(ushort groupCount);
+
+    private static int GetActiveProcessorCountSafe()
+    {
+        try
+        {
+            const ushort AllProcessorGroups = 0xFFFF;
+            var n = GetActiveProcessorCount(AllProcessorGroups);
+            if (n > 0) return n;
+        }
+        catch { }
+        return Math.Max(1, Environment.ProcessorCount);
+    }
+
     /// <summary>内核查询当前 CPU 频率（GHz），失败返回 0</summary>
     private static float QueryCpuFreqFast()
     {
         try
         {
             // ProcessorInformation 需要按处理器数量精确分配缓冲区（每个逻辑处理器一份结构），
-            // 尺寸不符会返回 STATUS_INVALID_PARAMETER(0xC000000D)
-            int maxProcs = Math.Max(1, Environment.ProcessorCount);
+            // 尺寸不符会返回 STATUS_INVALID_PARAMETER(0xC000000D)。
+            // 用 GetActiveProcessorCount(ALL_PROCESSOR_GROUPS) 取真实值，
+            // Environment.ProcessorCount 受进程亲和性/组影响可能偏小。
+            int maxProcs = GetActiveProcessorCountSafe();
             int structSize = Marshal.SizeOf<ProcessorPowerInfo>();
             int size = structSize * maxProcs;
             IntPtr buf = Marshal.AllocHGlobal(size);
