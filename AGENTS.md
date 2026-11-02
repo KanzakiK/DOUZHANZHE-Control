@@ -39,6 +39,8 @@
 - **新增持久化配置必须过备份覆盖审计**（[1.5/6] FAIL 中断构建）：真用户数据 → 加进 Program.cs `backupCategories`；瞬态/机器相关 → 在 `tools/audit-backup-coverage.ps1` 的 `$allow` 白名单写一行理由。二进制走 `{ "__base64": ... }` 打包机制。
 - 新 UI 严格按产品原型还原，不自行发挥；原型缺内容先问用户。旧页面有意重写，不做增量修补。
 - **禁止手动复制文件**，统一走脚本流程。
+- **开发实例与正式版必须互斥，且由代码自己检测并拒绝启动**（2026-11-02 用户明确要求）：开发实例启动时若检测到正式版在运行（端口 3100 被占用），**必须自行拒绝启动并提示用户退出正式版**；正式版 Shell 若发现 3100 被"非正式安装目录"的 API 占用，同样必须拒绝复用（否则正式版会连到开发后端上）。**不要反复让用户手动关闭服务——关不掉是权限问题，那本来就该由代码检测后拒绝启动，而不是让人去协调。** 判定与实现见 `server/shared/InstanceIdentity.cs`（API 与 Shell 以链接方式共用，不引入新项目依赖）。
+- **诊断环境问题前，先确认"正式版是否在跑"**：开发实例与正式版并存会同时写 EC/SMU（风扇/功耗）、抢 PawnIO 与 WMI 服务，实测会让基频 WMI 查询从 2.1s 退化到 15.8s、遥测出现异常值，容易被误判成产品缺陷。排查前先让正式版退出。
 
 ## 已否决方案（AI 请勿重新引入）
 
@@ -52,6 +54,7 @@
 ## 环境坑（实测）
 
 - **dev 测试实例锁 DLL**：`dotnet bin/build/Douzhanzhe.API.dll` 起的测试实例锁 bin/build，打包必失败——打包前用 CIM 查 `Douzhanzhe.API.dll` 宿主进程清零（正式 API 是独立 exe，勿误杀）。
+- **开发/正式不要写同一个日志文件**：正式版 `app.log`、开发实例 `app-dev.log`（按 `InstanceIdentity.LogSuffix` 隔离，可用环境变量 `DOUZHANZHE_LOG_SUFFIX` 覆盖）。共用一个文件会互相覆盖；且 `File.AppendAllText` 的 `FileShare.Read` 会排斥第二个写入者 → 第二个实例的日志被"文件被占用"静默吞掉并降级到控制台（看不见），排查时表现为"日志凭空消失"。
 - **.ps1 含中文必须带 UTF-8 BOM**：PS 5.1 对无 BOM 按 ANSI 解析，中文必炸（"哈希文本不完整"）。Write 工具默认无 BOM，写完用 `[IO.File]::WriteAllText($p,$c,[Text.UTF8Encoding]::new($true))` 补。
 - **构建钩子自动提交**：`dotnet build` 触发 sync-repos 自动 commit+push（"api: 更新 API"）——大改动先手动 commit 拿清晰提交信息。
 - **docs/ 整体被主仓库 .gitignore**（有意设计），随私有 docs 子仓库（main 分支）同步。
