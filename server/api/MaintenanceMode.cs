@@ -56,29 +56,36 @@ public static class MaintenanceMode
         AppLog.Write("Maintenance", $"开始静默维护（目录 {appDir}）");
 
         // 1) 结束旧 Shell（不结束自身）
-        KillProcessesByName("Douzhanzhe.Shell", skipSelf: true);
+        var (killedShell, residualShell) = KillProcessesByName("Douzhanzhe.Shell", skipSelf: true);
         // 2) 结束其它旧 API 实例（安装器调起的这个就是当前的）
-        KillProcessesByName("Douzhanzhe.API", skipSelf: true);
+        var (killedApi, residualApi) = KillProcessesByName("Douzhanzhe.API", skipSelf: true);
         // 3) 结束本应用遗留的孤儿 WebView2 渲染进程
-        KillOrphanWebView2();
+        int killedWv2 = KillOrphanWebView2();
         // 4) 停止并删除旧版内核驱动服务
-        StopAndDeleteLegacyServices();
+        int removedSvc = StopAndDeleteLegacyServices();
         // 5) 删除旧版驱动文件
-        DeleteLegacyFiles(appDir);
+        int removedFiles = DeleteLegacyFiles(appDir);
         // 6) 删除旧版开机自启计划任务
-        DeleteScheduledTask();
+        bool taskDeleted = DeleteScheduledTask();
 
-        AppLog.Write("Maintenance", "静默维护完成");
+        // 总结行：一句话看清"到底清干净没有"
+        AppLog.Write("Maintenance",
+            $"静默维护完成：进程结束 {killedShell + killedApi} 个" +
+            $"（残留无法终止 {residualShell + residualApi} 个，需重启系统释放）" +
+            $" | 遗留 WebView2 结束 {killedWv2} 个" +
+            $" | 旧驱动服务清理 {removedSvc} 个" +
+            $" | 旧驱动文件删除 {removedFiles} 个" +
+            $" | 旧计划任务 {(taskDeleted ? "已删除" : "无")}");
     }
 
-    /// <summary>按进程名结束进程（跳过自身）。</summary>
-    private static void KillProcessesByName(string name, bool skipSelf)
+    /// <summary>按进程名结束进程（跳过自身）。返回 (成功数, 无法终止的残留数)。</summary>
+    private static (int killed, int residual) KillProcessesByName(string name, bool skipSelf)
     {
+        int killed = 0, residual = 0;
         try
         {
             var self = Process.GetCurrentProcess().Id;
             var targets = Process.GetProcessesByName(name);
-            int killed = 0;
             foreach (var p in targets)
             {
                 try
@@ -89,6 +96,7 @@ public static class MaintenanceMode
                     // 只能等持句柄者释放它（通常是重启系统）。
                     if (p.Threads.Count == 0)
                     {
+                        residual++;
                         AppLog.Write("Maintenance",
                             $"{name} (PID {p.Id}) 是 0 线程的残留进程对象（进程早已终止，仅剩句柄被外部提权进程持有）。" +
                             "TerminateProcess 对它无效（无线程可终止），只能等持句柄者释放（通常重启系统后消失）。" +
@@ -102,6 +110,7 @@ public static class MaintenanceMode
                 catch (Exception ex)
                 {
                     // ★ 失败必须记录：此前全部静默吞掉，导致"没清干净"完全不可见
+                    residual++;
                     AppLog.Write("Maintenance", $"结束 {name} (PID {p.Id}) 失败: {ex.GetType().Name}: {ex.Message}");
                 }
                 finally { try { p.Dispose(); } catch { } }
@@ -112,6 +121,7 @@ public static class MaintenanceMode
         {
             AppLog.Write("Maintenance", $"结束 {name} 失败: {ex.Message}");
         }
+        return (killed, residual);
     }
 
     private static void WaitForExit(string name, int timeoutMs)
@@ -126,12 +136,13 @@ public static class MaintenanceMode
     }
 
     /// <summary>
-    /// 结束本应用遗留的孤儿 WebView2 渲染进程。
+    /// 结束本应用遗留的孤儿 WebView2 渲染进程，返回结束数量。
     /// 判定依据：命令行里含我们专属的 user-data-dir 路径（…\Douzhanzhe Console\WebView2），
     /// 因此绝不会误伤其它应用或 Windows 自身组件的 WebView2。
     /// </summary>
-    private static void KillOrphanWebView2()
+    private static int KillOrphanWebView2()
     {
+        int killed = 0;
         try
         {
             using var searcher = new ManagementObjectSearcher(
@@ -150,9 +161,14 @@ public static class MaintenanceMode
                 {
                     using var p = Process.GetProcessById(pid);
                     p.Kill();
+                    killed++;
                     AppLog.Write("Maintenance", $"已结束遗留 WebView2 (PID {pid})");
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    // ★ 失败必须记录
+                    AppLog.Write("Maintenance", $"结束遗留 WebView2 (PID {pid}) 失败: {ex.GetType().Name}: {ex.Message}");
+                }
             }
             if (pids.Count > 0) Thread.Sleep(500);
         }
@@ -160,20 +176,32 @@ public static class MaintenanceMode
         {
             AppLog.Write("Maintenance", $"清理遗留 WebView2 失败: {ex.Message}");
         }
+        return killed;
     }
 
-    /// <summary>停止并删除旧版内核驱动服务（用 CreateNoWindow 调用 sc.exe，全程无窗口）。</summary>
-    private static void StopAndDeleteLegacyServices()
+    /// <summary>停止并删除旧版内核驱动服务（用 CreateNoWindow 调用 sc.exe，全程无窗口）。返回实际删除的数量。</summary>
+    private static int StopAndDeleteLegacyServices()
     {
+        int removed = 0;
         foreach (var svc in LegacyServices)
         {
-            RunSilently("sc.exe", $"stop \"{svc}\"");
-            RunSilently("sc.exe", $"delete \"{svc}\"");
+            var stopCode = RunSilently("sc.exe", $"stop \"{svc}\"");
+            var delCode = RunSilently("sc.exe", $"delete \"{svc}\"");
+            if (delCode == 0) { removed++; AppLog.Write("Maintenance", $"已删除旧驱动服务 {svc}"); }
+            else
+            {
+                // sc 返回非 0 通常表示"服务不存在"（本来就干净），记录下来便于区分
+                AppLog.Write("Maintenance",
+                    $"旧驱动服务 {svc}：stop 返回 {stopCode}，delete 返回 {delCode}" +
+                    (delCode == 1060 ? "（1060 = 服务不存在，属正常）" : ""));
+            }
         }
+        return removed;
     }
 
-    private static void DeleteLegacyFiles(string appDir)
+    private static int DeleteLegacyFiles(string appDir)
     {
+        int removed = 0;
         foreach (var f in LegacyFiles)
         {
             try
@@ -182,28 +210,34 @@ public static class MaintenanceMode
                 if (File.Exists(path))
                 {
                     File.Delete(path);
+                    removed++;
                     AppLog.Write("Maintenance", $"已删除旧版文件 {f}");
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                // ★ 失败必须记录
+                AppLog.Write("Maintenance", $"删除旧版文件 {f} 失败: {ex.GetType().Name}: {ex.Message}");
+            }
         }
+        return removed;
     }
 
-    private static void DeleteScheduledTask()
+    private static bool DeleteScheduledTask()
     {
         try
         {
             using var service = new TaskService();
             var task = service.GetTask(TaskName);
-            if (task != null)
-            {
-                service.RootFolder.DeleteTask(TaskName, false);
-                AppLog.Write("Maintenance", $"已删除旧版计划任务 {TaskName}");
-            }
+            if (task == null) return false;
+            service.RootFolder.DeleteTask(TaskName, false);
+            AppLog.Write("Maintenance", $"已删除旧版计划任务 {TaskName}");
+            return true;
         }
         catch (Exception ex)
         {
             AppLog.Write("Maintenance", $"删除计划任务失败: {ex.Message}");
+            return false;
         }
     }
 
@@ -243,8 +277,8 @@ public static class MaintenanceMode
         }
     }
 
-    /// <summary>以无窗口方式执行一条命令（CREATE_NO_WINDOW，不闪控制台）。</summary>
-    private static void RunSilently(string file, string args)
+    /// <summary>以无窗口方式执行一条命令（CREATE_NO_WINDOW，不闪控制台）。返回退出码。</summary>
+    private static int RunSilently(string file, string args)
     {
         try
         {
@@ -257,9 +291,14 @@ public static class MaintenanceMode
                 WindowStyle = ProcessWindowStyle.Hidden
             };
             using var p = Process.Start(psi);
-            if (p == null) return;
+            if (p == null) return -1;
             p.WaitForExit(5000);
+            return p.ExitCode;
         }
-        catch { }
+        catch (Exception ex)
+        {
+            AppLog.Write("Maintenance", $"执行 {file} {args} 失败: {ex.GetType().Name}: {ex.Message}");
+            return -1;
+        }
     }
 }
