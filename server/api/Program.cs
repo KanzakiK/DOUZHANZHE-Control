@@ -2854,7 +2854,8 @@ app.MapDelete("/api/game-profiles/{id}", (string id, GameProfileService svc, Gam
     return Results.Ok();
 });
 
-app.MapPost("/api/game-profiles/{id}/launch", (string id, GameProfileService svc) =>
+app.MapPost("/api/game-profiles/{id}/launch", (
+    string id, GameProfileService svc, ProcessMonitorService monitor) =>
 {
     var profile = svc.GetById(id);
     if (profile == null)
@@ -2870,7 +2871,9 @@ app.MapPost("/api/game-profiles/{id}/launch", (string id, GameProfileService svc
             WorkingDirectory = Path.GetDirectoryName(profile.ExePath) ?? "",
             UseShellExecute = true,
         };
-        Process.Start(psi);
+        using var proc = Process.Start(psi);
+        if (proc != null)
+            monitor.RegisterRoot(profile, proc.Id, proc.ProcessName);
         Log($"[game-profiles/launch] {profile.Name} → {profile.ExePath}");
         return Results.Ok(new { ok = true });
     }

@@ -7,13 +7,14 @@
 //   - 维护活跃游戏列表，驱动性能模式自动切换
 //   - 通过 WebSocket 通知前端
 //
-// 设计决策：纯 3s 心跳，放弃 WMI 事件订阅
+// 设计决策：纯 1s 心跳，放弃 WMI 事件订阅
 //   WMI __InstanceCreationEvent / __InstanceDeletionEvent WITHIN 2 存在"静默失效"——
 //   连接状态为 Open 但不再推送事件（系统睡眠/唤醒、WMI 服务内部损坏），
 //   且 ManagementEventWatcher.Stopped 并不总会触发，自愈逻辑抓不住。
-//   因此整个 v2.0 简化为单一数据源：每 3s 遍历一次系统进程列表，
+//   因此整个 v2.0 简化为单一数据源：每秒遍历一次 Toolhelp 进程树，
 //   和上一次活跃列表做差算出差值（新增 JOIN / 消失 EXIT）。
-//   3s 延迟对"启动游戏切斗战模式"完全在用户感知阈值以下。
+//   匹配到启动器后持续跟踪全部后代；启动器退出时，只要游戏子进程仍存活，
+//   本次游戏会话就不会结束。
 
 using System;
 using System.Collections.Generic;
@@ -33,7 +34,7 @@ public sealed class ProcessMonitorService : IDisposable
     private readonly OsdService _osd;
 
     // 活跃游戏列表（单一数据源，心跳 tick 维护）
-    private readonly List<(int Pid, string ExeName, string TargetMode)> _activeGames = new();
+    private readonly List<ActiveGameTracking> _activeGames = new();
     private readonly object _lock = new();
 
     // 活跃游戏数量（静态可访问，供 ParameterGuard 等模块查询）
@@ -75,9 +76,9 @@ public sealed class ProcessMonitorService : IDisposable
 
         AppLog.Write("ProcessMonitor", "Service started");
 
-        // 立即启动心跳：端口立即可用，第一次 tick 在 3s 后执行
+        // 立即启动心跳：端口立即可用，第一次 tick 在 1s 后执行
         _heartbeatTimer = new System.Threading.Timer(
-            _ => _ = HeartbeatTickAsync(), null, 3_000, 3_000);
+            _ => _ = HeartbeatTickAsync(), null, 1_000, 1_000);
     }
 
     /// <summary>启动后注入配置解析依赖（指向 last-mode.json 与配置→性能模式解包点）</summary>
@@ -87,6 +88,45 @@ public sealed class ProcessMonitorService : IDisposable
         if (currentConfig != null) _currentConfig = currentConfig;
         if (resolveThermal != null) _resolveThermal = resolveThermal;
         if (applyMode != null) _applyMode = applyMode;
+    }
+
+    /// <summary>
+    /// 应用内启动游戏时立即登记根进程，避免短命启动器在下一次心跳前退出而漏检。
+    /// </summary>
+    public void RegisterRoot(GameProfile profile, int processId, string? processName = null)
+    {
+        if (processId <= 0 || _disposed) return;
+
+        var exeName = NormalizeProcessName(processName);
+        if (string.IsNullOrEmpty(exeName))
+            exeName = NormalizeProcessName(profile.ExeName);
+        if (string.IsNullOrEmpty(exeName))
+        {
+            try { exeName = NormalizeProcessName(Process.GetProcessById(processId).ProcessName); }
+            catch { return; }
+        }
+
+        lock (_lock)
+        {
+            if (_activeGames.Any(g => g.Processes.ContainsKey(processId))) return;
+
+            if (_activeGames.Count == 0)
+            {
+                _snapshotMode = CanonicalMode(_currentConfig());
+                AppLog.Write("ProcessMonitor", $"SNAPSHOT: {_snapshotMode}");
+            }
+
+            var game = new ActiveGameTracking(
+                processId, exeName, CanonicalMode(profile.TargetMode));
+            game.Processes[processId] = exeName;
+            _activeGames.Add(game);
+            _activeGameCount = _activeGames.Count;
+            AppLog.Write(
+                "ProcessMonitor",
+                $"JOIN (launch): {exeName} (PID {processId}) target={profile.TargetMode}");
+        }
+
+        _ = HeartbeatTickAsync();
     }
 
     // ── WebSocket 客户端管理 ─────────────────────────────────
@@ -114,9 +154,9 @@ public sealed class ProcessMonitorService : IDisposable
                 GlobalEnabled = _profiles.Enabled,
                 ActiveGames = _activeGames.Select(g => new ActiveGameInfo
                 {
-                    Name = g.ExeName,
+                    Name = g.RootExeName,
                     TargetMode = g.TargetMode,
-                    Pid = g.Pid
+                    Pid = g.RootPid
                 }).ToList(),
                 EffectiveMode = effectiveMode ?? "none",
                 SnapshotMode = _snapshotMode ?? "none"
@@ -126,64 +166,55 @@ public sealed class ProcessMonitorService : IDisposable
 
     // ── 心跳 tick ────────────────────────────────────────────
     //
-    // 每 3s 一次。遍历当前系统进程列表，和活跃列表做差：
+    // 每秒一次。遍历当前系统进程树，和活跃列表做差：
     //   新出现的游戏进程 → JOIN（匹配规则 → 切模式）
     //   活跃列表里消失的 → EXIT（清理 → 恢复/降级模式）
-    //
-    // 用 Process.GetProcesses() 而非 WMI ManagementObjectSearcher：
-    //   前者直接读系统进程表，后者需要 RPC 到 WMI 服务，前者轻量得多。
 
     private async Task HeartbeatTickAsync()
     {
         if (_disposed || Interlocked.CompareExchange(ref _tickRunning, 1, 0) != 0) return;
         try
         {
-            // 1. 拿到当前系统进程表
-            var snapshot = Process.GetProcesses();
-
-            // 2. 转成 pid→name 字典（Process.ProcessName 不带 .exe，补回去匹配规则的 ExeName）
-            var currentPids = new HashSet<int>();
-            var currentNames = new Dictionary<int, string>();
-            foreach (var proc in snapshot)
-            {
-                try
-                {
-                    currentPids.Add(proc.Id);
-                    // 补 .exe 后缀（ProcessName 没有，但匹配规则里 ExeName 通常有）
-                    currentNames[proc.Id] = proc.ProcessName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
-                        ? proc.ProcessName
-                        : proc.ProcessName + ".exe";
-                }
-                finally { proc.Dispose(); }
-            }
+            // 1. 一次抓取 PID、父 PID、进程名
+            var snapshot = ProcessTreeSnapshot.Capture();
+            if (snapshot.Count == 0) return;
+            var childrenByParent = snapshot.Values.ToLookup(p => p.ParentPid);
 
             string? targetMode = null;
             string? action = null;
             lock (_lock)
             {
-                // 3. 先清理退出的进程（活跃列表里存在但当前进程表里消失的）
-                var exited = _activeGames.Where(g => !currentPids.Contains(g.Pid)).ToList();
-                foreach (var g in exited)
+                // 2. 先扩展每个游戏会话的后代，再判断会话是否仍存活。
+                foreach (var game in _activeGames)
                 {
-                    _activeGames.Remove(g);
-                    AppLog.Write("ProcessMonitor", $"EXIT: {g.ExeName} (PID {g.Pid})");
+                    TrackDescendants(game, childrenByParent);
                 }
 
-                // 4. 再加新启动的游戏进程（进程表里存在但活跃列表里没有，且匹配规则）
+                var exited = _activeGames
+                    .Where(g => !IsGameAlive(g, snapshot))
+                    .ToList();
+                foreach (var game in exited)
+                {
+                    _activeGames.Remove(game);
+                    AppLog.Write(
+                        "ProcessMonitor",
+                        $"EXIT: {game.RootExeName} (PID {game.RootPid}, tracked={game.Processes.Count})");
+                }
+
+                // 3. 再加新启动的游戏进程（进程表里存在但尚未归属于任何游戏会话）
                 if (_profiles.Enabled)
                 {
-                    foreach (var kv in currentNames)
+                    var claimedPids = _activeGames
+                        .SelectMany(g => g.Processes.Keys)
+                        .ToHashSet();
+
+                    foreach (var proc in snapshot.Values)
                     {
-                        int pid = kv.Key;
-                        string name = kv.Value;
+                        if (claimedPids.Contains(proc.Pid)) continue;
 
-                        // 已在活跃列表里的跳过
-                        if (_activeGames.Any(g => g.Pid == pid)) continue;
-
-                        var profile = _profiles.MatchByExeName(name);
+                        var profile = _profiles.MatchByExeName(proc.Name);
                         if (profile == null) continue;
 
-                        // 列表从空变非空时记录快照
                         if (_activeGames.Count == 0)
                         {
                             _snapshotMode = CanonicalMode(_currentConfig());
@@ -191,14 +222,20 @@ public sealed class ProcessMonitorService : IDisposable
                         }
 
                         var normalizedTarget = CanonicalMode(profile.TargetMode);
-                        _activeGames.Add((pid, name, normalizedTarget));
-                        AppLog.Write("ProcessMonitor", $"JOIN: {name} (PID {pid}) target={profile.TargetMode}");
+                        var game = new ActiveGameTracking(
+                            proc.Pid, proc.Name, normalizedTarget);
+                        game.Processes[proc.Pid] = proc.Name;
+                        TrackDescendants(game, childrenByParent);
+                        _activeGames.Add(game);
+                        AppLog.Write(
+                            "ProcessMonitor",
+                            $"JOIN: {proc.Name} (PID {proc.Pid}) target={profile.TargetMode}");
                     }
                 }
 
                 _activeGameCount = _activeGames.Count;
 
-                // 5. 每秒核对一次权威配置；切换失败后下一 tick 会自动重试。
+                // 4. 每秒核对一次权威配置；切换失败后下一 tick 会自动重试。
                 var currentMode = CanonicalMode(_currentConfig());
                 if (_activeGames.Count == 0)
                 {
@@ -259,6 +296,52 @@ public sealed class ProcessMonitorService : IDisposable
             .OrderByDescending(g => RankOf(g.TargetMode))
             .First()
             .TargetMode;
+    }
+
+    private static string NormalizeProcessName(string? processName)
+    {
+        if (string.IsNullOrWhiteSpace(processName)) return "";
+        return processName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
+            ? processName
+            : processName + ".exe";
+    }
+
+    private static void TrackDescendants(
+        ActiveGameTracking game,
+        ILookup<int, ProcessSnapshotEntry> childrenByParent)
+    {
+        var pending = new Queue<int>(game.Processes.Keys);
+        var visited = new HashSet<int>();
+
+        while (pending.Count > 0)
+        {
+            var parentPid = pending.Dequeue();
+            if (!visited.Add(parentPid)) continue;
+
+            foreach (var child in childrenByParent[parentPid])
+            {
+                if (!game.Processes.TryAdd(child.Pid, child.Name)) continue;
+                pending.Enqueue(child.Pid);
+                AppLog.Write(
+                    "ProcessMonitor",
+                    $"DESCENDANT: {child.Name} (PID {child.Pid}) parent={parentPid} game={game.RootExeName}");
+            }
+        }
+    }
+
+    private static bool IsGameAlive(
+        ActiveGameTracking game,
+        IReadOnlyDictionary<int, ProcessSnapshotEntry> snapshot)
+    {
+        foreach (var (pid, trackedName) in game.Processes)
+        {
+            if (snapshot.TryGetValue(pid, out var current)
+                && string.Equals(current.Name, trackedName, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static string CanonicalMode(string mode) => mode switch
@@ -350,6 +433,21 @@ public sealed class ProcessMonitorService : IDisposable
         _heartbeatTimer = null;
 
         AppLog.Write("ProcessMonitor", "Service disposed");
+    }
+
+    private sealed class ActiveGameTracking
+    {
+        public ActiveGameTracking(int rootPid, string rootExeName, string targetMode)
+        {
+            RootPid = rootPid;
+            RootExeName = rootExeName;
+            TargetMode = targetMode;
+        }
+
+        public int RootPid { get; }
+        public string RootExeName { get; }
+        public string TargetMode { get; }
+        public Dictionary<int, string> Processes { get; } = new();
     }
 }
 
