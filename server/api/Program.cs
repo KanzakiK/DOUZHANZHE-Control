@@ -223,9 +223,12 @@ bool IsBuiltinConfig(string cfgId)
     => cfgId is "cfg-silent" or "cfg-office" or "cfg-beast" or "cfg-gaming"
        || _modeToThermal.ContainsKey(cfgId);
 
+var _modeSwitchGate = new SemaphoreSlim(1, 1);
+
 // 启动注入 ProcessMonitor 的配置解析依赖（必须在上述局部函数已声明后调用）
 app.Services.GetRequiredService<ProcessMonitorService>().Configure(
-    () => CurrentMode(), ResolveConfigThermal);
+    () => CurrentMode(), ResolveConfigThermal,
+    mode => ApplyModeConfigAsync(mode));
 
 void ApplyThermalMode(string mode)
 {
@@ -543,6 +546,102 @@ async System.Threading.Tasks.Task RestoreAllPerfSettings(string tag)
         }
     }
     catch (Exception ex) { Log($"[{tag}] Fan target failed: {ex.Message}"); }
+}
+
+// ---- 模式切换唯一实现（手动 API 与游戏自动切换共用） ----
+async Task<PerformanceOverrides> ApplyModeConfigAsync(string reqMode)
+{
+    await _modeSwitchGate.WaitAsync();
+    try
+    {
+        return await ApplyModeConfigCoreAsync(reqMode);
+    }
+    finally
+    {
+        _modeSwitchGate.Release();
+    }
+}
+
+async Task<PerformanceOverrides> ApplyModeConfigCoreAsync(string reqMode)
+{
+    Log($"[mode/apply] ← mode={reqMode}");
+    SetCurrentMode(reqMode);
+    // thermal 先：用唯一解包点把配置 id → 性能模式裸名，再下发 EC（用户配置也能正确下发生效散热模式）
+    ApplyThermalMode(ResolveConfigThermal(reqMode));
+    await System.Threading.Tasks.Task.Delay(250); // 等 EC 完成模式预设加载
+
+    var overrides = LoadPerfOverrides();
+    // 用户自建 profile: 从 ProfileService 加载配置（内置模式使用 overrides-{mode}.json）
+    var profileSvc = app.Services.GetRequiredService<ProfileService>();
+    var isBuiltin = IsBuiltinConfig(reqMode);
+    if (!isBuiltin)
+    {
+        var profileData = profileSvc.GetById(reqMode);
+        if (profileData.HasValue)
+        {
+            overrides = profileData.Value.Overrides;
+            // 同步写入 overrides-{id}.json，供 ParameterGuard 周期性重发
+            SavePerfOverrides(o =>
+            {
+                o.Cpu = overrides.Cpu;
+                o.Gpu = overrides.Gpu;
+                o.Nvapi = overrides.Nvapi;
+                o.Smu = overrides.Smu;
+                o.Fan = overrides.Fan;
+                o.PowerPlan = overrides.PowerPlan;
+            }, reqMode);
+            Log($"[mode/apply] 加载用户 profile '{reqMode}' 的配置");
+        }
+    }
+
+    // 非覆盖通道: 直接调用硬件控制器重置（绕过 SavePerfOverrides，避免并发模式切换写错文件）
+    var gpuCtrl = app.Services.GetRequiredService<GpuController>();
+    var nvCtrl = app.Services.GetRequiredService<NvapiGpuController>();
+    var cpuReset = app.Services.GetRequiredService<CpuPowerController>();
+
+    // GPU+nvapi 一组，CPU powercfg+电源计划一组；两组互不依赖，保持原有并行边界。
+    var gpuResetTask = System.Threading.Tasks.Task.Run(() =>
+    {
+        if (!overrides.Gpu.CoreFreqMhz.HasValue && !overrides.Gpu.FreqLocked.HasValue)
+        {
+            try { gpuCtrl.ResetGpuClocks(); } catch { }
+        }
+        if (!overrides.Gpu.MemFreqLevel.HasValue)
+        {
+            try { gpuCtrl.ResetMemoryClocks(); } catch { }
+        }
+        if (!overrides.Nvapi.OcCoreOffsetMhz.HasValue && !overrides.Nvapi.OcMemOffsetMhz.HasValue)
+        {
+            try { nvCtrl.SetP0Offset(0, 0); } catch { }
+        }
+        if (!overrides.Nvapi.ThermalLimitC.HasValue)
+        {
+            try { nvCtrl.SetThermalLimit(87); } catch { }
+        }
+    });
+
+    var cpuResetTask = System.Threading.Tasks.Task.Run(() =>
+    {
+        if (!overrides.Cpu.FreqLimitMhz.HasValue && !overrides.Cpu.TurboEnabled.HasValue
+            && !overrides.Cpu.CoreLimitPercent.HasValue)
+        {
+            try { cpuReset.ApplyCpuAsync(0, true, 100).GetAwaiter().GetResult(); } catch { }
+            SavePerfOverrides(o =>
+            {
+                o.Cpu.FreqLimitMhz = null;
+                o.Cpu.TurboEnabled = null;
+                o.Cpu.CoreLimitPercent = null;
+            }, reqMode);
+        }
+        if (!overrides.PowerPlan.HasValue)
+        {
+            try { app.Services.GetRequiredService<HardwareAbstractionLayer>().PowerPlan = 0; } catch { }
+        }
+    });
+
+    await System.Threading.Tasks.Task.WhenAll(gpuResetTask, cpuResetTask);
+    await RestoreAllPerfSettings("switch");
+    return overrides;
 }
 
 // ---- ParameterGuard: 60 秒周期性幂等重发计算类参数 ----
@@ -1679,80 +1778,7 @@ app.MapGet("/api/overrides", () =>
 
 app.MapPost("/api/overrides/switch", async (SwitchModeRequest req) =>
 {
-    Log($"[overrides/switch] ← mode={req.Mode}");
-    SetCurrentMode(req.Mode);
-    // thermal 先：用唯一解包点把配置 id → 性能模式裸名，再下发 EC（用户配置也能正确下发生效散热模式）
-    ApplyThermalMode(ResolveConfigThermal(req.Mode));
-    await System.Threading.Tasks.Task.Delay(250); // 等 EC 完成模式预设加载（500→250，配合并行 after 缩短延迟）
-
-    var overrides = LoadPerfOverrides();
-    // 用户自建 profile: 从 ProfileService 加载配置（内置模式使用 overrides-{mode}.json）
-    var profileSvc = app.Services.GetRequiredService<ProfileService>();
-    var isBuiltin = IsBuiltinConfig(req.Mode);
-    if (!isBuiltin)
-    {
-        var profileData = profileSvc.GetById(req.Mode);
-        if (profileData.HasValue)
-        {
-            overrides = profileData.Value.Overrides;
-            // 同步写入 overrides-{id}.json，供 ParameterGuard 周期性重发
-            SavePerfOverrides(o => { o.Cpu = overrides.Cpu; o.Gpu = overrides.Gpu; o.Nvapi = overrides.Nvapi; o.Smu = overrides.Smu; o.Fan = overrides.Fan; o.PowerPlan = overrides.PowerPlan; }, req.Mode);
-            Log($"[overrides/switch] 加载用户 profile '{req.Mode}' 的配置");
-        }
-    }
-
-    // 非覆盖通道: 直接调用硬件控制器重置（绕过 SavePerfOverrides，避免并发模式切换写错文件）
-    var gpuCtrl = app.Services.GetRequiredService<GpuController>();
-    var nvCtrl = app.Services.GetRequiredService<NvapiGpuController>();
-    var cpuReset = app.Services.GetRequiredService<CpuPowerController>();
-
-    // 重置阶段并行化（与 RestoreComputeSettings 相同的通道独立性原则）：
-    //  GPU+nvapi 一组（共享 GPU），CPU powercfg+电源计划一组（都操作当前电源方案），互不依赖 → 并行。
-    var gpuResetTask = System.Threading.Tasks.Task.Run(() =>
-    {
-        // GPU 核心/显存时钟: 先清理再让 RestoreComputeSettings 重新应用
-        if (!overrides.Gpu.CoreFreqMhz.HasValue && !overrides.Gpu.FreqLocked.HasValue)
-        {
-            try { gpuCtrl.ResetGpuClocks(); } catch { }
-        }
-        if (!overrides.Gpu.MemFreqLevel.HasValue)
-        {
-            try { gpuCtrl.ResetMemoryClocks(); } catch { }
-        }
-        // NVAPI: 超频偏移和温度限制恢复默认
-        if (!overrides.Nvapi.OcCoreOffsetMhz.HasValue && !overrides.Nvapi.OcMemOffsetMhz.HasValue)
-        {
-            try { nvCtrl.SetP0Offset(0, 0); } catch { }
-        }
-        if (!overrides.Nvapi.ThermalLimitC.HasValue)
-        {
-            try { nvCtrl.SetThermalLimit(87); } catch { }
-        }
-    });
-
-    var cpuResetTask = System.Threading.Tasks.Task.Run(() =>
-    {
-        // CPU 功率配置: 无覆盖时恢复默认（写入当前配置，CurrentMode 已切换不受并发影响）
-        if (!overrides.Cpu.FreqLimitMhz.HasValue && !overrides.Cpu.TurboEnabled.HasValue && !overrides.Cpu.CoreLimitPercent.HasValue)
-        {
-            try { cpuReset.ApplyCpuAsync(0, true, 100).GetAwaiter().GetResult(); } catch { }
-            SavePerfOverrides(o =>
-            {
-                o.Cpu.FreqLimitMhz = null; o.Cpu.TurboEnabled = null; o.Cpu.CoreLimitPercent = null;
-            }, req.Mode);
-        }
-        // 电源计划: 无覆盖时恢复平衡
-        if (!overrides.PowerPlan.HasValue)
-        {
-            try { app.Services.GetRequiredService<HardwareAbstractionLayer>().PowerPlan = 0; } catch { }
-        }
-    });
-
-    await System.Threading.Tasks.Task.WhenAll(gpuResetTask, cpuResetTask);
-
-    // 应用新模式的全部覆盖设置（CPU/SMU/GPU/NVAPI/电源计划 + 风扇）
-    await RestoreAllPerfSettings("switch");
-
+    var overrides = await ApplyModeConfigAsync(req.Mode);
     return Results.Json(new { overrides });
 });
 

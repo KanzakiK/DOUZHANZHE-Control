@@ -209,6 +209,25 @@ describe('useControlState 对外契约', () => {
     expect(result.current.telemetry.gpuUsage).toBe(66)
   })
 
+  it('已由后端应用的自动切换只同步 UI，不重复调用 switchMode', async () => {
+    const { result } = renderHook(() => useControlState())
+
+    await waitFor(() => {
+      expect(result.current.profiles).toHaveLength(1)
+    })
+
+    act(() => {
+      socketHolder.lastOnData({
+        type: 'auto_switch',
+        mode: 'cfg-gaming',
+        applied: true,
+      })
+    })
+
+    expect(result.current.settings.mode).toBe('cfg-gaming')
+    expect(switchControl.callArgs).toEqual([])
+  })
+
   // ── 稀疏性：后端可能缺某些参数数据，uxtuParams 用默认补齐，overrides 保持稀疏 ──
   it('稀疏性：uxtuParams 用 FULL_PARAMS/模式默认补齐缺项，overrides 只含被改项', async () => {
     fetchControl.mode = 'office'

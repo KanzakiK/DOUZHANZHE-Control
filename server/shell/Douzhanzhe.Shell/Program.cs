@@ -68,6 +68,13 @@ static class Program
 
         ApplicationConfiguration.Initialize();
 
+        // ── 0. 清理同目录中早于当前构建的残留 Shell ──
+        // 安装包静默覆盖后，旧 Shell 可能还活着（Mutex 被老实例持有），
+        // 导致新 Shell 启动时 Mutex 检测通过不了、直接 return，
+        // 老 Shell 持续用旧 FileShare.Read 锁 app.log、新 Shell/API 全部无法写入。
+        // 正常重复启动的实例启动时间不早于当前 exe，不会被误杀。
+        KillStaleShellInstances();
+
         // ── 1. 单实例检测 ──
         if (Mutex.TryOpenExisting(MutexName, out var existingMutex))
         {
@@ -113,6 +120,52 @@ static class Program
         ProcessJob.EnableKillOnClose();
 
         Application.Run(new Form1());
+    }
+
+    /// <summary>
+    /// 杀掉同目录下早于当前 exe 构建时间的残留 Douzhanzhe.Shell 实例。
+    /// 安装包静默覆盖后，旧 Shell 可能还活着并持有 Mutex / 独占锁 app.log，
+    /// 导致新 Shell 无法写入日志、也无法正常守护 API。
+    /// 判定标准：可执行文件目录相同 + PID 不同 + 进程启动时间早于当前 exe 的安装时间。
+    /// </summary>
+    private static void KillStaleShellInstances()
+    {
+        try
+        {
+            var myPath = Application.ExecutablePath;
+            var myDir = Path.GetDirectoryName(myPath)?.TrimEnd(Path.DirectorySeparatorChar);
+            if (string.IsNullOrEmpty(myDir)) return;
+
+            var myPid = Environment.ProcessId;
+            var myBuildTime = File.GetLastWriteTimeUtc(myPath);
+
+            foreach (var p in Process.GetProcessesByName("Douzhanzhe.Shell"))
+            {
+                try
+                {
+                    if (p.Id == myPid) continue;
+
+                    // 无法确认路径时绝不杀：开发版 Shell 可能也在运行。
+                    string? otherPath;
+                    try { otherPath = p.MainModule?.FileName; }
+                    catch { continue; }
+                    if (string.IsNullOrEmpty(otherPath)) continue;
+
+                    var otherDir = Path.GetDirectoryName(otherPath)?.TrimEnd(Path.DirectorySeparatorChar);
+                    if (!string.Equals(otherDir, myDir, StringComparison.OrdinalIgnoreCase)) continue;
+
+                    // 正常重复启动的实例在本次安装之后启动，必须走单实例激活，不能杀。
+                    if (p.StartTime.ToUniversalTime() >= myBuildTime) continue;
+
+                    p.Kill();
+                    p.WaitForExit(2000);
+                    Form1.AppLog("Maintenance", $"已清理安装前残留的 Shell (PID {p.Id})");
+                }
+                catch { }
+                finally { p.Dispose(); }
+            }
+        }
+        catch { }
     }
 
     /// <summary>

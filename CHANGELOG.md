@@ -5,6 +5,16 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
+## [2.0.4-pre.1] — 2026-11-03
+
+日志实例隔离与游戏自动切换热修复。
+
+### 🛠 修复
+
+- **正式版日志写到 `app-dev.log`**：正式版可能安装到任意盘符（本机为 `D:\Program Files`），旧逻辑只识别系统 `Program Files`。现按 Inno 注册的 `InstallLocation` 判定正式/开发实例，并确保 `app-dev.log.N` 与 `app.log.N` 各自轮转，不再串档
+- **游戏启动后不自动切换**：心跳检测到游戏后由后端直接执行与手动切换相同的模式应用逻辑，不再依赖前端 WebSocket 在线触发；旧裸模式名统一规范为 `cfg-*`，WS 仅负责同步 UI
+- **残留 Shell 清理误杀正常实例**：仅清理能确认同目录、且启动时间早于当前 exe 安装时间的安装前残留 Shell；正常重复启动仍执行单实例激活
+
 ## [2.0.3] — 2026-11-02
 
 启动速度与遥测大幅提速 + 升级安装体验重做。

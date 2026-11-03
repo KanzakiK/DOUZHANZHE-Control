@@ -1,7 +1,7 @@
 # DOUZHANZHE-Control — AGENTS.md
 
 > **本文件定位**：AI 在本仓库工作的约定与入口，保持精炼；一切**以代码与提交为准**，文档可能滞后。
-> **内容类型纪律**：进度流水账 → `docs/dev-task-board.md` + `.workbuddy/memory/` 日志；深度细节 → `docs/dev-*.md`；AI 长期记忆 → `.workbuddy/memory/MEMORY.md`。本文件只收"约定"。
+> **记忆与内容分工**：Codex 的项目长期约定写本文件；跨项目通用偏好写 `C:\Users\liufe\.codex\AGENTS.md`。进度流水账 → `docs/dev-task-board.md` + `.workbuddy/memory/` 日志；深度细节 → `docs/dev-*.md`；`.workbuddy/memory/MEMORY.md` 仅作项目既有资料，不代表 Codex 记忆。本文件只收"约定"。
 
 ## 项目简介
 
@@ -11,7 +11,7 @@
 ## 目前架构（细节见文档地图）
 
 - **数据流**：React → `/api` HTTP + WebSocket 遥测 → HAL / WMI / PawnIO（EC/SMU/MSR）/ NVAPI；Shell 负责启动/看护 API 并经 WebView2 加载页面，写 `config/permission.json` 上报权限状态。
-- **server/api 服务**：`Program.cs`（~70 端点）、`ProfileService`（性能配置）、`GameProfileService`/`GameScannerService`/`GameCoverService`（游戏规则/扫描/封面）、`ProcessMonitorService`（游戏自动切换）、`FanCurveService`（风扇曲线 EC 直写）、`BackgroundRotationService`（壁纸轮换）、`SystemInfoService`、`OsdService`、`TelemetryBackgroundService`。
+- **server/api 服务**：`Program.cs`（~70 端点）、`ProfileService`（性能配置）、`GameProfileService`/`GameScannerService`/`GameCoverService`（游戏规则/扫描/封面）、`ProcessMonitorService`（游戏自动切换）、`FanCurveService`（风扇曲线 EC 直写）、`BackgroundRotationService`（壁纸轮换）、`SystemInfoService`、`OsdService`、`TelemetryBackgroundService`。游戏自动切换必须由后端直接执行；前端 WebSocket 只同步 UI，不能成为切换成功的前提。
 - **server/hal**：`HardwareAbstractionLayer`/`HardwareDetector`/`AmdSmuController`/`IntelPowerController`/`NvapiGpuController`/`GpuController`/`CpuPowerController`/`DriverBridge`(EC IO)/`AppLog`。
 - **前端**：`pages/` 7 页 + `components/panels/` + `components/ui/`；状态用 `hooks/useControlState.js`（模块级单例 + useSyncExternalStore，全 Tab 共享）；API 封装在 `services/uxtuAdapter.js`。
 - **配置目录**：开发共享 `server/config/`，安装版 `<BaseDirectory>\config\`；日志 `%LOCALAPPDATA%\Douzhanzhe Console\logs`。
@@ -56,6 +56,9 @@
 - **dev 测试实例锁 DLL**：`dotnet bin/build/Douzhanzhe.API.dll` 起的测试实例锁 bin/build，打包必失败——打包前用 CIM 查 `Douzhanzhe.API.dll` 宿主进程清零（正式 API 是独立 exe，勿误杀）。
 - **开发/正式不要写同一个日志文件**：正式版 `app.log`、开发实例 `app-dev.log`（按 `InstanceIdentity.LogSuffix` 隔离，可用环境变量 `DOUZHANZHE_LOG_SUFFIX` 覆盖）。共用一个文件会互相覆盖；且 `File.AppendAllText` 的 `FileShare.Read` 会排斥第二个写入者 → 第二个实例的日志被"文件被占用"静默吞掉并降级到控制台（看不见），排查时表现为"日志凭空消失"。
 - **.ps1 含中文必须带 UTF-8 BOM**：PS 5.1 对无 BOM 按 ANSI 解析，中文必炸（"哈希文本不完整"）。Write 工具默认无 BOM，写完用 `[IO.File]::WriteAllText($p,$c,[Text.UTF8Encoding]::new($true))` 补。
+- **安装目录不能只看 `Environment.SpecialFolder.ProgramFiles`**：Inno 可装到任意盘符（本机正式版为 `D:\Program Files\Douzhanzhe Console`）。正式/开发判定必须读取 Inno 卸载项的 `InstallLocation`；否则正式版会被误判为 dev，日志写进 `app-dev.log`，正式/开发互斥也会失效。
+- **日志轮转必须保留实例后缀**：`app-dev.log` 只能归档为 `app-dev.log.N`，不能落到 `app.log.N`；验证日志系统时必须同时检查文件后缀与归档目标。
+- **Shell 残留清理不能只按启动先后判断**：正常重复启动也会“更早”，必须同时确认同目录、路径可读，且进程启动时间早于当前 exe 的 `LastWriteTime`。
 - **构建钩子自动提交**：`dotnet build` 触发 sync-repos 自动 commit+push（"api: 更新 API"）——大改动先手动 commit 拿清晰提交信息。
 - **docs/ 整体被主仓库 .gitignore**（有意设计），随私有 docs 子仓库（main 分支）同步。
 
@@ -74,4 +77,4 @@
 | `docs/v2.0/product-design-guide.md` / `tab-switch-shared-state.md` | 产品设计 / 共享状态设计 |
 | `docs/archive/` | 历史归档（不再维护）|
 | `docs/plans/` | 功能设计文档（如 game-cover-steamgriddb.md）|
-| `.workbuddy/memory/MEMORY.md` | AI 项目长期记忆（流程约定与坑）|
+| `.workbuddy/memory/MEMORY.md` | WorkBuddy 项目笔记（非 Codex 长期记忆）|

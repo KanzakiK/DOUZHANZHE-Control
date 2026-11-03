@@ -16,6 +16,7 @@ public static class AppLog
 {
     private static readonly object _lock = new();
     private static string _logDir = "";
+    private static string _logName = "app";
     private static string _logFile = "";
     private static long _size;
     private static volatile bool _initialized;
@@ -35,7 +36,8 @@ public static class AppLog
         {
             _logDir = logDir;
             Directory.CreateDirectory(logDir);
-            _logFile = Path.Combine(logDir, $"app{fileSuffix}.log");
+            _logName = $"app{fileSuffix}";
+            _logFile = Path.Combine(logDir, $"{_logName}.log");
             _size = File.Exists(_logFile) ? new FileInfo(_logFile).Length : 0;
             _initialized = true;
         }
@@ -69,7 +71,7 @@ public static class AppLog
                 {
                     sw.Write(line);
                 }
-                _size += line.Length;
+                _size += System.Text.Encoding.UTF8.GetByteCount(line);
             }
             catch
             {
@@ -88,11 +90,11 @@ public static class AppLog
         {
             for (int i = KeepFiles - 1; i > 0; i--)
             {
-                var src = Path.Combine(_logDir, $"app.log.{i}");
-                var dst = Path.Combine(_logDir, $"app.log.{i + 1}");
+                var src = Path.Combine(_logDir, $"{_logName}.log.{i}");
+                var dst = Path.Combine(_logDir, $"{_logName}.log.{i + 1}");
                 if (File.Exists(src)) File.Move(src, dst, overwrite: true);
             }
-            File.Move(_logFile, Path.Combine(_logDir, "app.log.1"), overwrite: true);
+            File.Move(_logFile, Path.Combine(_logDir, $"{_logName}.log.1"), overwrite: true);
             _size = 0;
         }
         catch (Exception ex)

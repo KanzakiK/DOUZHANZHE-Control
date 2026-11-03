@@ -533,8 +533,12 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
         try
         {
             Directory.CreateDirectory(_logDir);
-            File.AppendAllText(_appLogPath,
-                $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] [{tag}] {msg}\n");
+            // ★ FileShare.ReadWrite：避免多个 Shell/API 实例互相锁日志文件
+            // File.AppendAllText 默认 FileShare.Read 会排斥其它写入者
+            using var fs = new FileStream(_appLogPath, FileMode.Append, FileAccess.Write,
+                                            FileShare.ReadWrite | FileShare.Delete);
+            using var sw = new StreamWriter(fs, new System.Text.UTF8Encoding(false));
+            sw.Write($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] [{tag}] {msg}\n");
         }
         catch { }
     }

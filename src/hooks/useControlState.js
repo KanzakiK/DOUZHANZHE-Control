@@ -89,7 +89,7 @@ function getSnapshot() {
 }
 
 // ── 状态写入：唯一入口。产出新引用 + 处理联动副作用 + 触发一次监听 ──
-function setState(updater) {
+function setState(updater, { suppressModeSwitch = false } = {}) {
   const prev = state;
   const next = typeof updater === "function" ? updater(prev) : { ...prev, ...updater };
   if (next === prev) return;
@@ -114,7 +114,7 @@ function setState(updater) {
   emit();
 
   // 模式切换联动（原 useEffect([settings.mode])，跳过首次加载）
-  if (modeChanged && _bootstrapDone) startModeSwitch(next.settings.mode);
+  if (modeChanged && _bootstrapDone && !suppressModeSwitch) startModeSwitch(next.settings.mode);
   // 主题 → 后端（原 useEffect([theme])）
   if (themeChanged) saveUiState({ theme: next.theme }).catch(() => {});
 }
@@ -265,8 +265,16 @@ function connectSocket() {
         // 处理自动切换消息
         if (data.type === "auto_switch" && data.mode) {
           log("AutoSwitch", `收到自动切换请求: ${data.mode}`);
-          setState(prev =>
-            prev.settings.mode === data.mode ? prev : { ...prev, settings: { ...prev.settings, mode: data.mode } }
+          setState(
+            prev =>
+              prev.settings.mode === data.mode
+                ? prev
+                : {
+                    ...prev,
+                    settings: { ...prev.settings, mode: data.mode },
+                    currentProfile: prev.profiles.find(p => p.id === data.mode) || null,
+                  },
+            { suppressModeSwitch: data.applied === true }
           );
           return; // auto_switch 消息不包含遥测数据
         }

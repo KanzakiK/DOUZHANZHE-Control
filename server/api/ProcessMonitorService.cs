@@ -46,6 +46,8 @@ public sealed class ProcessMonitorService : IDisposable
     private Func<string> _currentConfig = () => "office";
     // 配置 id → 性能模式裸名（供 Rank 优先级比较）
     private Func<string, string> _resolveThermal = id => id;
+    // 后端直接应用模式的唯一入口（不依赖前端 WS 是否在线）
+    private Func<string, Task>? _applyMode;
 
     // WebSocket 客户端列表
     private static readonly List<WebSocket> _clients = new();
@@ -53,6 +55,7 @@ public sealed class ProcessMonitorService : IDisposable
 
     // 心跳定时器
     private System.Threading.Timer? _heartbeatTimer;
+    private int _tickRunning;
 
     private bool _disposed;
 
@@ -73,14 +76,17 @@ public sealed class ProcessMonitorService : IDisposable
         AppLog.Write("ProcessMonitor", "Service started");
 
         // 立即启动心跳：端口立即可用，第一次 tick 在 3s 后执行
-        _heartbeatTimer = new System.Threading.Timer(_ => HeartbeatTick(), null, 3_000, 3_000);
+        _heartbeatTimer = new System.Threading.Timer(
+            _ => _ = HeartbeatTickAsync(), null, 3_000, 3_000);
     }
 
     /// <summary>启动后注入配置解析依赖（指向 last-mode.json 与配置→性能模式解包点）</summary>
-    public void Configure(Func<string>? currentConfig, Func<string, string>? resolveThermal)
+    public void Configure(Func<string>? currentConfig, Func<string, string>? resolveThermal,
+        Func<string, Task>? applyMode = null)
     {
         if (currentConfig != null) _currentConfig = currentConfig;
         if (resolveThermal != null) _resolveThermal = resolveThermal;
+        if (applyMode != null) _applyMode = applyMode;
     }
 
     // ── WebSocket 客户端管理 ─────────────────────────────────
@@ -127,9 +133,9 @@ public sealed class ProcessMonitorService : IDisposable
     // 用 Process.GetProcesses() 而非 WMI ManagementObjectSearcher：
     //   前者直接读系统进程表，后者需要 RPC 到 WMI 服务，前者轻量得多。
 
-    private void HeartbeatTick()
+    private async Task HeartbeatTickAsync()
     {
-        if (_disposed) return;
+        if (_disposed || Interlocked.CompareExchange(ref _tickRunning, 1, 0) != 0) return;
         try
         {
             // 1. 拿到当前系统进程表
@@ -151,17 +157,16 @@ public sealed class ProcessMonitorService : IDisposable
                 finally { proc.Dispose(); }
             }
 
+            string? targetMode = null;
+            string? action = null;
             lock (_lock)
             {
-                bool modeChanged = false;
-
                 // 3. 先清理退出的进程（活跃列表里存在但当前进程表里消失的）
                 var exited = _activeGames.Where(g => !currentPids.Contains(g.Pid)).ToList();
                 foreach (var g in exited)
                 {
                     _activeGames.Remove(g);
                     AppLog.Write("ProcessMonitor", $"EXIT: {g.ExeName} (PID {g.Pid})");
-                    modeChanged = true;
                 }
 
                 // 4. 再加新启动的游戏进程（进程表里存在但活跃列表里没有，且匹配规则）
@@ -181,44 +186,55 @@ public sealed class ProcessMonitorService : IDisposable
                         // 列表从空变非空时记录快照
                         if (_activeGames.Count == 0)
                         {
-                            _snapshotMode = _currentConfig();
+                            _snapshotMode = CanonicalMode(_currentConfig());
                             AppLog.Write("ProcessMonitor", $"SNAPSHOT: {_snapshotMode}");
                         }
 
-                        _activeGames.Add((pid, name, profile.TargetMode));
+                        var normalizedTarget = CanonicalMode(profile.TargetMode);
+                        _activeGames.Add((pid, name, normalizedTarget));
                         AppLog.Write("ProcessMonitor", $"JOIN: {name} (PID {pid}) target={profile.TargetMode}");
-                        modeChanged = true;
                     }
                 }
 
                 _activeGameCount = _activeGames.Count;
 
-                // 5. 有变化时计算是否需要切换模式
-                if (modeChanged)
+                // 5. 每秒核对一次权威配置；切换失败后下一 tick 会自动重试。
+                var currentMode = CanonicalMode(_currentConfig());
+                if (_activeGames.Count == 0)
                 {
-                    var newMode = GetEffectiveMode();
-                    var curCfg = _currentConfig();
+                    if (_snapshotMode != null && !ModeEquals(_snapshotMode, currentMode))
+                    {
+                        targetMode = _snapshotMode;
+                        action = "RESTORE";
+                    }
+                }
+                else
+                {
+                    var effectiveMode = GetEffectiveMode();
+                    if (effectiveMode != null && !ModeEquals(effectiveMode, currentMode))
+                    {
+                        targetMode = effectiveMode;
+                        action = "SWITCH";
+                    }
+                }
+            }
 
-                    if (_activeGames.Count == 0)
-                    {
-                        // 全部退出 → 恢复快照
-                        if (_snapshotMode != null && _snapshotMode != curCfg)
-                        {
-                            AppLog.Write("ProcessMonitor", $"RESTORE: → {_snapshotMode} (snapshot)");
-                            NotifyModeSwitch(_snapshotMode);
-                        }
-                    }
-                    else if (newMode != null && newMode != curCfg)
-                    {
-                        AppLog.Write("ProcessMonitor", $"SWITCH: → {newMode} (from {curCfg})");
-                        NotifyModeSwitch(newMode);
-                    }
+            if (targetMode != null)
+            {
+                var applied = await ApplyModeAsync(targetMode, action ?? "SWITCH");
+                if (applied && action == "RESTORE")
+                {
+                    lock (_lock) _snapshotMode = null;
                 }
             }
         }
         catch (Exception ex)
         {
             AppLog.Write("ProcessMonitor", $"HeartbeatTick error: {ex.Message}");
+        }
+        finally
+        {
+            Volatile.Write(ref _tickRunning, 0);
         }
     }
 
@@ -245,11 +261,48 @@ public sealed class ProcessMonitorService : IDisposable
             .TargetMode;
     }
 
+    private static string CanonicalMode(string mode) => mode switch
+    {
+        "silent" or "office" or "beast" or "gaming" => $"cfg-{mode}",
+        _ => mode
+    };
+
+    private static bool ModeEquals(string left, string right)
+        => string.Equals(CanonicalMode(left), CanonicalMode(right), StringComparison.OrdinalIgnoreCase);
+
+    private async Task<bool> ApplyModeAsync(string mode, string action)
+    {
+        var from = CanonicalMode(_currentConfig());
+        AppLog.Write("ProcessMonitor", $"{action}: → {mode} (from {from})");
+
+        try
+        {
+            var appliedByBackend = _applyMode != null;
+            if (appliedByBackend)
+            {
+                await _applyMode!(mode);
+            }
+            else
+            {
+                // 兼容测试/独立构造：没有后端应用回调时仍通知前端处理。
+                _osd.Show(mode);
+            }
+            await NotifyModeSwitchAsync(mode, appliedByBackend);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            AppLog.Write("ProcessMonitor", $"{action} failed → {mode}: {ex.Message}");
+            return false;
+        }
+    }
+
     // ── WebSocket 通知 ───────────────────────────────────────
 
-    private void NotifyModeSwitch(string mode)
+    private async Task NotifyModeSwitchAsync(string mode, bool appliedByBackend)
     {
-        var msg = JsonSerializer.Serialize(new { type = "auto_switch", mode }, _jsonOpt);
+        var msg = JsonSerializer.Serialize(
+            new { type = "auto_switch", mode, applied = appliedByBackend }, _jsonOpt);
         var bytes = Encoding.UTF8.GetBytes(msg);
         var segment = new ArraySegment<byte>(bytes);
 
@@ -263,13 +316,8 @@ public sealed class ProcessMonitorService : IDisposable
             {
                 if (ws.State == WebSocketState.Open)
                 {
-                    // 必须带超时：僵死客户端会让 SendAsync 永久挂起，
-                    // 这里 .Wait() 无上限会把自动切换逻辑整条卡死
-                    if (!ws.SendAsync(segment, WebSocketMessageType.Text, true, CancellationToken.None).Wait(2000))
-                    {
-                        deadClients.Add(ws);
-                        try { ws.Abort(); } catch { }
-                    }
+                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                    await ws.SendAsync(segment, WebSocketMessageType.Text, true, cts.Token);
                 }
                 else
                     deadClients.Add(ws);
@@ -289,9 +337,6 @@ public sealed class ProcessMonitorService : IDisposable
                     _clients.Remove(ws);
             }
         }
-
-        // 同时显示 OSD
-        _osd.Show(mode);
     }
 
     // ── Dispose ──────────────────────────────────────────────
