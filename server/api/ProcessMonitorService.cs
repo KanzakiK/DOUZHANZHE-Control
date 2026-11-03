@@ -6,9 +6,16 @@
 //   - 订阅 WMI 进程生命周期事件
 //   - 匹配游戏规则，维护活跃游戏列表
 //   - 通过 WebSocket 通知前端切换模式
+//
+// 双重检测：WMI 事件（实时）+ 心跳轮询（兜底）
+//   WMI __InstanceCreationEvent / __InstanceDeletionEvent WITHIN 2 是主力检测路径。
+//   实测存在 WMI 静默失效场景：连接正常但不再推送事件（系统睡眠/唤醒、WMI 服务内部状态损坏），
+//   且 ManagementEventWatcher.Stopped 事件并不总会触发，自愈逻辑抓不住这种故障。
+//   因此额外加一个 15s 心跳轮询，主动校验活跃进程是否还活着 + 全系统进程扫描兜底遗漏。
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Management;
 using System.Net.WebSockets;
@@ -66,6 +73,10 @@ public sealed class ProcessMonitorService : IDisposable
     // 退出延迟定时器
     private readonly Dictionary<int, CancellationTokenSource> _exitTimers = new();
 
+    // 心跳轮询定时器（兜底机制，15s 检查一次活跃进程存活 + 60s 一次全系统扫描）
+    private System.Threading.Timer? _heartbeatTimer;
+    private int _heartbeatTick; // 自增 tick，用于区分"仅校验存活"和"全系统扫描"
+
     private bool _disposed;
 
     private static readonly JsonSerializerOptions _jsonOpt = new()
@@ -92,8 +103,14 @@ public sealed class ProcessMonitorService : IDisposable
         // 改为后台线程建立：端口立即可用，游戏自动切换功能稍后就绪。
         _ = Task.Run(() =>
         {
-            try { SubscribeWmiEvents(); }
-            catch (Exception ex) { AppLog.Write("ProcessMonitor", $"async subscribe failed: {ex.Message}"); }
+            try
+            {
+                SubscribeWmiEvents();
+                // 订阅建立后立即做一次进程基线枚举 + 启动心跳轮询
+                BaselineScan();
+                StartHeartbeat();
+            }
+            catch (Exception ex) { AppLog.Write("ProcessMonitor", $"async init failed: {ex.Message}"); }
         });
     }
 
@@ -226,10 +243,242 @@ public sealed class ProcessMonitorService : IDisposable
             AppLog.Write("ProcessMonitor", "watcher stopped unexpectedly, re-subscribing");
             UnsubscribeWmiEvents();
             SubscribeWmiEvents();
+            // 重订阅后立即做一次基线枚举，防止重订阅期间漏掉的进程事件
+            BaselineScan();
         }
         finally
         {
             Interlocked.Exchange(ref _resubscribing, 0);
+        }
+    }
+
+    // ── 启动时基线枚举 ───────────────────────────────────────
+    //
+    // WMI 订阅建立之前已经在运行的进程不会产生 CreationEvent，
+    // 导致服务重启后已在跑的游戏不会被识别。
+    // 遍历当前所有 Win32_Process，匹配游戏规则加入活跃列表。
+
+    private void BaselineScan()
+    {
+        if (!_profiles.Enabled) return;
+        try
+        {
+            using var searcher = new ManagementObjectSearcher("SELECT ProcessId, Name FROM Win32_Process");
+            var processes = searcher.Get();
+            int added = 0;
+
+            lock (_lock)
+            {
+                foreach (var p in processes)
+                {
+                    try
+                    {
+                        var name = p["Name"]?.ToString() ?? "";
+                        var pid = Convert.ToInt32(p["ProcessId"]);
+
+                        // 跳过已经在活跃列表里的
+                        if (_activeGames.Any(g => g.Pid == pid)) continue;
+
+                        var profile = _profiles.MatchByExeName(name);
+                        if (profile == null) continue;
+
+                        // 列表从空变非空时记录快照
+                        if (_activeGames.Count == 0)
+                        {
+                            _snapshotMode = _currentConfig();
+                            AppLog.Write("ProcessMonitor", $"SNAPSHOT (baseline): {_snapshotMode}");
+                        }
+
+                        _activeGames.Add((pid, name, profile.TargetMode));
+                        added++;
+                    }
+                    catch { /* 单个进程读取失败跳过 */ }
+                }
+                _activeGameCount = _activeGames.Count;
+
+                if (added > 0)
+                {
+                    AppLog.Write("ProcessMonitor", $"BASELINE_SCAN: +{added} existing game processes, total active={_activeGameCount}");
+
+                    // 基线枚举后检查是否需要切换模式
+                    var newMode = GetEffectiveMode();
+                    var curCfg = _currentConfig();
+                    if (newMode != null && newMode != curCfg)
+                    {
+                        AppLog.Write("ProcessMonitor", $"SWITCH (baseline): {newMode} (from {curCfg})");
+                        NotifyModeSwitch(newMode);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLog.Write("ProcessMonitor", $"BaselineScan error: {ex.Message}");
+        }
+    }
+
+    // ── 心跳轮询（兜底机制） ─────────────────────────────────
+    //
+    // WMI 事件流可能静默失效（连接状态仍为 Open 但不再推送事件），
+    // 且 ManagementEventWatcher.Stopped 并不总会触发，自愈逻辑抓不住。
+    // 本机制每 15s 主动检查活跃列表里的进程是否还活着，
+    // 每 60s 额外扫一遍全系统进程看有没有遗漏的 START 事件。
+
+    private void StartHeartbeat()
+    {
+        _heartbeatTimer = new System.Threading.Timer(_ => HeartbeatTick(), null, 15_000, 15_000);
+        AppLog.Write("ProcessMonitor", "Heartbeat started (15s)");
+    }
+
+    private void HeartbeatTick()
+    {
+        if (_disposed) return;
+        try
+        {
+            int tick = Interlocked.Increment(ref _heartbeatTick);
+            bool fullScan = (tick % 4 == 0); // 每 4 * 15s = 60s 做一次全系统扫描
+
+            // 第 1 步：校验活跃进程是否还活着
+            List<int> deadPids = new();
+            lock (_lock)
+            {
+                foreach (var g in _activeGames)
+                {
+                    if (!IsProcessAlive(g.Pid, g.ExeName))
+                        deadPids.Add(g.Pid);
+                }
+            }
+
+            // 清理死进程（直接退出，不走 3s 延迟——兜底场景，进程确实已死一段时间）
+            foreach (var pid in deadPids)
+            {
+                ForceExitProcess(pid, reason: "heartbeat-dead");
+            }
+
+            // 第 2 步：全系统扫描，兜底遗漏的 START 事件
+            if (fullScan && _profiles.Enabled)
+            {
+                try
+                {
+                    using var searcher = new ManagementObjectSearcher("SELECT ProcessId, Name FROM Win32_Process");
+                    var processes = searcher.Get();
+
+                    lock (_lock)
+                    {
+                        foreach (var p in processes)
+                        {
+                            try
+                            {
+                                var name = p["Name"]?.ToString() ?? "";
+                                var pid = Convert.ToInt32(p["ProcessId"]);
+
+                                // 已在活跃列表里的跳过
+                                if (_activeGames.Any(g => g.Pid == pid)) continue;
+
+                                var profile = _profiles.MatchByExeName(name);
+                                if (profile == null) continue;
+
+                                // 列表从空变非空时记录快照
+                                if (_activeGames.Count == 0)
+                                {
+                                    _snapshotMode = _currentConfig();
+                                    AppLog.Write("ProcessMonitor", $"SNAPSHOT (heartbeat): {_snapshotMode}");
+                                }
+
+                                _activeGames.Add((pid, name, profile.TargetMode));
+                                AppLog.Write("ProcessMonitor", $"JOIN (heartbeat): {name} (PID {pid}) target={profile.TargetMode}");
+                            }
+                            catch { }
+                        }
+                        _activeGameCount = _activeGames.Count;
+
+                        // 检查是否需要切换
+                        var newMode = GetEffectiveMode();
+                        var curCfg = _currentConfig();
+                        if (newMode != null && newMode != curCfg)
+                        {
+                            AppLog.Write("ProcessMonitor", $"SWITCH (heartbeat): {newMode} (from {curCfg})");
+                            NotifyModeSwitch(newMode);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AppLog.Write("ProcessMonitor", $"Heartbeat full-scan error: {ex.Message}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLog.Write("ProcessMonitor", $"HeartbeatTick error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 检查进程是否还活着。PID 复用防御：Process.GetProcessById 返回的实例
+    /// 名字和记录的 ExeName 不一致时视为"进程已死（PID 被复用）"。
+    /// </summary>
+    private static bool IsProcessAlive(int pid, string expectedName)
+    {
+        try
+        {
+            using var proc = Process.GetProcessById(pid);
+            // PID 复用防御：比对名字。Process.ProcessName 不含 .exe 后缀，
+            // 但 expectedName 通常含 .exe，做一次宽松比较
+            var procName = proc.ProcessName;
+            if (string.Equals(procName, expectedName, StringComparison.OrdinalIgnoreCase))
+                return true;
+            // 去掉 .exe 后缀再比
+            var expectedBase = expectedName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
+                ? expectedName[..^4]
+                : expectedName;
+            return string.Equals(procName, expectedBase, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (ArgumentException) { return false; }   // 进程不存在
+        catch (System.ComponentModel.Win32Exception) { return false; } // 无法访问（已退出但 PID 未回收）
+    }
+
+    /// <summary>
+    /// 强制退出清理（供心跳兜底使用），立即从活跃列表移除并尝试恢复模式，
+    /// 不走 WMI 事件路径的 3s 延迟定时器。
+    /// </summary>
+    private void ForceExitProcess(int processId, string reason)
+    {
+        lock (_lock)
+        {
+            var game = _activeGames.FirstOrDefault(g => g.Pid == processId);
+            if (game.Pid == 0) return; // 已清理
+
+            // 取消可能在跑的延迟退出定时器
+            if (_exitTimers.TryGetValue(processId, out var cts))
+            {
+                try { cts.Cancel(); } catch { }
+                _exitTimers.Remove(processId);
+            }
+
+            _activeGames.RemoveAll(g => g.Pid == processId);
+            _activeGameCount = _activeGames.Count;
+            AppLog.Write("ProcessMonitor", $"EXIT ({reason}): {game.ExeName} (PID {processId}), activeGames={_activeGameCount}");
+
+            if (_activeGames.Count == 0)
+            {
+                var curCfg = _currentConfig();
+                if (_snapshotMode != null && _snapshotMode != curCfg)
+                {
+                    AppLog.Write("ProcessMonitor", $"RESTORE ({reason}): → {_snapshotMode}");
+                    NotifyModeSwitch(_snapshotMode);
+                }
+            }
+            else
+            {
+                var newMode = GetEffectiveMode();
+                var curCfg = _currentConfig();
+                if (newMode != null && RankOf(newMode) < RankOf(curCfg))
+                {
+                    AppLog.Write("ProcessMonitor", $"DOWNGRADE ({reason}): → {newMode}");
+                    NotifyModeSwitch(newMode);
+                }
+            }
         }
     }
 
@@ -315,7 +564,7 @@ public sealed class ProcessMonitorService : IDisposable
             lock (_lock)
             {
                 var game = _activeGames.FirstOrDefault(g => g.Pid == processId);
-                if (game.Pid == 0) return; // 不在列表中
+                if (game.Pid == 0) return; // 不在列表中（可能已被心跳清理）
 
                 // 启动延迟退出
                 var cts = new CancellationTokenSource();
@@ -455,6 +704,10 @@ public sealed class ProcessMonitorService : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+
+        // 停心跳定时器（先停再释放，防止回调与 Dispose 并发）
+        try { _heartbeatTimer?.Dispose(); } catch { }
+        _heartbeatTimer = null;
 
         UnsubscribeWmiEvents();
 
