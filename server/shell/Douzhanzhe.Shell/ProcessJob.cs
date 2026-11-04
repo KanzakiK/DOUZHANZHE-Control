@@ -111,7 +111,7 @@ internal static class ProcessJob
                 return false;
             }
 
-            Form1.AppLog("Shell", "已启用 KILL_ON_JOB_CLOSE：退出时自动回收 API 与 WebView2 子进程");
+            Form1.AppLog("Shell", "Job 兜底已启用（KILL_ON_JOB_CLOSE）：Shell 结束时由系统回收 API 与 WebView2 子进程");
             return true;
         }
         catch (Exception ex)

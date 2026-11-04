@@ -974,6 +974,40 @@ app.MapGet("/api/platform/info", (HardwareDetector detector, HardwareAbstraction
     });
 });
 
+// ---- 重启系统：GPU 模式切换后立即生效 ----
+app.MapPost("/api/system/restart", () =>
+{
+    try
+    {
+        Log("[system] 收到立即重启请求（GPU 模式切换）");
+        var psi = new ProcessStartInfo("shutdown.exe")
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            WindowStyle = ProcessWindowStyle.Hidden
+        };
+        psi.ArgumentList.Add("/r");
+        psi.ArgumentList.Add("/t");
+        psi.ArgumentList.Add("5");
+        psi.ArgumentList.Add("/f");
+        psi.ArgumentList.Add("/c");
+        psi.ArgumentList.Add("斗战者控制台：GPU 模式已切换，系统将在 5 秒后重启。");
+
+        using var process = Process.Start(psi);
+        if (process == null || !process.WaitForExit(3000))
+            return Results.Problem("无法启动系统重启命令", statusCode: 500);
+        if (process.ExitCode != 0)
+            return Results.Problem($"系统重启命令失败（退出码 {process.ExitCode}）", statusCode: 500);
+
+        return Results.Json(new { ok = true, delaySeconds = 5 });
+    }
+    catch (Exception ex)
+    {
+        Log($"[system] 重启请求失败: {ex.Message}");
+        return Results.Problem(ex.Message, statusCode: 500);
+    }
+});
+
 // ---- 优雅关闭: 停止内核驱动 + 触发应用退出 ----
 app.MapPost("/api/shutdown", (IHostApplicationLifetime lifetime) =>
 {

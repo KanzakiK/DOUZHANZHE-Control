@@ -140,9 +140,12 @@ public partial class Form1 : Form
 
     public Form1()
     {
-        // 尽早检测 --minimized 参数，在窗口显示之前设置隐藏状态
+        // 最小化启动是持久化偏好，适用于所有启动入口；参数仅作为旧配置缺失时的兼容回退。
         var startupArgs = Environment.GetCommandLineArgs();
-        _isStartupMinimized = startupArgs.Any(a => a.Equals("--minimized", StringComparison.OrdinalIgnoreCase));
+        var hasMinimizedArgument = startupArgs.Any(a => a.Equals("--minimized", StringComparison.OrdinalIgnoreCase));
+        var configuredMinimized = TryReadConfiguredStartupMinimized();
+        _isStartupMinimized = configuredMinimized ?? hasMinimizedArgument;
+        ShellLog($"启动偏好：minimized={_isStartupMinimized} (配置={configuredMinimized?.ToString() ?? "缺失"}, 参数={hasMinimizedArgument})");
 
         Text = "斗战者控制台";
         Width = 1500;
@@ -152,7 +155,7 @@ public partial class Form1 : Form
         BackColor = Color.FromArgb(13, 17, 23); // 深色背景防白闪
         Icon = LoadAppIcon();
 
-        // 开机自启最小化：在 RestoreWindowState 之前设置，防止恢复最大化状态覆盖
+        // 最小化启动：在 RestoreWindowState 之前设置，防止恢复最大化状态覆盖
         if (_isStartupMinimized)
         {
             WindowState = FormWindowState.Minimized;
@@ -164,6 +167,7 @@ public partial class Form1 : Form
 
         FormClosing += Form1_FormClosing;
         Resize += Form1_Resize;
+        Shown += Form1_Shown;
 
         // 托盘图标
         _trayMenu = new ContextMenuStrip();
@@ -207,7 +211,7 @@ public partial class Form1 : Form
     {
         var loadSw = System.Diagnostics.Stopwatch.StartNew();
 
-        // 开机自启最小化：立即隐藏窗口（构造函数已预设状态）
+        // 最小化启动：立即隐藏窗口（构造函数已预设状态）
         if (_isStartupMinimized)
         {
             WindowState = FormWindowState.Minimized;
@@ -471,6 +475,16 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
         }
     }
 
+    private void Form1_Shown(object? sender, EventArgs e)
+    {
+        if (!_isStartupMinimized) return;
+
+        // Shown 是窗口首次进入可见状态的最后兜底，避免异步初始化期间露出主窗口。
+        WindowState = FormWindowState.Minimized;
+        Hide();
+        ShellLog("启动时已隐藏到托盘");
+    }
+
     private void ShowWindow()
     {
         _isStartupMinimized = false;  // 清除开机标志，后续手动最小化正常显示气球通知
@@ -664,7 +678,7 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
         catch { return false; }
     }
 
-    private string SharedConfigDir()
+    private static string SharedConfigDir()
     {
         var local = Path.Combine(AppContext.BaseDirectory, "config");
         // 开发环境：向上找到仓库根目录（存在 AGENTS.md + server/config）后使用共享 config
@@ -676,6 +690,25 @@ a{{color:#58a6ff}}pre{{background:#161b22;border:1px solid #30363d;border-radius
         }
         Directory.CreateDirectory(local);
         return local;
+    }
+
+    private static bool? TryReadConfiguredStartupMinimized()
+    {
+        try
+        {
+            var path = Path.Combine(SharedConfigDir(), "auto-start-opts.json");
+            if (!File.Exists(path)) return null;
+
+            using var doc = JsonDocument.Parse(File.ReadAllText(path));
+            if (doc.RootElement.TryGetProperty("minimized", out var minimized) &&
+                minimized.ValueKind is JsonValueKind.True or JsonValueKind.False)
+            {
+                return minimized.GetBoolean();
+            }
+        }
+        catch { }
+
+        return null;
     }
 
     private void ReportElevationStatus()
