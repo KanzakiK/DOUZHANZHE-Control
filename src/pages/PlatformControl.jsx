@@ -1,7 +1,18 @@
+import { useState } from "react";
 import { useControlState } from "../hooks/useControlState";
-import { applyHardwareControl, log } from "../services/uxtuAdapter";
+import { applyHardwareControl, log, requestSystemRestart } from "../services/uxtuAdapter";
 import { Skeleton, OfflineCard, EmptyState } from "../components/ui/PageState";
 import { useStall } from "../hooks/useStall";
+import { useToast } from "../components/ui/Toast";
+import GpuModeConfirmDialog from "../components/ui/GpuModeConfirmDialog";
+
+const GPU_MODES = [
+  { id: 2, label: "集显", desc: "节能模式" },
+  { id: 0, label: "混合", desc: "自动切换" },
+  { id: 1, label: "独显", desc: "高性能" },
+];
+
+const gpuModeLabel = (mode) => GPU_MODES.find((item) => item.id === mode)?.label || "未知";
 
 function PageHead() {
   return (
@@ -64,6 +75,11 @@ function PlatformSkeleton() {
 
 export default function PlatformControl() {
   const { telemetry, backendOnline, platformInfo } = useControlState();
+  const toast = useToast();
+  const [gpuDialogOpen, setGpuDialogOpen] = useState(false);
+  const [gpuTargetMode, setGpuTargetMode] = useState(null);
+  const [gpuBusy, setGpuBusy] = useState(false);
+  const [gpuError, setGpuError] = useState("");
 
   const asBool = (value) => value === true || value === 1 || value === "1";
   const kbLevel = telemetry?.kbBrightness != null ? Number(telemetry.kbBrightness) : 0;
@@ -83,11 +99,57 @@ export default function PlatformControl() {
       .catch(err => log("PlatformControl", `${target} 设置失败: ${err.message}`));
   };
 
-  const gpuModes = [
-    { id: 2, label: "集显", desc: "节能模式" },
-    { id: 0, label: "混合", desc: "自动切换" },
-    { id: 1, label: "独显", desc: "高性能" },
-  ];
+  const openGpuDialog = (mode) => {
+    if (gpuBusy || gpuMode === mode) return;
+    setGpuTargetMode(mode);
+    setGpuError("");
+    setGpuDialogOpen(true);
+  };
+
+  const closeGpuDialog = () => {
+    if (gpuBusy) return;
+    setGpuDialogOpen(false);
+    setGpuTargetMode(null);
+    setGpuError("");
+  };
+
+  const applyGpuMode = async (restartAfterApply) => {
+    if (gpuTargetMode == null || gpuBusy) return;
+
+    setGpuBusy(true);
+    setGpuError("");
+    try {
+      try {
+        await applyHardwareControl("gpu_mode", gpuTargetMode);
+      } catch (err) {
+        log("PlatformControl", `gpu_mode 切换失败: ${err.message}`);
+        setGpuError(`切换失败：${err.message}`);
+        toast?.("GPU 模式切换失败", "error");
+        return;
+      }
+
+      const label = gpuModeLabel(gpuTargetMode);
+
+      if (restartAfterApply) {
+        try {
+          await requestSystemRestart();
+        } catch (err) {
+          log("PlatformControl", `GPU 模式已切换，但系统重启失败: ${err.message}`);
+          setGpuDialogOpen(false);
+          setGpuTargetMode(null);
+          toast?.("GPU 模式已切换，但重启请求失败，请手动重启电脑", "error", 9000);
+          return;
+        }
+        toast?.(`GPU 模式已切换为「${label}」，系统将在 5 秒后重启`, "success", 8000);
+      } else {
+        toast?.(`GPU 模式已切换为「${label}」，重启后生效`, "success", 7000);
+      }
+      setGpuDialogOpen(false);
+      setGpuTargetMode(null);
+    } finally {
+      setGpuBusy(false);
+    }
+  };
 
   const isOffline = useStall(backendOnline === false, 1500);
   const hasAnyTelemetry = !!telemetry && Object.keys(telemetry).length > 0;
@@ -161,10 +223,10 @@ export default function PlatformControl() {
             <span className="rk"><b>GPU 模式</b><small>混合 / 独显 / 集显 · WMI · 切换需重启</small></span>
             <span className="g-ctrl">
               <div className="segmented">
-                {gpuModes.map(m => (
+                {GPU_MODES.map(m => (
                   <button key={m.id} className={gpuMode === m.id ? "active" : ""}
-                    onClick={() => applyHardwareControl("gpu_mode", m.id)
-                      .catch(err => log("PlatformControl", `gpu_mode 设置失败: ${err.message}`))}>
+                    disabled={gpuBusy}
+                    onClick={() => openGpuDialog(m.id)}>
                     {m.label}
                   </button>
                 ))}
@@ -210,6 +272,18 @@ export default function PlatformControl() {
         <div className="row-line"><span className="rk"><b>GPU 传感器原始值</b><small>EC 0xE0 直读 · 未校准</small></span><span className="pv" style={{ width: "auto" }}>{platformInfo.ecGpuTemp != null ? platformInfo.ecGpuTemp : "—"}</span></div>
       </div>
       </div>
+
+      <GpuModeConfirmDialog
+        open={gpuDialogOpen}
+        currentLabel={gpuMode == null ? "未知" : gpuModeLabel(gpuMode)}
+        targetLabel={gpuModeLabel(gpuTargetMode)}
+        externalDisplayRisk={gpuTargetMode === 2}
+        busy={gpuBusy}
+        error={gpuError}
+        onCancel={closeGpuDialog}
+        onConfirm={() => applyGpuMode(false)}
+        onRestart={() => applyGpuMode(true)}
+      />
     </section>
   );
 }

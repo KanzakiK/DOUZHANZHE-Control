@@ -97,6 +97,15 @@ export async function applyHardwareControl(target, value, mode) {
   return res.json();
 }
 
+export async function requestSystemRestart() {
+  const res = await fetch("/api/system/restart", { method: "POST" });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data?.ok) {
+    throw new Error(data?.error || `重启请求返回 ${res.status}`);
+  }
+  return data;
+}
+
 
 // HTTP 获取初始遥测数据（用于方案 C：先 HTTP 后 WebSocket）
 export async function fetchTelemetry() {

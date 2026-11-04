@@ -464,7 +464,7 @@ export default function SettingsPanel({ theme, setTheme }) {
             </span>
           </div>
           <div className="set-row">
-            <span className="rk"><b>最小化启动</b><small>启动时收起主窗口至托盘，仅在后台守护硬件</small></span>
+            <span className="rk"><b>最小化启动</b><small>每次启动（含开机自启）都收起主窗口至托盘，仅在后台守护硬件</small></span>
             <span className="rctrl">
               <label className="switch">
                 <input type="checkbox" checked={autoStartMin} onChange={(e) => toggleAutoStartMin(e.target.checked)} aria-label="最小化启动" />
