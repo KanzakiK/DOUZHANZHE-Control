@@ -5,7 +5,7 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
-## [2.0.5-pre.1] — 2026-11-04
+## [2.0.5] — 2026-11-04
 
 GPU 模式切换确认流程与最小化启动行为修复。
 
