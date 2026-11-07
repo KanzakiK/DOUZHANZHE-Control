@@ -1,12 +1,15 @@
 ﻿import { useCallback, useRef, useEffect } from "react";
 import { applySmuSet } from "../../services/uxtuAdapter";
 import OverrideSlider from "../ui/OverrideSlider";
+import PerCoreCoPanel from "./PerCoreCoPanel";
 
 export default function AmdPowerPanel({ settings, uxtuParams, setUxtuParams, overrides, saveOverride, clearOverride, switching }) {
   const latestModeRef = useRef(settings.mode);
   latestModeRef.current = settings.mode;
   const paramsLocked = !!switching;
   const isSet = (key) => Object.prototype.hasOwnProperty.call(overrides, key);
+  // 全核 CO 与逐核 CO 互斥：逐核已启用时禁用全核滑块（后端同样会拒绝）
+  const perCoreActive = Array.isArray(overrides?.perCoreCo) && overrides.perCoreCo.length > 0;
   const update = useCallback((key) => (value) => {
     setUxtuParams(p => ({ ...p, [key]: value }));
     saveOverride?.(settings.mode, key, value);
@@ -44,11 +47,18 @@ export default function AmdPowerPanel({ settings, uxtuParams, setUxtuParams, ove
         onChange={v => { update('cpuTempLimitC')(v); queueSmu('tctl_temp', v); }}
       />
       <OverrideSlider
-        label="电压调节 · 降压" desc="负值为降压，可降低发热和功耗，需逐机调试稳定性" value={uxtuParams.cpuVoltageOffset} min={-30} max={0} step={1} unit="mV"
-        set={isSet('cpuVoltageOffset')} disabled={paramsLocked}
+        label="电压调节 · 降压" desc={perCoreActive ? "逐核心降压已启用，两者互斥，请先清除逐核心降压" : "负值为降压，可降低发热和功耗，需逐机调试稳定性"} value={uxtuParams.cpuVoltageOffset} min={-30} max={0} step={1} unit="mV"
+        set={isSet('cpuVoltageOffset')} disabled={paramsLocked || perCoreActive}
         onEnable={() => { update('cpuVoltageOffset')(uxtuParams.cpuVoltageOffset); queueSmu('co_all', uxtuParams.cpuVoltageOffset); }}
         onClear={() => clearOverride(settings.mode, ['cpuVoltageOffset'])}
         onChange={v => { update('cpuVoltageOffset')(v); queueSmu('co_all', v); }}
+      />
+      <PerCoreCoPanel
+        settings={settings}
+        overrides={overrides}
+        saveOverride={saveOverride}
+        clearOverride={clearOverride}
+        switching={switching}
       />
     </>
   );

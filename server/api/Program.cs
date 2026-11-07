@@ -439,6 +439,27 @@ int RestoreSmu(string tag, PerformanceOverrides o)
         }
         catch (Exception ex) { Log($"[{tag}] SMU BatchApply failed: {ex.Message}"); }
     }
+
+    // 逐核 CO：所有重放路径都下发，包含 ParameterGuard 的 60 秒周期。
+    // 实测 16 条 SMU 命令一次批量仅约 15ms，每分钟一次不构成固件压力；
+    // 反过来，若把逐核排除在周期之外，睡眠唤醒 / 固件复位后就没有自动恢复通道
+    //（本项目没有 PowerModeChanged 重放，RestoreAllPerfSettings 只有 Startup 与 switch 两个调用点）。
+    // 顺序上放在全核 CO 之后（两者互斥，正常配置不会同时出现）。
+    if (o.Smu.PerCoreCo is { Count: > 0 } perCore)
+    {
+        try
+        {
+            var amdCtrl = _newSmu.Value;
+            if (amdCtrl != null)
+            {
+                var rc = amdCtrl.ApplyPerCoreCO(perCore);
+                int ok = rc.Count(r => r.Status == (byte)RyzenSmu.SmuStatus.Ok);
+                restored += ok;
+                Log($"[{tag}] SMU per-core CO → {ok}/{rc.Count} 核");
+            }
+        }
+        catch (Exception ex) { Log($"[{tag}] SMU per-core CO failed: {ex.Message}"); }
+    }
     return restored;
 }
 
@@ -1298,6 +1319,14 @@ app.MapPost("/api/smu/set", (SmuSetRequest req, HardwareDetector detector, strin
         var platform = detector.Detect();
         Log($"[smu/set] ← {req.Parameter}={req.ValueM} (vendor={platform.Vendor})");
 
+        // 全核 CO 与逐核 CO 互斥（两个方向都校验，避免两套值互相覆盖）
+        if (req.Parameter == "co_all")
+        {
+            var existing = ProfileLoadOverrides(mode ?? CurrentMode());
+            if (existing.Smu.PerCoreCo is { Count: > 0 })
+                return Results.Json(new { ok = false, error = "逐核心降压已启用，与全核电压调节互斥：请先清除逐核心降压" });
+        }
+
         var ctrl = platform.IsIntel ? (ISmuControl?)_intelSmu.Value : (ISmuControl?)_newSmu.Value;
         if (ctrl == null)
             return Results.Json(new { ok = false, error = "SMU 控制器未初始化" });
@@ -1332,6 +1361,158 @@ app.MapPost("/api/smu/set", (SmuSetRequest req, HardwareDetector detector, strin
         return Results.Json(new { ok = false, error = ex.Message });
     }
 });
+// ---- AMD 逐核 Curve Optimizer ----
+// 约定：
+//   1. 全核 CO 与逐核 CO 互斥（二选一），两个方向都校验；
+//   2. 逐条返回 SMU 状态码，只有全部成功才持久化，避免把没生效的值写进配置；
+//   3. 拓扑 / 范围 / 命令由后端下发，前端不写死 CCD 与核心数；
+//   4. probe 只发只读命令，不做任何电压曲线写入。
+app.MapGet("/api/smu/co-per-core", (HardwareDetector detector) =>
+{
+    try
+    {
+        var platform = detector.Detect();
+        var o = LoadPerfOverrides();
+        return Results.Json(new
+        {
+            ok = true,
+            supported = platform.IsAmd,
+            vendor = platform.Vendor,
+            topology = new { ccdCount = PerCoreCoTopology.CcdCount, coresPerCcd = PerCoreCoTopology.CoresPerCcd },
+            limits = new { minMv = PerCoreCoTopology.MinOffsetMv, maxMv = PerCoreCoTopology.MaxOffsetMv },
+            coAll = o.Smu.CoAll,
+            perCoreCo = o.Smu.PerCoreCo ?? new List<PerCoreCoEntry>(),
+            commands = new { primary = "RSMU 0x06", fallback = "MP1 0x35", probe = "RSMU 0xD5" },
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new { ok = false, error = ex.Message });
+    }
+});
+
+app.MapPost("/api/smu/co-per-core", (PerCoreCoApplyRequest req, HardwareDetector detector, string? mode = null) =>
+{
+    try
+    {
+        var platform = detector.Detect();
+        if (!platform.IsAmd)
+            return Results.Json(new { ok = false, error = "逐核心降压仅在 AMD 锐龙平台可用" });
+
+        var ctrl = _newSmu.Value;
+        if (ctrl == null)
+            return Results.Json(new { ok = false, error = "AMD SMU 控制器未初始化（RyzenSMU.bin / PawnIO 不可用）" });
+
+        var offsets = req.Offsets;
+        if (offsets == null || offsets.Count == 0)
+            return Results.Json(new { ok = false, error = "offsets 不能为空；清空请用 /api/smu/co-per-core/clear" });
+        var maxCores = PerCoreCoTopology.CcdCount * PerCoreCoTopology.CoresPerCcd;
+        if (offsets.Count > maxCores)
+            return Results.Json(new { ok = false, error = $"offsets 数量 {offsets.Count} 超过物理核心数 {maxCores}" });
+
+        var seen = new HashSet<(int Ccd, int Core)>();
+        foreach (var e in offsets)
+        {
+            if (!PerCoreCoTopology.IsValid(e.Ccd, e.Core, e.Mv))
+                return Results.Json(new
+                {
+                    ok = false,
+                    error = $"参数越界 ccd={e.Ccd} core={e.Core} mv={e.Mv}；允许 ccd 0..{PerCoreCoTopology.CcdCount - 1}, core 0..{PerCoreCoTopology.CoresPerCcd - 1}, mv {PerCoreCoTopology.MinOffsetMv}..{PerCoreCoTopology.MaxOffsetMv}"
+                });
+            if (!seen.Add((e.Ccd, e.Core)))
+                return Results.Json(new { ok = false, error = $"重复核心 ccd={e.Ccd} core={e.Core}" });
+        }
+
+        var targetMode = mode ?? CurrentMode();
+        var existing = ProfileLoadOverrides(targetMode);
+        if (existing.Smu.CoAll != null)
+            return Results.Json(new { ok = false, error = "全核电压调节与逐核心降压互斥：请先清除「电压调节 · 降压」覆盖" });
+        if (offsets.All(e => e.Mv == 0))
+            return Results.Json(new { ok = false, error = "全部为 0 时请用 /api/smu/co-per-core/clear 复位" });
+
+        Log($"[co-per-core] ← {offsets.Count} 核 (mode={targetMode})");
+        var results = ctrl.ApplyPerCoreCO(offsets);
+        int applied = results.Count(r => r.Status == (byte)RyzenSmu.SmuStatus.Ok);
+        bool allOk = applied == results.Count;
+        if (allOk)
+        {
+            var snapshot = offsets.Select(e => e.Clone()).ToList();
+            SavePerfOverrides(o => o.Smu.PerCoreCo = snapshot, targetMode);
+        }
+        Log($"[co-per-core] → {applied}/{results.Count} 成功, persisted={allOk}");
+        return Results.Json(new
+        {
+            ok = allOk,
+            applied,
+            total = results.Count,
+            persisted = allOk,
+            warning = allOk ? null : "部分核心未通过 SMU 状态检查，配置未保存；建议点「全部归零」复位后再试",
+            results,
+        });
+    }
+    catch (Exception ex)
+    {
+        Log($"[co-per-core] ✗ {ex.Message}");
+        return Results.Json(new { ok = false, error = ex.Message });
+    }
+});
+
+app.MapPost("/api/smu/co-per-core/clear", (HardwareDetector detector, string? mode = null) =>
+{
+    try
+    {
+        var platform = detector.Detect();
+        if (!platform.IsAmd)
+            return Results.Json(new { ok = false, error = "逐核心降压仅在 AMD 锐龙平台可用" });
+
+        var ctrl = _newSmu.Value;
+        var results = ctrl?.ResetPerCoreCO() ?? new List<PerCoreCoResult>();
+        int applied = results.Count(r => r.Status == (byte)RyzenSmu.SmuStatus.Ok);
+        SavePerfOverrides(o => o.Smu.PerCoreCo = null, mode ?? CurrentMode());
+        Log($"[co-per-core/clear] 复位 {applied}/{results.Count} 核");
+        return Results.Json(new
+        {
+            ok = ctrl != null && applied == results.Count,
+            applied,
+            total = results.Count,
+            error = ctrl == null ? "AMD SMU 控制器未初始化，仅清除了配置" : null,
+            results,
+        });
+    }
+    catch (Exception ex)
+    {
+        Log($"[co-per-core/clear] ✗ {ex.Message}");
+        return Results.Json(new { ok = false, error = ex.Message });
+    }
+});
+
+// 只读探针：get-coper-options (RSMU 0xD5)，不写任何 CO 值
+app.MapPost("/api/smu/co-per-core/probe", (HardwareDetector detector) =>
+{
+    try
+    {
+        var platform = detector.Detect();
+        if (!platform.IsAmd)
+            return Results.Json(new { ok = false, error = "逐核心降压仅在 AMD 锐龙平台可用" });
+        var ctrl = _newSmu.Value;
+        if (ctrl == null)
+            return Results.Json(new { ok = false, error = "AMD SMU 控制器未初始化" });
+        var probe = ctrl.ProbePerCoreCO();
+        return Results.Json(new
+        {
+            ok = probe.Ok,
+            status = probe.Status,
+            mailbox = probe.Mailbox,
+            args = probe.Args,
+            error = probe.Error,
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new { ok = false, error = ex.Message });
+    }
+});
+
 app.MapGet("/api/smu/status", (HardwareDetector detector) =>
 {
     try
@@ -1819,8 +2000,24 @@ app.MapPost("/api/overrides/switch", async (SwitchModeRequest req) =>
 app.MapPost("/api/overrides/sync", (SyncOverridesRequest req, ProfileService profileSvc) =>
 {
     Log($"[overrides/sync] ← mode={req.Mode}, clearing overrides");
+    // 恢复默认会清掉配置，但硬件里残留的逐核 CO 不会自动消失，必须显式写 0
+    var existing = profileSvc.GetById(req.Mode);
+    bool hadPerCore = existing.HasValue && (existing.Value.Overrides.Smu.PerCoreCo?.Count ?? 0) > 0;
     try { profileSvc.ResetToDefaults(req.Mode); }
     catch (Exception ex) { Log($"[overrides/sync] failed: {ex.Message}"); return Results.BadRequest(); }
+    if (hadPerCore)
+    {
+        try
+        {
+            var amdCtrl = _newSmu.Value;
+            if (amdCtrl != null)
+            {
+                var rc = amdCtrl.ResetPerCoreCO();
+                Log($"[overrides/sync] per-core CO 复位 {rc.Count(r => r.Status == (byte)RyzenSmu.SmuStatus.Ok)}/{rc.Count} 核");
+            }
+        }
+        catch (Exception ex) { Log($"[overrides/sync] per-core CO reset: {ex.Message}"); }
+    }
     return Results.Ok();
 });
 
@@ -1856,6 +2053,7 @@ app.MapPost("/api/overrides/clear", async (ClearOverridesRequest req, ProfileSer
             if (fields.Contains("cpuShortPptW")) o.Smu.ShortPowerLimitW = null;
             if (fields.Contains("cpuTempLimitC")) o.Smu.TempLimitC = null;
             if (fields.Contains("cpuVoltageOffset")) o.Smu.CoAll = null;
+            if (fields.Contains("perCoreCo")) o.Smu.PerCoreCo = null;
             if (fields.Contains("fanLargeRpmTarget")) o.Fan.LargeRpm = null;
             if (fields.Contains("fanSmallRpmTarget")) o.Fan.SmallRpm = null;
         }, mode);
@@ -1893,7 +2091,22 @@ app.MapPost("/api/overrides/clear", async (ClearOverridesRequest req, ProfileSer
             try { if (nv.IsAvailable) nv.SetThermalLimit(87); } catch (Exception ex) { Log($"[overrides/clear] NVAPI thermal reset: {ex.Message}"); }
         }
 
-        var smuCleared = fields.Overlaps(new[] { "cpuLongPptW", "cpuShortPptW", "cpuTempLimitC", "cpuVoltageOffset" });
+        if (fields.Contains("perCoreCo"))
+        {
+            // 逐核值写在 SMU 里，删配置不够：必须逐核写 0 复位
+            try
+            {
+                var amdCtrl = _newSmu.Value;
+                if (amdCtrl != null)
+                {
+                    var rc = amdCtrl.ResetPerCoreCO();
+                    Log($"[overrides/clear] per-core CO 复位 {rc.Count(r => r.Status == (byte)RyzenSmu.SmuStatus.Ok)}/{rc.Count} 核");
+                }
+            }
+            catch (Exception ex) { Log($"[overrides/clear] per-core CO reset: {ex.Message}"); }
+        }
+
+        var smuCleared = fields.Overlaps(new[] { "cpuLongPptW", "cpuShortPptW", "cpuTempLimitC", "cpuVoltageOffset", "perCoreCo" });
         if (smuCleared)
         {
             var thermalMode = mode;
@@ -3214,6 +3427,7 @@ bool HasAnyOverride(PerformanceOverrides o)
        || o.Gpu.CoreFreqMhz != null || o.Gpu.FreqLocked != null || o.Gpu.MemFreqLevel != null
        || o.Nvapi.OcCoreOffsetMhz != null || o.Nvapi.OcMemOffsetMhz != null || o.Nvapi.PowerLimitW != null || o.Nvapi.ThermalLimitC != null
        || o.Smu.StapmLimitW != null || o.Smu.ShortPowerLimitW != null || o.Smu.TempLimitC != null || o.Smu.CoAll != null
+       || (o.Smu.PerCoreCo != null && o.Smu.PerCoreCo.Count > 0)
        || o.Fan.LargeRpm != null || o.Fan.SmallRpm != null;
 
 MigrateLegacyOverrides(configDir, profileSvc);
@@ -3370,6 +3584,10 @@ record ControlRequest(
 );
 record OsdShowRequest([property: JsonPropertyName("text")] string Text);
 record SmuSetRequest(string Parameter, int ValueM);
+// ---- AMD 逐核 Curve Optimizer 请求模型 ----
+public record PerCoreCoApplyRequest(
+    [property: JsonPropertyName("offsets")] List<PerCoreCoEntry>? Offsets
+);
 public record FanSetRequest(
     [property: System.Text.Json.Serialization.JsonPropertyName("largeRpm")] int? LargeRpm,
     [property: System.Text.Json.Serialization.JsonPropertyName("smallRpm")] int? SmallRpm
@@ -3433,7 +3651,16 @@ public record FanCurveStartRequest(
 public class CpuOverrides { public int? FreqLimitMhz; public bool? TurboEnabled; public int? CoreLimitPercent; }
 public class GpuOverrides { public int? CoreFreqMhz; public bool? FreqLocked; public int? MemFreqLevel; }
 public class NvapiOverrides { public int? OcCoreOffsetMhz; public int? OcMemOffsetMhz; public int? PowerLimitW; public float? ThermalLimitC; }
-public class SmuOverrides { public int? StapmLimitW; public int? ShortPowerLimitW; public int? TempLimitC; public int? CoAll; }
+public class SmuOverrides
+{
+    public int? StapmLimitW;
+    public int? ShortPowerLimitW;
+    public int? TempLimitC;
+    public int? CoAll;
+    /// <summary>逐核 Curve Optimizer。与 CoAll 互斥（二选一），null/空表示未启用。</summary>
+    /// <remarks>复用 profiles/*.json，不新增配置文件：备份导出导入与覆盖审计自动覆盖。</remarks>
+    public List<PerCoreCoEntry>? PerCoreCo;
+}
 public class FanOverrides { public int? LargeRpm; public int? SmallRpm; }
 public class PerformanceOverrides { public CpuOverrides Cpu = new(); public GpuOverrides Gpu = new(); public NvapiOverrides Nvapi = new(); public SmuOverrides Smu = new(); public FanOverrides Fan = new(); public int? PowerPlan; }
 public record SwitchModeRequest([property: JsonPropertyName("mode")] string Mode);

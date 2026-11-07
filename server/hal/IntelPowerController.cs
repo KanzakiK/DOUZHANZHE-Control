@@ -150,7 +150,10 @@ public sealed class IntelPowerController : ISmuControl, IDisposable
 
     public int SetCurveOptimizer(int mV) => -1; // Intel 不支持
     public int SetTurboDisabled(bool disabled) => -1; // IntelMSR.bin 不允许写 0x1A0
-    public int SetPerCoreCO(int coreId, int offset) => -1;
+    // 逐核 Curve Optimizer 是 AMD SMU 专属能力，Intel 一律返回空结果
+    public IReadOnlyList<PerCoreCoResult> ApplyPerCoreCO(IEnumerable<PerCoreCoEntry> entries) => Array.Empty<PerCoreCoResult>();
+    public IReadOnlyList<PerCoreCoResult> ResetPerCoreCO() => Array.Empty<PerCoreCoResult>();
+    public PerCoreCoProbeResult ProbePerCoreCO() => new() { Ok = false, Status = 0, Error = "仅 AMD 平台支持逐核 CO" };
 
     public int BatchApply(uint? stapmMw, uint? fastMw, uint? slowMw,
                           uint? tempC, int? coAllMv, bool? turboOff)

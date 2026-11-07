@@ -30,6 +30,7 @@ public sealed class RyzenSmu : IDisposable
         Ok = 0x01,
         Failed = 0xFF,
         UnknownCmd = 0xFE,
+        RejectedPrereq = 0xFD,  // UXTU Status.CMD_REJECTED_PREREQ：重试无用，前置条件不满足
         Busy = 0xFC,
     }
 
@@ -246,8 +247,18 @@ public static class SmuCommands
     public const uint TctlTemp = 0x3f;          // 温度墙
     public const uint VrmCurrent = 0x3c;        // VRM 电流 (TDC)
     public const uint VrmMaxCurrent = 0x3d;     // VRM 最大电流 (EDC)
-    public const uint SetCoAll = 0x36;          // 全核 Curve Optimizer
-    public const uint SetCoPerCore = 0x35;      // 逐核 Curve Optimizer
+    // ---- Curve Optimizer ----
+    // 旧 MP1 路径（本仓库早期迁移方案，保留作为回退）
+    public const uint SetCoAll = 0x36;          // MP1 全核 Curve Optimizer
+    public const uint SetCoPerCore = 0x35;      // MP1 逐核 Curve Optimizer
+    // Dragon Range / AM5 RSMU 路径（UXTU 0229d72 RyzenSmu.cs Socket_AM5_V1）：
+    //   ("set-coper", false, 0x06) / ("set-coall", false, 0x07)，IsMp1=false 即 RSMU
+    public const uint SetCoAllRsmu = 0x07;
+    public const uint SetCoPerCoreRsmu = 0x06;
+    // 只读能力查询（UXTU 命令表有定义，产品未调用；用于不做写入的探针）
+    public const uint GetCoPerOptions = 0xD5;
+    public const uint GetPboFusedPowerLimit = 0xDC;
+
     public const uint SetBoostLimit = 0x2b;     // 最大 Boost 频率限制
     public const uint PowerSaving = 0x31;       // 节能模式
     public const uint MaxPerformance = 0x32;    // 性能模式

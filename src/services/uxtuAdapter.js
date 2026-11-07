@@ -197,6 +197,7 @@ export const FULL_PARAMS = {
   cpuFreqLimitEnabled: false, cpuFreqLimitMhz: 4500, cpuTurboDisabled: false,
   cpuTempLimitC: 80, cpuCoreLimit: 0, cpuPowerPlan: "balance", cpuVoltageOffset: 0,
   cpuLongPptW: 55, cpuShortPptW: 70,
+  perCoreCo: [],  // 逐核 CO：后端 smu.perCoreCo 的扁平化结果（数组，空=未启用）
   gpuFreqLimitEnabled: false, gpuFreqLimitMhz: 2600, gpuCoreFreqMhz: 2750,
   gpuMemFreqMhz: 0, gpuPptLimitW: 75, gpuTempLimitC: 87,
   ocCoreOffsetMhz: 0, ocMemOffsetMhz: 0,
@@ -286,6 +287,39 @@ export async function applySmuSet(parameter, valueM, mode) {
     body: JSON.stringify({ parameter, valueM }),
   });
   if (!res.ok) throw new Error("SMU return " + res.status);
+  return res.json();
+}
+
+// ── AMD 逐核 Curve Optimizer ──
+// 端点始终返回 200 + { ok, results }，业务失败体现在 ok=false，不要只看 HTTP 状态。
+export async function fetchPerCoreCo() {
+  const res = await fetch("/api/smu/co-per-core");
+  if (!res.ok) throw new Error("co-per-core fetch returned " + res.status);
+  return res.json();
+}
+
+export async function applyPerCoreCo(offsets, mode) {
+  const url = mode ? `/api/smu/co-per-core?mode=${encodeURIComponent(mode)}` : "/api/smu/co-per-core";
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ offsets }),
+  });
+  if (!res.ok) throw new Error("co-per-core apply returned " + res.status);
+  return res.json();
+}
+
+export async function clearPerCoreCo(mode) {
+  const url = mode ? `/api/smu/co-per-core/clear?mode=${encodeURIComponent(mode)}` : "/api/smu/co-per-core/clear";
+  const res = await fetch(url, { method: "POST" });
+  if (!res.ok) throw new Error("co-per-core clear returned " + res.status);
+  return res.json();
+}
+
+// 只读探针：只发 get-coper-options，不写任何电压曲线
+export async function probePerCoreCo() {
+  const res = await fetch("/api/smu/co-per-core/probe", { method: "POST" });
+  if (!res.ok) throw new Error("co-per-core probe returned " + res.status);
   return res.json();
 }
 
@@ -426,6 +460,7 @@ export function flattenBackendOverrides(nested, maxCores = 16) {
     if (nested.smu.shortPowerLimitW != null) flat.cpuShortPptW = nested.smu.shortPowerLimitW;
     if (nested.smu.tempLimitC != null) flat.cpuTempLimitC = nested.smu.tempLimitC;
     if (nested.smu.coAll != null) flat.cpuVoltageOffset = nested.smu.coAll;
+    if (nested.smu.perCoreCo != null) flat.perCoreCo = nested.smu.perCoreCo;
   }
 
   // Fan
@@ -593,7 +628,9 @@ export async function reapplyOverrides(mode, overrides) {
 
   // ② SMU 逐项写入（绕过 uxtu/apply，避免反序列化失败触发 fallback 链）
   const smuFields = ["cpuLongPptW", "cpuShortPptW", "cpuTempLimitC", "cpuVoltageOffset"];
-  const hasSmu = smuFields.some(f => f in overrides);
+  const hasPerCore = Array.isArray(overrides.perCoreCo) && overrides.perCoreCo.length > 0;
+  // 逐核 CO 也算「SMU 有设置」：这样只有逐核配置时，⑦ 的两次延迟重发同样会触发。
+  const hasSmu = smuFields.some(f => f in overrides) || hasPerCore;
   if (hasSmu) {
     const smuPromises = [];
     if ("cpuLongPptW" in overrides) smuPromises.push(applySmuSet("stapm_limit", overrides.cpuLongPptW, mode));
@@ -601,6 +638,13 @@ export async function reapplyOverrides(mode, overrides) {
     if ("cpuTempLimitC" in overrides) smuPromises.push(applySmuSet("tctl_temp", overrides.cpuTempLimitC, mode));
     if ("cpuVoltageOffset" in overrides) smuPromises.push(applySmuSet("co_all", overrides.cpuVoltageOffset, mode));
     await Promise.all(smuPromises.map(p => p.catch(e => console.warn("[SMU] set:", e))));
+  }
+
+  // ②b 逐核 CO：一次批量端点下发 16 条（实测约 15ms），随 SMU 一起参与 ⑦ 的延迟重发。
+  // 模式切换 / EC 预设会覆盖 SMU 值，逐核和其他 SMU 参数一样需要幂等重发，
+  // 不能为了省 3×16=48 条命令而牺牲恢复能力。
+  if (hasPerCore) {
+    await applyPerCoreCo(overrides.perCoreCo, mode).catch(e => console.warn("[SMU] per-core CO:", e));
   }
 
   // ③ GPU 核心频率
@@ -698,6 +742,7 @@ export async function reapplyOverrides(mode, overrides) {
       if ("cpuShortPptW" in overrides) ps.push(applySmuSet("short_power_limit", overrides.cpuShortPptW, mode));
       if ("cpuTempLimitC" in overrides) ps.push(applySmuSet("tctl_temp", overrides.cpuTempLimitC, mode));
       if ("cpuVoltageOffset" in overrides) ps.push(applySmuSet("co_all", overrides.cpuVoltageOffset, mode));
+      if (hasPerCore) ps.push(applyPerCoreCo(overrides.perCoreCo, mode));
       return Promise.all(ps.map(p => p.catch(() => {})));
     };
     const t1 = setTimeout(() => {

@@ -82,11 +82,16 @@ public sealed class AmdSmuController : ISmuControl, IDisposable
 
     public int SetCurveOptimizer(int mV)
     {
-        // CO 编码: 0x100000 - abs(offset)
-        var encoded = (uint)(0x100000 - Math.Abs(mV));
-        var args = new uint[] { encoded };
-        var status = _smu.SendMp1(SmuCommands.SetCoAll, ref args);
-        return status == RyzenSmu.SmuStatus.Ok ? 0 : -1;
+        // CO 编码: 正值为原值，负值为 0x100000 - abs(offset)
+        var encoded = PerCoreCoCodec.EncodeOffset(mV);
+        // 保持原有 MP1 0x36 优先（不改变已生效路径），失败时才回退到 Dragon Range RSMU 0x07。
+        var mp1Args = new uint[] { encoded };
+        var status = _smu.SendMp1(SmuCommands.SetCoAll, ref mp1Args);
+        if (status == RyzenSmu.SmuStatus.Ok) return 0;
+        var rsmuArgs = new uint[] { encoded };
+        var rsmu = _smu.SendRsmu(SmuCommands.SetCoAllRsmu, ref rsmuArgs);
+        AppLog.Write("CO", $"coall mv={mV} encoded=0x{encoded:X8} mp1=0x{(byte)status:X2} rsmu=0x{(byte)rsmu:X2}");
+        return rsmu == RyzenSmu.SmuStatus.Ok ? 0 : -1;
     }
 
     public int SetTurboDisabled(bool disabled)
@@ -113,21 +118,78 @@ public sealed class AmdSmuController : ISmuControl, IDisposable
         return 0;
     }
 
-    public int SetPerCoreCO(int coreId, int offset)
+    /// <summary>逐核下发：RSMU 0x06 优先，失败回退 MP1 0x35（与 UXTU AM5 命令表一致）</summary>
+    /// <remarks>必须串行：SMU 单邮箱，且 RyzenSmu 内部已用全局 PCI 互斥体保护。</remarks>
+    public IReadOnlyList<PerCoreCoResult> ApplyPerCoreCO(IEnumerable<PerCoreCoEntry> entries)
     {
-        // 编码: (coreId << 20) | (0x100000 - abs(offset))
-        var encoded = (uint)(0x100000 - Math.Abs(offset));
-        var cmd = ((uint)coreId << 20) | (encoded & 0xFFFFF);
-        var args = new uint[] { cmd };
-        var status = _smu.SendMp1(SmuCommands.SetCoPerCore, ref args);
-        return status == RyzenSmu.SmuStatus.Ok ? 0 : -1;
+        var results = new List<PerCoreCoResult>();
+        foreach (var e in entries)
+        {
+            var arg = PerCoreCoCodec.Encode(e.Ccd, e.Core, e.Mv);
+            var args = new uint[] { arg };
+            var status = _smu.SendRsmu(SmuCommands.SetCoPerCoreRsmu, ref args);
+            var mailbox = "rsmu";
+
+            if (status != RyzenSmu.SmuStatus.Ok)
+            {
+                // Dragon Range 用 RSMU 0x06；但 UXTU 的 AM5 通用表仍保留 MP1 0x35，
+                // 且 Execute() 会逐个尝试到 OK 为止，这里照此做一次回退。
+                var legacyArgs = new uint[] { arg };
+                var legacy = _smu.SendMp1(SmuCommands.SetCoPerCore, ref legacyArgs);
+                if (legacy == RyzenSmu.SmuStatus.Ok
+                    || status is RyzenSmu.SmuStatus.UnknownCmd or RyzenSmu.SmuStatus.Failed or RyzenSmu.SmuStatus.Busy)
+                {
+                    status = legacy;
+                    mailbox = "mp1";
+                }
+            }
+
+            results.Add(new PerCoreCoResult
+            {
+                Ccd = e.Ccd,
+                Core = e.Core,
+                Mv = e.Mv,
+                Status = (byte)status,
+                Mailbox = mailbox,
+                Arg = arg,
+            });
+            AppLog.Write("CO", $"coper ccd={e.Ccd} core={e.Core} mv={e.Mv} arg=0x{arg:X8} mailbox={mailbox} status=0x{(byte)status:X2}");
+        }
+        return results;
+    }
+
+    /// <summary>逐核写 0：清空覆盖层时显式复位，不依赖固件自行恢复</summary>
+    public IReadOnlyList<PerCoreCoResult> ResetPerCoreCO()
+        => ApplyPerCoreCO(PerCoreCoTopology.AllCores(0));
+
+    /// <summary>只读探针：get-coper-options (RSMU 0xD5)，不写任何 CO 值</summary>
+    public PerCoreCoProbeResult ProbePerCoreCO()
+    {
+        try
+        {
+            var args = new uint[6];
+            var status = _smu.SendRsmu(SmuCommands.GetCoPerOptions, ref args);
+            var result = new PerCoreCoProbeResult
+            {
+                Ok = status == RyzenSmu.SmuStatus.Ok,
+                Status = (byte)status,
+                Args = args,
+            };
+            AppLog.Write("CO", $"probe get-coper-options status=0x{(byte)status:X2} args=[{string.Join(",", args.Select(a => "0x" + a.ToString("X8")))}]");
+            return result;
+        }
+        catch (Exception ex)
+        {
+            AppLog.Write("CO", $"probe failed: {ex.Message}");
+            return new PerCoreCoProbeResult { Error = ex.Message };
+        }
     }
 
     public bool Probe()
     {
         // 发送无害读取命令验证 SMU 响应
         var args = Array.Empty<uint>();
-        var status = _smu.SendRsmu(0xDc, ref args); // get-pbo-fused-power-limit
+        var status = _smu.SendRsmu(SmuCommands.GetPboFusedPowerLimit, ref args);
         return status == RyzenSmu.SmuStatus.Ok;
     }
 

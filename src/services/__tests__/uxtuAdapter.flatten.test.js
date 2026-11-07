@@ -1,5 +1,8 @@
-import { describe, it, expect } from 'vitest'
-import { flattenBackendOverrides, powerPlanHALMap, BUILTIN_MODE_ORDER, resolvePerfMode, sortBuiltinProfiles } from '../uxtuAdapter'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import {
+  flattenBackendOverrides, powerPlanHALMap, BUILTIN_MODE_ORDER, resolvePerfMode, sortBuiltinProfiles,
+  fetchPerCoreCo, applyPerCoreCo, clearPerCoreCo, probePerCoreCo, reapplyOverrides,
+} from '../uxtuAdapter'
 
 // ── flattenBackendOverrides: powerPlan 整数 → 字符串 id 归一化 ──
 // 回归说明（修的是切到控制面板时「电源管理」已保存的档位不显示）：
@@ -30,6 +33,73 @@ describe('flattenBackendOverrides powerPlan', () => {
   it('无 powerPlan 时不写入 cpuPowerPlan', () => {
     const flat = flattenBackendOverrides({ cpu: { freqLimitMhz: 3000 } })
     expect(flat.cpuPowerPlan).toBeUndefined()
+  })
+})
+
+// ── 逐核 CO：后端 smu.perCoreCo 必须原样透传到前端稀疏覆盖层 ──
+// 否则模式切换 / 刷新后 UI 会以为未启用，且 reapplyOverrides 不会重放。
+describe('flattenBackendOverrides perCoreCo', () => {
+  it('透传逐核数组（含 0 值核心，用于下轮复位）', () => {
+    const entries = [
+      { ccd: 0, core: 0, mv: -10 },
+      { ccd: 0, core: 1, mv: 0 },
+      { ccd: 1, core: 7, mv: -20 },
+    ]
+    const flat = flattenBackendOverrides({ smu: { perCoreCo: entries } })
+    expect(flat.perCoreCo).toEqual(entries)
+  })
+
+  it('后端为 null 时不写入，交给 FULL_PARAMS 的空数组默认值', () => {
+    const flat = flattenBackendOverrides({ smu: { coAll: -15, perCoreCo: null } })
+    expect(flat.cpuVoltageOffset).toBe(-15)
+    expect(flat.perCoreCo).toBeUndefined()
+  })
+})
+
+// ── 逐核 CO API 封装：URL / body / mode 编码，以及重放边界 ──
+describe('逐核 CO API 封装与重放', () => {
+  let calls
+  beforeEach(() => {
+    calls = []
+    vi.stubGlobal('fetch', vi.fn(async (url, init) => {
+      calls.push({ url: String(url), init: init || {} })
+      return { ok: true, json: async () => ({ ok: true }) }
+    }))
+  })
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals() })
+
+  it('applyPerCoreCo 原样下发每核不同值，并对 mode 做 URL 编码', async () => {
+    const offsets = [{ ccd: 0, core: 0, mv: -5 }, { ccd: 1, core: 7, mv: -9 }]
+    await applyPerCoreCo(offsets, 'cfg gaming')
+    expect(calls).toHaveLength(1)
+    expect(calls[0].url).toBe('/api/smu/co-per-core?mode=cfg%20gaming')
+    expect(calls[0].init.method).toBe('POST')
+    expect(JSON.parse(calls[0].init.body)).toEqual({ offsets })
+  })
+
+  it('fetch / clear / probe 各自打到正确端点', async () => {
+    await fetchPerCoreCo()
+    await clearPerCoreCo('cfg-gaming')
+    await probePerCoreCo()
+    expect(calls.map(c => c.url)).toEqual([
+      '/api/smu/co-per-core',
+      '/api/smu/co-per-core/clear?mode=cfg-gaming',
+      '/api/smu/co-per-core/probe',
+    ])
+    expect(calls[0].init.method).toBeUndefined()
+    expect(calls[1].init.method).toBe('POST')
+    expect(calls[2].init.method).toBe('POST')
+  })
+
+  it('reapplyOverrides 中逐核初始下发 1 次 + 两次延迟重发，且从不走 /api/smu/set', async () => {
+    vi.useFakeTimers()
+    await reapplyOverrides('cfg-gaming', { perCoreCo: [{ ccd: 0, core: 0, mv: -5 }] })
+    const co = () => calls.filter(c => c.url.startsWith('/api/smu/co-per-core'))
+    expect(co()).toHaveLength(1)
+    await vi.runAllTimersAsync()
+    expect(co()).toHaveLength(3)
+    expect(calls.filter(c => c.url.startsWith('/api/smu/set'))).toHaveLength(0)
+    expect(JSON.parse(co()[0].init.body).offsets).toEqual([{ ccd: 0, core: 0, mv: -5 }])
   })
 })
 
