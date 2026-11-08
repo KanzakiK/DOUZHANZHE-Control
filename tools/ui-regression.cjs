@@ -10,6 +10,7 @@ const VIEWPORTS = [
   { name: '1600x900', width: 1600, height: 900 },
   { name: '1920x1080', width: 1920, height: 1080 },
   { name: '2560x1440', width: 2560, height: 1440 },
+  { name: '3840x2160', width: 3840, height: 2160 },
 ];
 
 const PAGES = [
