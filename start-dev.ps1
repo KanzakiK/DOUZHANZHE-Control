@@ -26,6 +26,18 @@ if ($listener) {
     }
 } else {
     Write-Ok "port $DevPort is free, starting dev API ..."
+    # Backend binary lives in bin/run; build freshly so our dev port actually uses the current code.
+    Write-Step '1.5/3 build backend + sync dev run dir ...'
+    $runDir = Join-Path $Root 'server\api\bin\run'
+    $buildDir = Join-Path $Root 'server\api\bin\build'
+    dotnet build (Join-Path $Root 'server\api\Douzhanzhe.API.csproj') --nologo
+    if ($LASTEXITCODE -ne 0) { exit 1 }
+    if (Test-Path $runDir) {
+        Get-ChildItem $runDir -Force |
+        Where-Object { $_.Name -ne 'config' } |
+        Remove-Item -Recurse -Force
+    }
+    Copy-Item "$buildDir\*" $runDir -Recurse -Force
     Start-Process -FilePath $DevApiPath -ArgumentList "--urls=http://127.0.0.1:$DevPort" -WorkingDirectory (Join-Path $Root 'server\api\bin\run') -WindowStyle Hidden
     Start-Sleep 2
 }
