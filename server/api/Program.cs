@@ -2670,22 +2670,6 @@ app.MapPost("/api/backup/import", async (HttpContext ctx, HardwareDetector detec
     }
     catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }); }
 });
-app.MapGet("/api/default-config", () =>
-{
-    return Results.Json(JsonRead<DefaultConfig>("dashboard-default.json", new DefaultConfig()));
-});
-app.MapPost("/api/default-config", async (HttpContext ctx) =>
-{
-    try
-    {
-        using var reader = new StreamReader(ctx.Request.Body);
-        var readOpts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-        var body = JsonSerializer.Deserialize<DefaultConfig>(await reader.ReadToEndAsync(), readOpts);
-        JsonWrite("dashboard-default.json", body ?? new DefaultConfig());
-        return Results.Json(new { ok = true });
-    }
-    catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }); }
-});
 
 // ---- Auto-start options (minimized preference + enabled cache) ----
 var autoStartOptsPath = Path.Combine(configDir, "auto-start-opts.json");
@@ -3905,12 +3889,6 @@ public record UiState(string? Theme, string? AccentColor)
     public UiState() : this((string?)null, (string?)null) { }
     public string Theme { get; init; } = Theme ?? "dark";
     public string AccentColor { get; init; } = AccentColor ?? "#4cc2ff";
-}
-public record DefaultConfig(string[]? Order, string[]? Hidden)
-{
-    public DefaultConfig() : this(null, null) { }
-    public string[] Order { get; init; } = Order ?? Array.Empty<string>();
-    public string[] Hidden { get; init; } = Hidden ?? Array.Empty<string>();
 }
 
 // ---- Fan Curve 请求模型 ----

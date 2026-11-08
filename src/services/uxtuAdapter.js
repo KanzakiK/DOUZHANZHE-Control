@@ -61,10 +61,6 @@ const _halToPowerPlanId = Object.entries(powerPlanHALMap).reduce((acc, [id, hal]
 export const BUILTIN_MODE_ORDER = ['cfg-silent', 'cfg-office', 'cfg-beast', 'cfg-gaming'];
 
 // 配置 id → 性能模式裸名（唯一解包点，供 MODE_FAN_DEFAULTS/FAN_RANGES 等按性能模式取值）
-export function perfModeOf(profile) {
-  return profile?.thermalMode || 'office';
-}
-
 // 由「配置 id（或裸性能模式名，兼容旧值）」解析出性能模式裸名。
 // profileList 用于把 cfg- 配置 id 查成其 thermalMode；裸名则原样返回。
 export function resolvePerfMode(mode, profiles) {
@@ -145,12 +141,6 @@ export async function applyGpuControl(action, value, min, max, mode) {
 }
 
 // NVAPI 状态 (超频偏移/功率/温度限制)
-export async function fetchNvapiStatus() {
-  const res = await fetch(`/api/nvapi/status`);
-  if (!res.ok) throw new Error(`NVAPI 状态返回 ${res.status}`);
-  return res.json();
-}
-
 // NVAPI 超频: coreOffsetMhz / memOffsetMhz 偏移值
 export async function applyNvapiOverclock(coreOffsetMhz, memOffsetMhz, mode) {
   const url = mode ? `/api/nvapi/overclock?mode=${mode}` : `/api/nvapi/overclock`;
@@ -186,11 +176,6 @@ const FAN_RANGES = {
 };
 
 // 全范围（散热曲线跨模式使用）
-export const FULL_FAN_RANGE = {
-  largeMin: 1900, largeMax: 4400,
-  smallMin: 1700, smallMax: 8200,
-};
-
 // 全量参数默认值 (兆底，用于 UI 层显示)
 // 注意：风扇转速随模式变化，这里只是占位符，实际使用时会被各模式默认值覆盖
 export const FULL_PARAMS = {
@@ -328,12 +313,6 @@ export async function probePerCoreCo() {
 }
 
 // ── CPU 性能控制 (powercfg 电源计划 API) ──
-
-export async function fetchCpuPowerStatus() {
-  const res = await fetch("/api/cpu/status");
-  if (!res.ok) throw new Error("CPU status returned " + res.status);
-  return res.json();
-}
 
 export async function setCpuFreqLimit(mhz, mode) {
   const url = mode ? `/api/cpu/freq-limit?mode=${mode}` : `/api/cpu/freq-limit`;
