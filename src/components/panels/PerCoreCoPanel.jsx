@@ -224,6 +224,7 @@ export default function PerCoreCoPanel({ settings, overrides, saveOverride, clea
                       type="range" className="slider-track"
                       min={limits.minMv} max={limits.maxMv} step={1}
                       value={e.mv} disabled={disabled}
+                      aria-label={`CCD ${e.ccd} 核心 ${e.core} 电压偏移`}
                       onChange={ev => setCore(e.ccd, e.core, Number(ev.target.value))}
                     />
                   </div>
@@ -238,6 +239,7 @@ export default function PerCoreCoPanel({ settings, overrides, saveOverride, clea
               type="range" className="slider-track" style={{ flex: 1 }}
               min={limits.minMv} max={limits.maxMv} step={1}
               value={batch} disabled={disabled}
+              aria-label="批量填入电压偏移"
               onChange={ev => setBatch(Number(ev.target.value))}
             />
             <span className="v" style={{ minWidth: 46, textAlign: "right" }}>{batch}<span className="u">mV</span></span>
