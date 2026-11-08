@@ -28,6 +28,12 @@ Resolved in this pass:
   Impact: the panel broke the otherwise compact title-plus-description rhythm used by neighboring controls.
   Fix: removed the English suffix and long historical explanation; retained the core numbering note only while the editor is open.
 
+- [P1] Collapsed accordion rows retained a large invisible content placeholder
+  Location: Control Panel / CPU and GPU accordion bodies.
+  Evidence: the previous `0fr` grid transition still measured a collapsed body at about `194px` in WebView2, leaving large empty gaps between section headers. The final `max-height: 0` implementation measures exactly `0px`; the fully expanded CPU power body measures about `867px` with all 16 cores and actions present.
+  Impact: collapsed sections looked overlapped and pushed unrelated sections hundreds of pixels downward.
+  Fix: use a zero-height maximum when closed and a `3000px` maximum when open.
+
 **Visual Evidence**
 
 - Source visual truth: `C:\Users\liufe\AppData\Local\Temp\codex-clipboard-75fea376-1f5e-4ed3-90a4-372d419c093b.png`
@@ -38,6 +44,8 @@ Resolved in this pass:
   - `D:\DOUZHANZHE-Control\output\design-qa\percore-panel-final-wide.png` (`1440 x 1000`)
   - `D:\DOUZHANZHE-Control\output\design-qa\percore-short-copy.png` (`1440 x 1000`)
   - `D:\DOUZHANZHE-Control\output\design-qa\installed-pre4-configs.png` (`1440 x 1000`, installed package verification)
+  - `D:\DOUZHANZHE-Control\output\design-qa\accordion-collapsed-fixed.png` (`1440 x 1000`)
+  - `D:\DOUZHANZHE-Control\output\design-qa\accordion-expanded-fixed.png` (`1440 x 1000`)
   - `D:\DOUZHANZHE-Control\output\design-qa\percore-panel-1024.png` (`1024 x 900` narrow check)
 - Normalized comparison input:
   - `D:\DOUZHANZHE-Control\output\design-qa\comparison-final.png`
@@ -75,6 +83,7 @@ Focused comparison covered the header state, CCD 0/1 core rows 6-7, batch row, a
 - Pass 1: found clipped core rows, missing master switch, and duplicated dashboard profiles. Fixed all three.
 - Pass 2: reloaded the new bundle, verified four dashboard profiles, switch off/on behavior, all 16 core sliders, action-row reachability, narrow viewport bounds, and zero console errors.
 - Pass 3: shortened the heading to pure Chinese and verified the installed package shows recovered profile names without question marks.
+- Pass 4: measured accordion DOM heights, fixed the collapsed-state placeholder, and verified collapsed `0px` versus expanded `867px`.
 
 **Implementation Checklist**
 
