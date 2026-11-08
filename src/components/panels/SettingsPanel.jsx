@@ -173,6 +173,8 @@ export default function SettingsPanel({ theme, setTheme }) {
       const d = await res.json();
       if (d.ok) {
         toast?.(`已恢复 ${d.restored} 项配置，刷新后生效`, "success");
+        // 导入可能改变主题/配置/缓存，直接刷新页面最稳妥
+        setTimeout(() => { window.location.reload(); }, 600);
       } else {
         toast?.(d.error || "导入失败", "error");
       }
