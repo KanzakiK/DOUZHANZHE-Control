@@ -5,7 +5,7 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
-## [2.0.6-pre.1] — 2026-11-08
+## [2.0.6-pre.2] — 2026-11-08
 
 AMD 逐核心 Curve Optimizer 测试版。
 
@@ -20,6 +20,7 @@ AMD 逐核心 Curve Optimizer 测试版。
 
 - **逐核应用部分失败可能残留半套电压**：任一核心未返回 SMU OK 时立即回滚到上一组配置；此前没有配置时回滚到全 0，失败结果不再持久化
 - **归零失败却仍显示成功**：只有 16 个核心全部写 0 成功后才清除配置；失败时保留原配置并向前端返回明确错误，避免硬件与配置脱节
+- **备份导入漏掉性能配置**：导入端此前只恢复固定的 config 文件名，没有还原 `profiles/*.json`；现会安全校验并恢复全部性能配置与游戏封面图片
 
 ### 🧪 验证
 

@@ -2491,6 +2491,16 @@ var backupCategories = new Dictionary<string, string[]>
     ["sgdbkey"] = new[] { "cover-opts.json" },
 };
 
+bool IsSafeBackupChild(string name, string directory, params string[] extensions)
+{
+    var normalized = name.Replace('\\', '/');
+    if (!normalized.StartsWith(directory + "/", StringComparison.OrdinalIgnoreCase)) return false;
+    var child = normalized[(directory.Length + 1)..];
+    if (child.Length == 0 || child.Contains('/') || child.Contains("..")) return false;
+    return extensions.Length == 0
+        || extensions.Contains(Path.GetExtension(child), StringComparer.OrdinalIgnoreCase);
+}
+
 HardwareSignatureDto CurrentHardwareSignature(HardwareDetector detector, HardwareAbstractionLayer hal)
 {
     var info = detector.Detect();
@@ -2604,6 +2614,23 @@ app.MapPost("/api/backup/import", async (HttpContext ctx, HardwareDetector detec
         {
             if (!backupCategories.TryGetValue(cat, out var files)) continue;
             if (!cats.TryGetProperty(cat, out var catFiles)) continue;
+            if (cat == "config")
+            {
+                var profileFiles = catFiles.EnumerateObject()
+                    .Select(p => p.Name.Replace('\\', '/'))
+                    .Where(name => IsSafeBackupChild(name, "profiles", ".json"));
+                files = files.Concat(profileFiles)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+            }
+            else if (cat == "covers")
+            {
+                files = catFiles.EnumerateObject()
+                    .Select(p => p.Name.Replace('\\', '/'))
+                    .Where(name => IsSafeBackupChild(name, "covers", ".jpg", ".jpeg", ".png", ".webp"))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+            }
             foreach (var f in files)
             {
                 if (!catFiles.TryGetProperty(f, out var content)) continue;
