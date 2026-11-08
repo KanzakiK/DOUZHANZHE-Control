@@ -848,8 +848,8 @@ export default function GameProfilesPanel() {
 
       <div className="hint reveal enter" style={{ animationDelay: ".08s" }}>
         {ICONS.info}
-        退出游戏后，将自动恢复为<b>控制面板当前选中的配置</b>，而非固定指向某个配置。例：当前选中 gaming，启动原神切到「均衡」，退出后恢复 gaming。
-        手动添加的非平台游戏（本地导入）不参与「补齐封面」批量获取——可在<b>编辑弹窗</b>中按英文名搜索（需配置 SteamGridDB Key）或直接上传本地图片；游戏已卸载的规则会标「失效」并可删除。
+        <span className="hint-text">退出游戏后，将自动恢复为<b>控制面板当前选中的配置</b>，而非固定指向某个配置。例：当前选中 gaming，启动原神切到「均衡」，退出后恢复 gaming。</span>
+        <span className="hint-text">手动添加的非平台游戏（本地导入）不参与「补齐封面」批量获取——可在<b>编辑弹窗</b>中按英文名搜索（需配置 SteamGridDB Key）或直接上传本地图片；游戏已卸载的规则会标「失效」并可删除。</span>
       </div>
 
       {showAdd && (
@@ -1130,8 +1130,8 @@ export default function GameProfilesPanel() {
               </div>
               <div className="hint">
                 {ICONS.info}
-                免费 Key 在 <b>steamgriddb.com</b> 的「偏好设置 → API」页面生成（需注册账号）。
-                Key 仅保存在本机配置目录，不会上传到任何服务器。未配置 Key 时，Steam 来源的游戏仍会使用官方封面。
+                <span className="hint-text">免费 Key 在 <b>steamgriddb.com</b> 的「偏好设置 → API」页面生成（需注册账号）。</span>
+                <span className="hint-text">Key 仅保存在本机配置目录，不会上传到任何服务器。未配置 Key 时，Steam 来源的游戏仍会使用官方封面。</span>
               </div>
             </div>
             <div className="p-foot">
