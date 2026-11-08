@@ -244,6 +244,16 @@ public sealed class ProfileService
         }
     }
 
+    /// <summary>备份导入等外部写盘后显式重读索引，避免旧缓存继续用。</summary>
+    public void RefreshFromDisk()
+    {
+        lock (_lock)
+        {
+            _loaded = false;
+            LoadIndex();
+        }
+    }
+
     // ---- Internals ----
 
     private void LoadIndex()

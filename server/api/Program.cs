@@ -2576,7 +2576,8 @@ app.MapPost("/api/backup/export", async (HttpContext ctx, HardwareDetector detec
     catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }); }
 });
 
-app.MapPost("/api/backup/import", async (HttpContext ctx, HardwareDetector detector, HardwareAbstractionLayer hal) =>
+app.MapPost("/api/backup/import", async (HttpContext ctx, HardwareDetector detector, HardwareAbstractionLayer hal,
+    ProfileService profileSvc, GameProfileService gameSvc) =>
 {
     try
     {
@@ -2652,6 +2653,12 @@ app.MapPost("/api/backup/import", async (HttpContext ctx, HardwareDetector detec
                 restored++;
             }
         }
+
+        // 备份导入走的是直写磁盘，需要把进程内程序缓存清掉，
+        // 否则用户导入后 GET/PUT 可能仍命中旧 Profile/Index。
+        profileSvc.RefreshFromDisk();
+        gameSvc.RefreshFromDisk();
+
         return Results.Json(new { ok = true, restored });
     }
     catch (Exception ex) { return Results.Json(new { ok = false, error = ex.Message }); }

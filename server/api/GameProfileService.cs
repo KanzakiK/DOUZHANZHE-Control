@@ -116,6 +116,8 @@ public sealed class GameProfileService
             profile.TargetMode = updated.TargetMode;
             profile.Enabled = updated.Enabled;
             profile.Source = updated.Source;
+            profile.StoreAppId = updated.StoreAppId;
+            profile.SgdbGameId = updated.SgdbGameId;
 
             Save();
             return profile;
@@ -143,6 +145,12 @@ public sealed class GameProfileService
             if (!string.IsNullOrEmpty(defaultMode)) _data.DefaultMode = defaultMode;
             Save();
         }
+    }
+
+    /// <summary>备份导入等外部写盘后显式重读全量数据，避免旧缓存继续用。</summary>
+    public void RefreshFromDisk()
+    {
+        lock (_lock) Load();
     }
 
     /// <summary>
