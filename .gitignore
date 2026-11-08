@@ -175,3 +175,6 @@ postcss.config.js
 
 # Design prototypes (private repo)
 canvas-workspace/
+
+# Local install/lifecycle test artifacts and backups
+/output/
