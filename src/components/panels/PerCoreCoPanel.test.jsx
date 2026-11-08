@@ -43,6 +43,9 @@ describe("PerCoreCoPanel", () => {
     renderPanel();
 
     await waitFor(() => expect(fetchPerCoreCo).toHaveBeenCalledOnce());
+    expect(screen.getByText("逐核心降压")).toBeTruthy();
+    expect(screen.queryByText(/Curve Optimizer/)).toBeNull();
+    expect(screen.getByText("逐核调节负偏移，与全核降压互斥")).toBeTruthy();
     expect(screen.getByText("未启用")).toBeTruthy();
     expect(screen.queryAllByRole("slider")).toHaveLength(0);
     expect(applyPerCoreCo).not.toHaveBeenCalled();

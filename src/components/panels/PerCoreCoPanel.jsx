@@ -175,7 +175,10 @@ export default function PerCoreCoPanel({ settings, overrides, saveOverride, clea
   return (
     <div className="override-slider" style={{ marginTop: 18 }}>
       <div className="switch-row" style={{ borderTop: "1px solid var(--stroke)", paddingTop: 14 }}>
-        <span className="k">逐核心降压 · Curve Optimizer</span>
+        <span style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          <span className="k">逐核心降压</span>
+          <span style={{ fontSize: 11, color: "var(--fg-3)" }}>逐核调节负偏移，与全核降压互斥</span>
+        </span>
         <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ fontSize: 12, color: stateColor }}>{stateLabel}</span>
           <button
@@ -190,15 +193,6 @@ export default function PerCoreCoPanel({ settings, overrides, saveOverride, clea
         </span>
       </div>
 
-      <p style={{ fontSize: 11, color: "var(--fg-3)", lineHeight: 1.6, margin: "4px 0 10px" }}>
-        负值降压，0 为默认；与全核「电压调节 · 降压」互斥，不能同时启用。
-        本机 N176 已实测 RSMU 命令被接受、固定负载下各核 VID 随偏移变化且归零可恢复；
-        长期稳定性未经压测，负偏移过大仍可能导致蓝屏、WHEA 错误或时钟拉伸，请自行测试。
-      </p>
-      <p style={{ fontSize: 11, color: "var(--fg-3)", lineHeight: 1.6, margin: "0 0 10px" }}>
-        「CCD 0 / 1 · 核心 0..7」是 SMU 的 CCD 与核内编号（0 起），不等同于 Windows 逻辑处理器编号。
-      </p>
-
       {!supported && (
         <p style={{ fontSize: 12, color: "var(--danger)", marginBottom: 10 }}>当前平台不支持逐核心降压（仅 AMD 锐龙）。</p>
       )}
@@ -210,6 +204,9 @@ export default function PerCoreCoPanel({ settings, overrides, saveOverride, clea
 
       {editing && (
         <div>
+          <p style={{ fontSize: 11, color: "var(--fg-3)", margin: "2px 0 10px" }}>
+            CCD 0 / 1 · 每列 8 核；编号不等同于 Windows 逻辑处理器
+          </p>
           <div style={{ display: "grid", gridTemplateColumns: `repeat(${topology.ccdCount}, minmax(0, 1fr))`, gap: 14 }}>
             {Array.from({ length: topology.ccdCount }, (_, ccd) => (
               <div key={ccd}>
