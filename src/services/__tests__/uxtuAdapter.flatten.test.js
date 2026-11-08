@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   flattenBackendOverrides, powerPlanHALMap, BUILTIN_MODE_ORDER, resolvePerfMode, sortBuiltinProfiles,
   fetchPerCoreCo, applyPerCoreCo, clearPerCoreCo, probePerCoreCo, reapplyOverrides,
+  clearOverrides, syncOverrides,
 } from '../uxtuAdapter'
 
 // ── flattenBackendOverrides: powerPlan 整数 → 字符串 id 归一化 ──
@@ -89,6 +90,25 @@ describe('逐核 CO API 封装与重放', () => {
     expect(calls[0].init.method).toBeUndefined()
     expect(calls[1].init.method).toBe('POST')
     expect(calls[2].init.method).toBe('POST')
+  })
+
+  it('业务层 ok=false 时 clear/sync 必须抛错，不能把硬件未复位当成成功', async () => {
+    fetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ ok: false, error: '逐核写 0 未全部成功' }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ ok: false, error: '逐核复位异常' }) })
+
+    await expect(clearPerCoreCo('cfg-gaming')).rejects.toThrow('逐核写 0 未全部成功')
+    await expect(syncOverrides('cfg-gaming', {})).rejects.toThrow('逐核复位异常')
+  })
+
+  it('通用 clearOverrides 同样检查业务 ok=false，并保留具体错误', async () => {
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ ok: false, error: '逐核写 0 未全部成功；逐核配置保持不变，请重试' }),
+    })
+
+    await expect(clearOverrides('cfg-gaming', ['perCoreCo']))
+      .rejects.toThrow('逐核写 0 未全部成功；逐核配置保持不变，请重试')
   })
 
   it('reapplyOverrides 中逐核初始下发 1 次 + 两次延迟重发，且从不走 /api/smu/set', async () => {

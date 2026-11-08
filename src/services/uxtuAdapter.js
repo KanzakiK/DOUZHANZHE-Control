@@ -313,7 +313,11 @@ export async function clearPerCoreCo(mode) {
   const url = mode ? `/api/smu/co-per-core/clear?mode=${encodeURIComponent(mode)}` : "/api/smu/co-per-core/clear";
   const res = await fetch(url, { method: "POST" });
   if (!res.ok) throw new Error("co-per-core clear returned " + res.status);
-  return res.json();
+  const data = await res.json();
+  if (data?.ok === false) {
+    throw new Error(data.error || data.warning || "逐核写 0 未全部成功，配置保持不变");
+  }
+  return data;
 }
 
 // 只读探针：只发 get-coper-options，不写任何电压曲线
@@ -393,11 +397,15 @@ export async function switchMode(mode) {
 }
 
 export async function syncOverrides(mode, overrides) {
-  await fetch("/api/overrides/sync", {
+  const res = await fetch("/api/overrides/sync", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ mode, overrides }),
-  }).catch(e => console.warn("[syncOverrides]", e));
+  });
+  if (!res.ok) throw new Error("sync overrides returned " + res.status);
+  const data = await res.json().catch(() => ({}));
+  if (data?.ok === false) throw new Error(data.error || "恢复默认失败");
+  return data;
 }
 
 export async function clearOverrides(mode, fields) {
@@ -407,7 +415,11 @@ export async function clearOverrides(mode, fields) {
     body: JSON.stringify({ mode, fields }),
   });
   if (!res.ok) throw new Error("clear overrides failed");
-  return res.json();
+  const data = await res.json();
+  if (data?.ok === false) {
+    throw new Error(data.error || data.warning || "恢复默认失败");
+  }
+  return data;
 }
 
 // ── 后端嵌套格式 → 前端扁平格式 ──

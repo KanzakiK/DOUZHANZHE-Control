@@ -254,7 +254,7 @@ PerformanceOverrides ProfileLoadOverrides(string cfgId)
     catch { return new PerformanceOverrides(); }
 }
 
-void SavePerfOverrides(Action<PerformanceOverrides> mutate, string? mode = null)
+bool SavePerfOverrides(Action<PerformanceOverrides> mutate, string? mode = null)
 {
     lock (_perfLock)
     {
@@ -263,9 +263,49 @@ void SavePerfOverrides(Action<PerformanceOverrides> mutate, string? mode = null)
         var o = svc.GetById(id)?.Overrides ?? new PerformanceOverrides();
         mutate(o);
         // 单一存储：内置/用户统一写 ProfileService（profiles/），不再写 overrides-*.json
-        try { svc.SaveOverrides(id, o); }
-        catch (Exception ex) { Log($"[overrides] save failed: {ex.Message}"); }
-        Log($"[overrides] ✓ saved → config '{id}'");
+        try
+        {
+            if (!svc.SaveOverrides(id, o))
+            {
+                Log($"[overrides] save failed: config '{id}' does not exist");
+                return false;
+            }
+            Log($"[overrides] ✓ saved → config '{id}'");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Log($"[overrides] save failed: {ex.Message}");
+            return false;
+        }
+    }
+}
+
+static List<PerCoreCoEntry> SnapshotPerCoreCO(IEnumerable<PerCoreCoEntry>? entries)
+    => entries?.Select(e => e.Clone()).ToList() ?? new List<PerCoreCoEntry>();
+
+static bool AllPerCoreCOOk(IReadOnlyList<PerCoreCoResult> results, int expectedCount)
+    => results.Count == expectedCount
+       && results.All(r => r.Status == (byte)RyzenSmu.SmuStatus.Ok);
+
+static (bool Ok, string Target, IReadOnlyList<PerCoreCoResult> Results) RollbackPerCoreCO(
+    ISmuControl ctrl, IReadOnlyList<PerCoreCoEntry>? previous)
+{
+    var target = previous is { Count: > 0 }
+        ? previous.Select(e => e.Clone()).ToList()
+        : PerCoreCoTopology.AllCores(0);
+    var targetName = previous is { Count: > 0 } ? "previous" : "zero";
+    try
+    {
+        var results = ctrl.ApplyPerCoreCO(target);
+        bool ok = AllPerCoreCOOk(results, target.Count);
+        AppLog.Write("CO", $"rollback target={targetName} status={(ok ? "OK" : "FAILED")} ({results.Count(r => r.Status == (byte)RyzenSmu.SmuStatus.Ok)}/{target.Count})");
+        return (ok, targetName, results);
+    }
+    catch (Exception ex)
+    {
+        AppLog.Write("CO", $"rollback target={targetName} exception: {ex.Message}");
+        return (false, targetName, Array.Empty<PerCoreCoResult>());
     }
 }
 
@@ -1431,22 +1471,84 @@ app.MapPost("/api/smu/co-per-core", (PerCoreCoApplyRequest req, HardwareDetector
             return Results.Json(new { ok = false, error = "全部为 0 时请用 /api/smu/co-per-core/clear 复位" });
 
         Log($"[co-per-core] ← {offsets.Count} 核 (mode={targetMode})");
-        var results = ctrl.ApplyPerCoreCO(offsets);
-        int applied = results.Count(r => r.Status == (byte)RyzenSmu.SmuStatus.Ok);
-        bool allOk = applied == results.Count;
-        if (allOk)
+        var previous = SnapshotPerCoreCO(existing.Smu.PerCoreCo);
+        IReadOnlyList<PerCoreCoResult> results;
+        try
         {
-            var snapshot = offsets.Select(e => e.Clone()).ToList();
-            SavePerfOverrides(o => o.Smu.PerCoreCo = snapshot, targetMode);
+            results = ctrl.ApplyPerCoreCO(offsets);
         }
-        Log($"[co-per-core] → {applied}/{results.Count} 成功, persisted={allOk}");
+        catch (Exception ex)
+        {
+            var rollback = RollbackPerCoreCO(ctrl, previous);
+            Log($"[co-per-core] apply exception: {ex.Message}; rollback={rollback.Target}/{rollback.Ok}");
+            return Results.Json(new
+            {
+                ok = false,
+                applied = 0,
+                total = offsets.Count,
+                persisted = false,
+                rollbackAttempted = true,
+                rollbackOk = rollback.Ok,
+                rollbackTarget = rollback.Target,
+                rollbackResults = rollback.Results,
+                error = $"逐核下发异常：{ex.Message}；已尝试回滚到{(rollback.Target == "previous" ? "上一组配置" : "全 0")}",
+            });
+        }
+
+        int applied = results.Count(r => r.Status == (byte)RyzenSmu.SmuStatus.Ok);
+        bool allOk = AllPerCoreCOOk(results, offsets.Count);
+        if (!allOk)
+        {
+            var rollback = RollbackPerCoreCO(ctrl, previous);
+            Log($"[co-per-core] → {applied}/{results.Count} 成功; rollback={rollback.Target}/{rollback.Ok}");
+            return Results.Json(new
+            {
+                ok = false,
+                applied,
+                total = results.Count,
+                persisted = false,
+                rollbackAttempted = true,
+                rollbackOk = rollback.Ok,
+                rollbackTarget = rollback.Target,
+                rollbackResults = rollback.Results,
+                warning = rollback.Ok
+                    ? $"部分核心未通过 SMU 状态检查，配置未保存；已回滚到{(rollback.Target == "previous" ? "上一组配置" : "全 0")}"
+                    : $"部分核心未通过 SMU 状态检查，配置未保存；回滚也未全部成功，请立即点「全部归零」并检查 SMU/PawnIO",
+                results,
+            });
+        }
+
+        var snapshot = offsets.Select(e => e.Clone()).ToList();
+        bool persisted = SavePerfOverrides(o => o.Smu.PerCoreCo = snapshot, targetMode);
+        if (!persisted)
+        {
+            var rollback = RollbackPerCoreCO(ctrl, previous);
+            Log($"[co-per-core] save failed; rollback={rollback.Target}/{rollback.Ok}");
+            return Results.Json(new
+            {
+                ok = false,
+                applied,
+                total = results.Count,
+                persisted = false,
+                rollbackAttempted = true,
+                rollbackOk = rollback.Ok,
+                rollbackTarget = rollback.Target,
+                rollbackResults = rollback.Results,
+                warning = rollback.Ok
+                    ? "SMU 写入成功，但配置保存失败；已回滚到上一组配置或全 0"
+                    : "SMU 写入成功，但配置保存失败；回滚也未全部成功，请立即点「全部归零」并检查 SMU/PawnIO",
+                results,
+            });
+        }
+
+        Log($"[co-per-core] → {applied}/{results.Count} 成功, persisted=true");
         return Results.Json(new
         {
-            ok = allOk,
+            ok = true,
             applied,
             total = results.Count,
-            persisted = allOk,
-            warning = allOk ? null : "部分核心未通过 SMU 状态检查，配置未保存；建议点「全部归零」复位后再试",
+            persisted = true,
+            rollbackAttempted = false,
             results,
         });
     }
@@ -1465,17 +1567,67 @@ app.MapPost("/api/smu/co-per-core/clear", (HardwareDetector detector, string? mo
         if (!platform.IsAmd)
             return Results.Json(new { ok = false, error = "逐核心降压仅在 AMD 锐龙平台可用" });
 
+        var targetMode = mode ?? CurrentMode();
+        var previous = SnapshotPerCoreCO(ProfileLoadOverrides(targetMode).Smu.PerCoreCo);
         var ctrl = _newSmu.Value;
-        var results = ctrl?.ResetPerCoreCO() ?? new List<PerCoreCoResult>();
+        if (ctrl == null)
+        {
+            return Results.Json(new
+            {
+                ok = false,
+                applied = 0,
+                total = PerCoreCoTopology.CcdCount * PerCoreCoTopology.CoresPerCcd,
+                persisted = false,
+                error = "AMD SMU 控制器未初始化；逐核配置保持不变",
+            });
+        }
+
+        var results = ctrl.ResetPerCoreCO();
         int applied = results.Count(r => r.Status == (byte)RyzenSmu.SmuStatus.Ok);
-        SavePerfOverrides(o => o.Smu.PerCoreCo = null, mode ?? CurrentMode());
+        bool allOk = AllPerCoreCOOk(results, PerCoreCoTopology.CcdCount * PerCoreCoTopology.CoresPerCcd);
+        if (!allOk)
+        {
+            Log($"[co-per-core/clear] 复位 {applied}/{results.Count} 核，配置保持不变");
+            return Results.Json(new
+            {
+                ok = false,
+                applied,
+                total = results.Count,
+                persisted = false,
+                error = "逐核写 0 未全部成功；配置保持不变，请重试",
+                results,
+            });
+        }
+
+        bool persisted = SavePerfOverrides(o => o.Smu.PerCoreCo = null, targetMode);
+        if (!persisted)
+        {
+            var rollback = RollbackPerCoreCO(ctrl, previous);
+            Log($"[co-per-core/clear] 配置清除失败; rollback={rollback.Target}/{rollback.Ok}");
+            return Results.Json(new
+            {
+                ok = false,
+                applied,
+                total = results.Count,
+                persisted = false,
+                rollbackAttempted = true,
+                rollbackOk = rollback.Ok,
+                rollbackTarget = rollback.Target,
+                rollbackResults = rollback.Results,
+                error = rollback.Ok
+                    ? "硬件已归零，但配置清除失败；已恢复上一组硬件值"
+                    : "硬件已归零，但配置清除失败；恢复上一组硬件值也未全部成功",
+                results,
+            });
+        }
+
         Log($"[co-per-core/clear] 复位 {applied}/{results.Count} 核");
         return Results.Json(new
         {
-            ok = ctrl != null && applied == results.Count,
+            ok = true,
             applied,
             total = results.Count,
-            error = ctrl == null ? "AMD SMU 控制器未初始化，仅清除了配置" : null,
+            persisted = true,
             results,
         });
     }
@@ -2000,25 +2152,72 @@ app.MapPost("/api/overrides/switch", async (SwitchModeRequest req) =>
 app.MapPost("/api/overrides/sync", (SyncOverridesRequest req, ProfileService profileSvc) =>
 {
     Log($"[overrides/sync] ← mode={req.Mode}, clearing overrides");
-    // 恢复默认会清掉配置，但硬件里残留的逐核 CO 不会自动消失，必须显式写 0
     var existing = profileSvc.GetById(req.Mode);
     bool hadPerCore = existing.HasValue && (existing.Value.Overrides.Smu.PerCoreCo?.Count ?? 0) > 0;
-    try { profileSvc.ResetToDefaults(req.Mode); }
-    catch (Exception ex) { Log($"[overrides/sync] failed: {ex.Message}"); return Results.BadRequest(); }
+    var previous = hadPerCore
+        ? SnapshotPerCoreCO(existing!.Value.Overrides.Smu.PerCoreCo)
+        : new List<PerCoreCoEntry>();
+
+    // 先复位硬件，失败时保留原配置，避免配置与 SMU 状态脱节。
     if (hadPerCore)
     {
+        var amdCtrl = _newSmu.Value;
+        if (amdCtrl == null)
+        {
+            return Results.Json(new
+            {
+                ok = false,
+                error = "AMD SMU 控制器未初始化；恢复默认已取消，逐核配置保持不变",
+            });
+        }
+
         try
         {
-            var amdCtrl = _newSmu.Value;
-            if (amdCtrl != null)
+            var rc = amdCtrl.ResetPerCoreCO();
+            int applied = rc.Count(r => r.Status == (byte)RyzenSmu.SmuStatus.Ok);
+            if (!AllPerCoreCOOk(rc, PerCoreCoTopology.CcdCount * PerCoreCoTopology.CoresPerCcd))
             {
-                var rc = amdCtrl.ResetPerCoreCO();
-                Log($"[overrides/sync] per-core CO 复位 {rc.Count(r => r.Status == (byte)RyzenSmu.SmuStatus.Ok)}/{rc.Count} 核");
+                Log($"[overrides/sync] per-core CO 复位 {applied}/{rc.Count} 核，配置保持不变");
+                return Results.Json(new
+                {
+                    ok = false,
+                    applied,
+                    total = rc.Count,
+                    error = "逐核写 0 未全部成功；恢复默认已取消，配置保持不变",
+                    results = rc,
+                });
             }
         }
-        catch (Exception ex) { Log($"[overrides/sync] per-core CO reset: {ex.Message}"); }
+        catch (Exception ex)
+        {
+            Log($"[overrides/sync] per-core CO reset: {ex.Message}");
+            return Results.Json(new { ok = false, error = $"逐核复位异常：{ex.Message}；恢复默认已取消" });
+        }
     }
-    return Results.Ok();
+
+    try
+    {
+        if (!profileSvc.ResetToDefaults(req.Mode))
+        {
+            if (hadPerCore)
+            {
+                var rollback = RollbackPerCoreCO(_newSmu.Value!, previous);
+                Log($"[overrides/sync] config not found; rollback={rollback.Target}/{rollback.Ok}");
+            }
+            return Results.Json(new { ok = false, error = "配置不存在，恢复默认失败" });
+        }
+    }
+    catch (Exception ex)
+    {
+        Log($"[overrides/sync] reset failed: {ex.Message}");
+        if (hadPerCore)
+        {
+            var rollback = RollbackPerCoreCO(_newSmu.Value!, previous);
+            Log($"[overrides/sync] config reset failed; rollback={rollback.Target}/{rollback.Ok}");
+        }
+        return Results.Json(new { ok = false, error = ex.Message });
+    }
+    return Results.Json(new { ok = true });
 });
 
 app.MapPost("/api/overrides/clear", async (ClearOverridesRequest req, ProfileService profileSvc,
@@ -2031,7 +2230,40 @@ app.MapPost("/api/overrides/clear", async (ClearOverridesRequest req, ProfileSer
         if (fields.Count == 0) return Results.Ok(new { ok = true });
         var mode = string.IsNullOrWhiteSpace(req.Mode) ? CurrentMode() : req.Mode;
 
-        SavePerfOverrides(o =>
+        var previousPerCore = fields.Contains("perCoreCo")
+            ? SnapshotPerCoreCO(ProfileLoadOverrides(mode).Smu.PerCoreCo)
+            : new List<PerCoreCoEntry>();
+        IReadOnlyList<PerCoreCoResult>? perCoreResetResults = null;
+        if (fields.Contains("perCoreCo"))
+        {
+            var amdCtrl = _newSmu.Value;
+            if (amdCtrl == null)
+            {
+                return Results.Json(new
+                {
+                    ok = false,
+                    error = "AMD SMU 控制器未初始化；逐核配置保持不变",
+                });
+            }
+
+            var rc = amdCtrl.ResetPerCoreCO();
+            int applied = rc.Count(r => r.Status == (byte)RyzenSmu.SmuStatus.Ok);
+            if (!AllPerCoreCOOk(rc, PerCoreCoTopology.CcdCount * PerCoreCoTopology.CoresPerCcd))
+            {
+                Log($"[overrides/clear] per-core CO 复位 {applied}/{rc.Count} 核，配置保持不变");
+                return Results.Json(new
+                {
+                    ok = false,
+                    applied,
+                    total = rc.Count,
+                    error = "逐核写 0 未全部成功；逐核配置保持不变，请重试",
+                    perCoreResults = rc,
+                });
+            }
+            perCoreResetResults = rc;
+        }
+
+        bool persisted = SavePerfOverrides(o =>
         {
             if (fields.Contains("cpuFreqLimitMhz")) o.Cpu.FreqLimitMhz = null;
             if (fields.Contains("cpuTurboDisabled")) o.Cpu.TurboEnabled = null;
@@ -2057,6 +2289,25 @@ app.MapPost("/api/overrides/clear", async (ClearOverridesRequest req, ProfileSer
             if (fields.Contains("fanLargeRpmTarget")) o.Fan.LargeRpm = null;
             if (fields.Contains("fanSmallRpmTarget")) o.Fan.SmallRpm = null;
         }, mode);
+        if (!persisted)
+        {
+            if (perCoreResetResults != null)
+            {
+                var rollback = RollbackPerCoreCO(_newSmu.Value!, previousPerCore);
+                Log($"[overrides/clear] config save failed; per-core rollback={rollback.Target}/{rollback.Ok}");
+                return Results.Json(new
+                {
+                    ok = false,
+                    rollbackAttempted = true,
+                    rollbackOk = rollback.Ok,
+                    rollbackTarget = rollback.Target,
+                    error = rollback.Ok
+                        ? "配置清除失败；已恢复上一组逐核硬件值"
+                        : "配置清除失败；恢复上一组逐核硬件值也未全部成功",
+                });
+            }
+            return Results.Json(new { ok = false, error = "配置清除失败" });
+        }
 
         if (fields.Contains("cpuFreqLimitMhz"))
         {
@@ -2089,21 +2340,6 @@ app.MapPost("/api/overrides/clear", async (ClearOverridesRequest req, ProfileSer
         if (fields.Contains("gpuTempLimitC"))
         {
             try { if (nv.IsAvailable) nv.SetThermalLimit(87); } catch (Exception ex) { Log($"[overrides/clear] NVAPI thermal reset: {ex.Message}"); }
-        }
-
-        if (fields.Contains("perCoreCo"))
-        {
-            // 逐核值写在 SMU 里，删配置不够：必须逐核写 0 复位
-            try
-            {
-                var amdCtrl = _newSmu.Value;
-                if (amdCtrl != null)
-                {
-                    var rc = amdCtrl.ResetPerCoreCO();
-                    Log($"[overrides/clear] per-core CO 复位 {rc.Count(r => r.Status == (byte)RyzenSmu.SmuStatus.Ok)}/{rc.Count} 核");
-                }
-            }
-            catch (Exception ex) { Log($"[overrides/clear] per-core CO reset: {ex.Message}"); }
         }
 
         var smuCleared = fields.Overlaps(new[] { "cpuLongPptW", "cpuShortPptW", "cpuTempLimitC", "cpuVoltageOffset", "perCoreCo" });
@@ -2140,7 +2376,12 @@ app.MapPost("/api/overrides/clear", async (ClearOverridesRequest req, ProfileSer
             catch (Exception ex) { Log($"[overrides/clear] fan restore: {ex.Message}"); }
         }
 
-        return Results.Ok(new { ok = true, cleared = req.Fields });
+        return Results.Json(new
+        {
+            ok = true,
+            cleared = req.Fields,
+            perCoreResults = perCoreResetResults,
+        });
     }
     catch (Exception ex)
     {
