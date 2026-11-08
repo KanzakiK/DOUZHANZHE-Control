@@ -983,9 +983,8 @@ html[data-theme="light"] .theme-toggle .moon{display:none}
 .acc-head .chev{margin-left:auto;color:var(--fg-3);transition:transform var(--dur) var(--ease)}
 .acc-head .chev svg{width:18px;height:18px}
 .acc-item.open .acc-head .chev{transform:rotate(180deg)}
-.acc-body{display:grid;grid-template-rows:0fr;overflow:hidden;transition:grid-template-rows .34s var(--ease)}
-.acc-body>.acc-inner{min-height:0;overflow:hidden}
-.acc-item.open .acc-body{grid-template-rows:1fr}
+.acc-body{max-height:0;overflow:hidden;transition:max-height .34s var(--ease)}
+.acc-item.open .acc-body{max-height:3000px}
 .acc-inner{padding:14px 20px 20px}
 .acc-inner > .switch-row:first-child{padding-top:0}
 .acc-inner > .slider-group:first-child .slider-label{padding-top:2px}
