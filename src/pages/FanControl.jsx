@@ -31,7 +31,7 @@ export default function FanControl() {
       setFan2TargetRpm(ov.fanSmallRpmTarget ?? def.fanSmallRpmTarget);
     }, 0);
     return () => clearTimeout(timer);
-  }, [perfMode]);
+  }, [perfMode, overrides]);
 
   // overrides 晚于挂载到达（应用启动拉取/切配置响应）时同步滑块。
   // 拖动后 2s 内跳过：POST 保存与 overrides 轮询存在竞态，避免拖动中滑块被旧值拉回。
@@ -41,7 +41,7 @@ export default function FanControl() {
     if (Date.now() - lastDragRef.current < 2000) return;
     if (overrides.fanLargeRpmTarget != null) setFan1TargetRpm(overrides.fanLargeRpmTarget);
     if (overrides.fanSmallRpmTarget != null) setFan2TargetRpm(overrides.fanSmallRpmTarget);
-  }, [overrides?.fanLargeRpmTarget, overrides?.fanSmallRpmTarget]);
+  }, [overrides]);
 
   useEffect(() => {
     let disposed = false;
