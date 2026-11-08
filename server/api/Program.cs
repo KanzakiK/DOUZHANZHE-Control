@@ -1384,6 +1384,10 @@ app.MapPost("/api/smu/set", (SmuSetRequest req, HardwareDetector detector, strin
         if (rc == -2)
             return Results.Json(new { ok = false, error = "unknown parameter: " + req.Parameter });
 
+        // 硬件写入失败时不落盘，避免把没生效的值当成后续恢复来源
+        if (rc != 0)
+            return Results.Json(new { ok = rc == 0, rc });
+
         // 持久化
         var modeVal = req.ValueM;
         switch (req.Parameter)
@@ -2033,7 +2037,8 @@ app.MapPost("/api/nvapi/overclock", (NvapiGpuController nv, NvapiOverclockReques
     Log($"[nvapi/overclock] ← core={req.CoreOffsetMhz}, mem={req.MemOffsetMhz}");
     if (!nv.IsAvailable) return Results.Json(new { ok = false, error = "NVAPI not available" });
     var rc = nv.SetP0Offset(req.CoreOffsetMhz, req.MemOffsetMhz);
-    SavePerfOverrides(o => { o.Nvapi.OcCoreOffsetMhz = req.CoreOffsetMhz; o.Nvapi.OcMemOffsetMhz = req.MemOffsetMhz; }, mode);
+    if (rc == 0)
+        SavePerfOverrides(o => { o.Nvapi.OcCoreOffsetMhz = req.CoreOffsetMhz; o.Nvapi.OcMemOffsetMhz = req.MemOffsetMhz; }, mode);
     return Results.Json(new { ok = rc == 0, rc });
 });
 
@@ -2041,7 +2046,8 @@ app.MapPost("/api/nvapi/power-limit", (NvapiGpuController nv, NvapiPowerLimitReq
 {
     if (!nv.IsAvailable) return Results.Json(new { ok = false, error = "NVAPI not available" });
     var rc = nv.SetPowerLimit((uint)(req.PowerW * 1000)); // W → mW
-    SavePerfOverrides(o => o.Nvapi.PowerLimitW = req.PowerW, mode);
+    if (rc == 0)
+        SavePerfOverrides(o => o.Nvapi.PowerLimitW = req.PowerW, mode);
     return Results.Json(new { ok = rc == 0, rc });
 });
 
@@ -2050,7 +2056,8 @@ app.MapPost("/api/nvapi/thermal-limit", (NvapiGpuController nv, NvapiThermalLimi
     Log($"[nvapi/thermal-limit] ← temp={req.TempC}°C");
     if (!nv.IsAvailable) return Results.Json(new { ok = false, error = "NVAPI not available" });
     var rc = nv.SetThermalLimit(req.TempC);
-    SavePerfOverrides(o => o.Nvapi.ThermalLimitC = req.TempC, mode);
+    if (rc == 0)
+        SavePerfOverrides(o => o.Nvapi.ThermalLimitC = req.TempC, mode);
     return Results.Json(new { ok = rc == 0, rc });
 });
 
