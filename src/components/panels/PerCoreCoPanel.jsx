@@ -30,6 +30,7 @@ export default function PerCoreCoPanel({ settings, overrides, saveOverride, clea
   const [limits, setLimits] = useState(FALLBACK_LIMITS);
   const [draft, setDraft] = useState(() => buildDraft(FALLBACK_TOPOLOGY, []));
   const [supported, setSupported] = useState(true);
+  const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [batch, setBatch] = useState(-10);
   const [status, setStatus] = useState(null);
@@ -37,7 +38,15 @@ export default function PerCoreCoPanel({ settings, overrides, saveOverride, clea
 
   const perCoreActive = Array.isArray(overrides?.perCoreCo) && overrides.perCoreCo.length > 0;
   const coAllActive = Object.prototype.hasOwnProperty.call(overrides || {}, "cpuVoltageOffset");
-  const disabled = !!switching || busy || !supported;
+  const disabled = !!switching || busy || !supported || !editing;
+  const switchDisabled = !!switching || busy || !supported || coAllActive;
+  const wasActiveRef = useRef(perCoreActive);
+
+  useEffect(() => {
+    if (perCoreActive) setEditing(true);
+    else if (wasActiveRef.current) setEditing(false);
+    wasActiveRef.current = perCoreActive;
+  }, [perCoreActive]);
 
   // 只在「逐核配置签名」变化时重拉，而不是跟随整个 overrides 对象：
   // 其它面板每拖一次滑块都会产生新的 overrides 引用，那会把本面板未应用的草稿冲掉。
@@ -60,7 +69,11 @@ export default function PerCoreCoPanel({ settings, overrides, saveOverride, clea
         setSupported(info.supported !== false);
         setDraft(buildDraft(topo, info.perCoreCo));
         // 只在新模式时清空提示；应用后因签名变化触发的重拉要保留成功回执
-        if (modeChanged) { setStatus(null); setLastResults(null); }
+        if (modeChanged) {
+          setEditing(Array.isArray(info.perCoreCo) && info.perCoreCo.length > 0);
+          setStatus(null);
+          setLastResults(null);
+        }
       } catch (e) {
         if (!cancelled) setStatus({ tone: "warn", text: "读取逐核配置失败：" + e.message });
       }
@@ -101,6 +114,12 @@ export default function PerCoreCoPanel({ settings, overrides, saveOverride, clea
   }
 
   async function handleClear() {
+    if (!perCoreActive) {
+      setDraft(buildDraft(topology, []));
+      setLastResults(null);
+      setStatus({ tone: "warn", text: "已清除未应用的逐核草稿" });
+      return;
+    }
     setBusy(true);
     setStatus(null);
     try {
@@ -108,6 +127,7 @@ export default function PerCoreCoPanel({ settings, overrides, saveOverride, clea
       await clearOverride?.(mode, ["perCoreCo"]);
       setDraft(buildDraft(topology, []));
       setLastResults(null);
+      setEditing(false);
       setStatus({ tone: "ok", text: "已逐核写 0 复位并清除当前模式的逐核配置" });
     } catch (e) {
       setStatus({ tone: "error", text: "复位失败：" + e.message });
@@ -131,14 +151,42 @@ export default function PerCoreCoPanel({ settings, overrides, saveOverride, clea
     }
   }
 
+  async function handleToggle() {
+    if (switchDisabled) return;
+    if (editing || perCoreActive) {
+      if (perCoreActive) {
+        await handleClear();
+      } else {
+        setEditing(false);
+        setDraft(buildDraft(topology, []));
+        setLastResults(null);
+        setStatus(null);
+      }
+      return;
+    }
+    setEditing(true);
+    setStatus({ tone: "warn", text: "逐核降压编辑已打开；设置完成后点「应用逐核设置」才会写入硬件。" });
+  }
+
   const failed = (lastResults || []).filter(r => r.status !== 1);
+  const stateLabel = perCoreActive ? "已启用" : editing ? "待应用" : "未启用";
+  const stateColor = perCoreActive ? "var(--primary)" : editing ? "var(--warn, var(--fg-3))" : "var(--fg-3)";
 
   return (
     <div className="override-slider" style={{ marginTop: 18 }}>
       <div className="switch-row" style={{ borderTop: "1px solid var(--stroke)", paddingTop: 14 }}>
         <span className="k">逐核心降压 · Curve Optimizer</span>
-        <span style={{ fontSize: 12, color: perCoreActive ? "var(--primary)" : "var(--fg-3)" }}>
-          {perCoreActive ? "已启用" : "未启用"}
+        <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: 12, color: stateColor }}>{stateLabel}</span>
+          <button
+            className={"switch-track" + (editing || perCoreActive ? " on" : " off")}
+            type="button"
+            disabled={switchDisabled}
+            onClick={handleToggle}
+            aria-label={(editing || perCoreActive ? "关闭" : "打开") + "逐核心降压"}
+          >
+            <span className="thumb"></span>
+          </button>
         </span>
       </div>
 
@@ -160,51 +208,55 @@ export default function PerCoreCoPanel({ settings, overrides, saveOverride, clea
         </p>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: `repeat(${topology.ccdCount}, minmax(0, 1fr))`, gap: 14 }}>
-        {Array.from({ length: topology.ccdCount }, (_, ccd) => (
-          <div key={ccd}>
-            <div style={{ fontSize: 12, color: "var(--fg-2)", marginBottom: 8 }}>CCD {ccd}</div>
-            {draft.filter(e => e.ccd === ccd).map(e => (
-              <div className="slider-group" key={e.core} style={{ marginBottom: 9 }}>
-                <div className="slider-label">
-                  <span className="k">核心 {e.core}</span>
-                  <span className="v">{e.mv}<span className="u">mV</span></span>
-                </div>
-                <input
-                  type="range" className="slider-track"
-                  min={limits.minMv} max={limits.maxMv} step={1}
-                  value={e.mv} disabled={disabled}
-                  onChange={ev => setCore(e.ccd, e.core, Number(ev.target.value))}
-                />
+      {editing && (
+        <div>
+          <div style={{ display: "grid", gridTemplateColumns: `repeat(${topology.ccdCount}, minmax(0, 1fr))`, gap: 14 }}>
+            {Array.from({ length: topology.ccdCount }, (_, ccd) => (
+              <div key={ccd}>
+                <div style={{ fontSize: 12, color: "var(--fg-2)", marginBottom: 8 }}>CCD {ccd}</div>
+                {draft.filter(e => e.ccd === ccd).map(e => (
+                  <div className="slider-group" key={e.core} style={{ marginBottom: 9 }}>
+                    <div className="slider-label">
+                      <span className="k">核心 {e.core}</span>
+                      <span className="v">{e.mv}<span className="u">mV</span></span>
+                    </div>
+                    <input
+                      type="range" className="slider-track"
+                      min={limits.minMv} max={limits.maxMv} step={1}
+                      value={e.mv} disabled={disabled}
+                      onChange={ev => setCore(e.ccd, e.core, Number(ev.target.value))}
+                    />
+                  </div>
+                ))}
               </div>
             ))}
           </div>
-        ))}
-      </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
-        <span style={{ fontSize: 12, color: "var(--fg-3)", flexShrink: 0 }}>批量填入</span>
-        <input
-          type="range" className="slider-track" style={{ flex: 1 }}
-          min={limits.minMv} max={limits.maxMv} step={1}
-          value={batch} disabled={disabled}
-          onChange={ev => setBatch(Number(ev.target.value))}
-        />
-        <span className="v" style={{ minWidth: 46, textAlign: "right" }}>{batch}<span className="u">mV</span></span>
-        <button
-          type="button" className="btn" disabled={disabled}
-          onClick={() => setDraft(prev => prev.map(e => ({ ...e, mv: batch })))}
-          style={{ padding: "5px 10px", fontSize: 12 }}
-        >填入全部</button>
-      </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
+            <span style={{ fontSize: 12, color: "var(--fg-3)", flexShrink: 0 }}>批量填入</span>
+            <input
+              type="range" className="slider-track" style={{ flex: 1 }}
+              min={limits.minMv} max={limits.maxMv} step={1}
+              value={batch} disabled={disabled}
+              onChange={ev => setBatch(Number(ev.target.value))}
+            />
+            <span className="v" style={{ minWidth: 46, textAlign: "right" }}>{batch}<span className="u">mV</span></span>
+            <button
+              type="button" className="btn" disabled={disabled}
+              onClick={() => setDraft(prev => prev.map(e => ({ ...e, mv: batch })))}
+              style={{ padding: "5px 10px", fontSize: 12 }}
+            >填入全部</button>
+          </div>
 
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
-        <button type="button" className="btn primary" disabled={disabled || coAllActive} onClick={handleApply} style={{ padding: "7px 12px", fontSize: 12 }}>
-          {busy ? "处理中…" : "应用逐核设置"}
-        </button>
-        <button type="button" className="btn" disabled={disabled} onClick={handleClear} style={{ padding: "7px 12px", fontSize: 12 }}>全部归零</button>
-        <button type="button" className="btn ghost" disabled={disabled} onClick={handleProbe} style={{ padding: "7px 12px", fontSize: 12 }}>只读探测</button>
-      </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+            <button type="button" className="btn primary" disabled={disabled || coAllActive} onClick={handleApply} style={{ padding: "7px 12px", fontSize: 12 }}>
+              {busy ? "处理中…" : "应用逐核设置"}
+            </button>
+            <button type="button" className="btn" disabled={disabled} onClick={handleClear} style={{ padding: "7px 12px", fontSize: 12 }}>全部归零</button>
+            <button type="button" className="btn ghost" disabled={disabled} onClick={handleProbe} style={{ padding: "7px 12px", fontSize: 12 }}>只读探测</button>
+          </div>
+        </div>
+      )}
 
       {status && (
         <p style={{ fontSize: 12, color: TONES[status.tone] || "var(--fg-3)", marginTop: 10, lineHeight: 1.5 }}>{status.text}</p>
