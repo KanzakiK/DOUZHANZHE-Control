@@ -5,9 +5,9 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本语义遵循 [Semantic Versioning](https://semver.org/spec/v2.0.0.html)。
 
-## [2.0.6-pre.4] — 2026-11-08
+## [2.0.6] — 2026-11-08
 
-AMD 逐核心 Curve Optimizer 测试版。
+AMD Ryzen 9 8940HX 逐核心 Curve Optimizer 正式支持。
 
 ### ✨ 新增
 
