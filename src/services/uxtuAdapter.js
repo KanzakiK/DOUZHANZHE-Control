@@ -861,7 +861,14 @@ export async function refreshWallpaperOnRotate(rotatedStamp) {
 export async function fetchProfiles() {
   const res = await fetch("/api/profiles");
   if (!res.ok) throw new Error("profiles fetch failed");
-  return res.json();
+  const data = await res.json();
+  const list = Array.isArray(data?.profiles) ? data.profiles : [];
+  // 旧版索引可能同时保留裸名和 cfg- 两组内置配置；只让规范 cfg-* 配置进入 UI，
+  // 避免首页/下拉框重复显示。对应的旧文件仍保留，不做破坏性删除。
+  return {
+    ...data,
+    profiles: list.filter(p => !p.builtIn || BUILTIN_MODE_ORDER.includes(p.id)),
+  };
 }
 
 export async function fetchProfile(id) {

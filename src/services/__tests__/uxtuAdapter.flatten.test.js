@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   flattenBackendOverrides, powerPlanHALMap, BUILTIN_MODE_ORDER, resolvePerfMode, sortBuiltinProfiles,
   fetchPerCoreCo, applyPerCoreCo, clearPerCoreCo, probePerCoreCo, reapplyOverrides,
-  clearOverrides, syncOverrides,
+  clearOverrides, syncOverrides, fetchProfiles,
 } from '../uxtuAdapter'
 
 // ── flattenBackendOverrides: powerPlan 整数 → 字符串 id 归一化 ──
@@ -150,5 +150,27 @@ describe('cfg- 配置 id 解包与排序', () => {
 
   it('BUILTIN_MODE_ORDER 是 cfg- 前缀配置 id', () => {
     expect(BUILTIN_MODE_ORDER).toEqual(['cfg-silent', 'cfg-office', 'cfg-beast', 'cfg-gaming'])
+  })
+})
+
+describe('fetchProfiles 内置配置去重', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('过滤旧版裸名内置配置，只保留 cfg-* 规范项和用户配置', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        profiles: [
+          { id: 'cfg-silent', name: '安静', builtIn: true },
+          { id: 'cfg-office', name: '均衡', builtIn: true },
+          { id: 'silent', name: '安静', builtIn: true },
+          { id: 'office', name: '均衡', builtIn: true },
+          { id: 'cfg-custom', name: '自定义', builtIn: false },
+        ],
+      }),
+    })))
+
+    const data = await fetchProfiles()
+    expect(data.profiles.map(p => p.id)).toEqual(['cfg-silent', 'cfg-office', 'cfg-custom'])
   })
 })
