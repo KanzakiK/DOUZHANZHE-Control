@@ -22,6 +22,12 @@ Resolved in this pass:
   Impact: duplicated modes made the current configuration look inconsistent and could route legacy IDs through the wrong UI state.
   Fix: filtered legacy bare built-in records at profile loading while preserving their files for compatibility.
 
+- [P2] Per-core heading copy was too technical and visually heavy
+  Location: Per-core CO header and description.
+  Evidence: the earlier implementation used “逐核心降压 · Curve Optimizer” plus two long paragraphs. The final implementation uses the Chinese title “逐核心降压” and one short line, “逐核调节负偏移，与全核降压互斥”.
+  Impact: the panel broke the otherwise compact title-plus-description rhythm used by neighboring controls.
+  Fix: removed the English suffix and long historical explanation; retained the core numbering note only while the editor is open.
+
 **Visual Evidence**
 
 - Source visual truth: `C:\Users\liufe\AppData\Local\Temp\codex-clipboard-75fea376-1f5e-4ed3-90a4-372d419c093b.png`
@@ -30,6 +36,8 @@ Resolved in this pass:
 - Implementation screenshots:
   - `D:\DOUZHANZHE-Control\output\design-qa\dashboard-final-wide.png` (`1440 x 1000`)
   - `D:\DOUZHANZHE-Control\output\design-qa\percore-panel-final-wide.png` (`1440 x 1000`)
+  - `D:\DOUZHANZHE-Control\output\design-qa\percore-short-copy.png` (`1440 x 1000`)
+  - `D:\DOUZHANZHE-Control\output\design-qa\installed-pre4-configs.png` (`1440 x 1000`, installed package verification)
   - `D:\DOUZHANZHE-Control\output\design-qa\percore-panel-1024.png` (`1024 x 900` narrow check)
 - Normalized comparison input:
   - `D:\DOUZHANZHE-Control\output\design-qa\comparison-final.png`
@@ -59,12 +67,14 @@ Focused comparison covered the header state, CCD 0/1 core rows 6-7, batch row, a
 - On state exposes 16 core sliders, 1 batch slider, and apply/clear/probe actions.
 - Dashboard built-in profile count is exactly 4 after reload.
 - Browser console errors/warnings: none.
+- Installed `2.0.6-pre.4` profile menu: 安静, 均衡, 野兽, 斗战, 安静性能.
 - Automated checks: `31/31` tests passed; lint had only the pre-existing FanControl warning; production build passed.
 
 **Comparison History**
 
 - Pass 1: found clipped core rows, missing master switch, and duplicated dashboard profiles. Fixed all three.
 - Pass 2: reloaded the new bundle, verified four dashboard profiles, switch off/on behavior, all 16 core sliders, action-row reachability, narrow viewport bounds, and zero console errors.
+- Pass 3: shortened the heading to pure Chinese and verified the installed package shows recovered profile names without question marks.
 
 **Implementation Checklist**
 
